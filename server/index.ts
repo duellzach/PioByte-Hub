@@ -1,19 +1,10 @@
 import express from "express";
 import cors from "cors";
 import { storage } from "./storage";
-import { GoogleGenAI, Type } from "@google/genai";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
 
 app.get("/api/users", async (req, res) => {
   try {
@@ -252,48 +243,6 @@ app.post("/api/seed", async (req, res) => {
   } catch (error) {
     console.error("Error seeding database:", error);
     res.status(500).json({ error: "Failed to seed database" });
-  }
-});
-
-app.post("/api/ai/suggest-criteria", async (req, res) => {
-  try {
-    const { taskTitle, department } = req.body;
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `You are an FRC (FIRST Robotics Competition) mentor. For the following task in the ${department} department, suggest 3-5 clearly defined success criteria.
-      Task: ${taskTitle}`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-        },
-      },
-    });
-    
-    const text = response.text;
-    if (!text) return res.json([]);
-    res.json(JSON.parse(text.trim()));
-  } catch (error) {
-    console.error("Gemini failed to suggest criteria:", error);
-    res.json([]);
-  }
-});
-
-app.post("/api/ai/summarize-progress", async (req, res) => {
-  try {
-    const { tasks: projectTasks } = req.body;
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Provide a high-level executive summary of this FRC project's current status based on these tasks: ${JSON.stringify(projectTasks.map((t: any) => ({title: t.title, status: t.status, department: t.departments})))}`,
-      config: {
-        systemInstruction: "You are a lead FRC Team Captain summarizing progress for the team.",
-      }
-    });
-    res.json({ summary: response.text || "Unable to generate summary at this time." });
-  } catch (error) {
-    console.error("Gemini failed to summarize progress:", error);
-    res.json({ summary: "Unable to generate summary at this time." });
   }
 });
 

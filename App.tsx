@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppState, User, Project, Task, Role, Department, TaskStatus, Priority, Notification, Announcement } from './types';
 import Layout from './components/Layout';
@@ -8,7 +7,7 @@ import Dashboard from './components/Dashboard';
 import KanbanBoard from './components/KanbanBoard';
 import TeamManagement from './components/TeamManagement';
 import TaskModal from './components/TaskModal';
-import { saveDoc, removeDoc, syncCollection, tasksCol, usersCol, projectsCol, notificationsCol, announcementsCol } from './services/firebase';
+import { api } from './services/api';
 import { Database, Zap } from 'lucide-react';
 
 const TeamLogo = ({ className }: { className?: string }) => (
@@ -26,12 +25,6 @@ const TeamLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const DEFAULT_USERS: User[] = [
-  { id: '1', username: 'captain', password: 'password', name: 'John Doe', roles: [Role.TeamCaptain, Role.ScrumMaster], departments: [Department.Software, Department.Modeling] },
-  { id: '2', username: 'coach', password: 'password', name: 'Mentor Mike', roles: [Role.Coach], departments: [Department.Logistics, Department.Business] },
-  { id: '3', username: 'mech_lead', password: 'password', name: 'Jane Smith', roles: [Role.DepartmentHead], departments: [Department.Mechanical] },
-];
-
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
     users: [],
@@ -46,28 +39,56 @@ const App: React.FC = () => {
   const [activeTaskModal, setActiveTaskModal] = useState<Task | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // Synchronize with Firebase Real-time
-  useEffect(() => {
-    const unsubTasks = syncCollection(tasksCol, (data) => setState(p => ({ ...p, tasks: data as Task[] })));
-    const unsubUsers = syncCollection(usersCol, (data) => setState(p => ({ ...p, users: data as User[] })));
-    const unsubProjs = syncCollection(projectsCol, (data) => setState(p => ({ ...p, projects: data as Project[] })));
-    const unsubNotifs = syncCollection(notificationsCol, (data) => setState(p => ({ ...p, notifications: data as Notification[] })));
-    const unsubAnns = syncCollection(announcementsCol, (data) => setState(p => ({ ...p, announcements: data as Announcement[] })), 'timestamp');
-
-    // Basic heuristic for sync status
-    const timer = setTimeout(() => setIsCloudSynced(true), 1000);
-
-    return () => {
-      unsubTasks();
-      unsubUsers();
-      unsubProjs();
-      unsubNotifs();
-      unsubAnns();
-      clearTimeout(timer);
-    };
+  const fetchData = useCallback(async () => {
+    try {
+      const [users, projects, tasks, notifications, announcements] = await Promise.all([
+        api.users.getAll(),
+        api.projects.getAll(),
+        api.tasks.getAll(),
+        api.notifications.getAll(),
+        api.announcements.getAll(),
+      ]);
+      setState(prev => ({
+        ...prev,
+        users: users.map((u: any) => ({ ...u, id: String(u.id) })),
+        projects: projects.map((p: any) => ({ ...p, id: String(p.id), createdAt: new Date(p.createdAt).getTime() })),
+        tasks: tasks.map((t: any) => ({ 
+          ...t, 
+          id: String(t.id), 
+          projectId: String(t.projectId),
+          assignees: (t.assignees || []).map(String),
+          dependencies: (t.dependencies || []).map(String),
+          createdAt: new Date(t.createdAt).getTime(),
+          completedAt: t.completedAt ? new Date(t.completedAt).getTime() : undefined
+        })),
+        notifications: notifications.map((n: any) => ({ 
+          ...n, 
+          id: String(n.id), 
+          toUserId: String(n.toUserId), 
+          fromUserId: String(n.fromUserId),
+          taskId: n.taskId ? String(n.taskId) : undefined,
+          timestamp: new Date(n.timestamp).getTime() 
+        })),
+        announcements: announcements.map((a: any) => ({ 
+          ...a, 
+          id: String(a.id), 
+          authorId: String(a.authorId),
+          timestamp: new Date(a.timestamp).getTime() 
+        })),
+      }));
+      setIsCloudSynced(true);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      setIsCloudSynced(true);
+    }
   }, []);
 
-  // Handle Session persistence
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
   useEffect(() => {
     const savedUserId = localStorage.getItem('frc_hub_active_user');
     if (savedUserId && state.users.length > 0 && !state.currentUser) {
@@ -81,72 +102,76 @@ const App: React.FC = () => {
 
   const handleSeedDatabase = async () => {
     try {
-        for (const user of DEFAULT_USERS) {
-            await saveDoc("users", user);
-        }
-        await saveDoc("projects", {
-            id: 'proj-1',
-            name: '2025 Competition Robot',
-            description: 'Initial season build',
-            createdAt: Date.now(),
-            archived: false
-        });
-        alert("Database seeded successfully! You can now log in as 'captain' with password 'password'.");
+      await api.seed();
+      await fetchData();
+      alert("Database seeded successfully! You can now log in as 'captain' with password 'password'.");
     } catch (e) {
-        console.error("Seeding failed", e);
-        alert("Seeding failed. Check your Firebase config and Firestore rules.");
+      console.error("Seeding failed", e);
+      alert("Seeding failed. Please try again.");
     }
   };
 
   const handleUpdateTask = async (updatedTask: Task) => {
-    const taskData = { ...updatedTask };
+    const taskData: any = { ...updatedTask };
     if (taskData.status === TaskStatus.Complete && !taskData.completedAt) {
-      taskData.completedAt = Date.now();
+      taskData.completedAt = new Date().toISOString();
     } else if (taskData.status !== TaskStatus.Complete) {
-      taskData.completedAt = undefined;
+      taskData.completedAt = null;
     }
-    await saveDoc("tasks", taskData);
+    taskData.projectId = parseInt(taskData.projectId);
+    taskData.assignees = taskData.assignees.map(Number);
+    taskData.dependencies = taskData.dependencies.map(Number);
+    await api.tasks.update(parseInt(updatedTask.id), taskData);
+    await fetchData();
   };
 
   const handleUpdateAnnouncement = async (updatedAnn: Announcement) => {
-    await saveDoc("announcements", updatedAnn);
+    const data: any = { ...updatedAnn };
+    data.authorId = parseInt(data.authorId);
+    await api.announcements.update(parseInt(updatedAnn.id), data);
+    await fetchData();
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    await removeDoc("tasks", taskId);
+    await api.tasks.delete(parseInt(taskId));
+    await fetchData();
   };
 
   const handleNotify = async (taskId: string, toUserId: string, message: string) => {
-    const newNotification: Notification = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      toUserId,
-      fromUserId: state.currentUser?.id || 'unknown',
-      taskId,
+    await api.notifications.create({
+      toUserId: parseInt(toUserId),
+      fromUserId: parseInt(state.currentUser?.id || '0'),
+      taskId: parseInt(taskId),
       message,
-      timestamp: Date.now(),
       read: false
-    };
-    await saveDoc("notifications", newNotification);
+    });
+    await fetchData();
   };
 
   const handleClearNotification = async (id: string) => {
     const notification = state.notifications.find(n => n.id === id);
     if (notification) {
-      await saveDoc("notifications", { ...notification, read: true });
+      await api.notifications.update(parseInt(id), { read: true });
+      await fetchData();
     }
   };
 
   const handleAddAnnouncement = async (ann: Announcement) => {
-    await saveDoc("announcements", ann);
+    const data: any = { ...ann };
+    data.authorId = parseInt(data.authorId);
+    delete data.id;
+    await api.announcements.create(data);
+    await fetchData();
   };
 
-  const handleLogin = (username: string, password?: string) => {
-    const user = state.users.find(u => u.username === username.toLowerCase());
-    if (user && user.password === password) {
-      setState(prev => ({ ...prev, currentUser: user }));
+  const handleLogin = async (username: string, password?: string) => {
+    try {
+      const user = await api.auth.login(username, password || '');
+      const mappedUser = { ...user, id: String(user.id) };
+      setState(prev => ({ ...prev, currentUser: mappedUser }));
       setIsLoggedIn(true);
-      localStorage.setItem('frc_hub_active_user', user.id);
-    } else {
+      localStorage.setItem('frc_hub_active_user', mappedUser.id);
+    } catch (error) {
       alert('Invalid credentials. (Default password is "password")');
     }
   };
@@ -245,26 +270,47 @@ const App: React.FC = () => {
             <KanbanBoard 
               state={state} 
               onAddTask={async (t) => {
-                  if (t.status === TaskStatus.Complete) t.completedAt = Date.now();
-                  t.createdAt = Date.now();
-                  await saveDoc("tasks", t);
+                  const taskData: any = { ...t };
+                  if (taskData.status === TaskStatus.Complete) taskData.completedAt = new Date().toISOString();
+                  taskData.projectId = parseInt(taskData.projectId);
+                  taskData.assignees = taskData.assignees.map(Number);
+                  taskData.dependencies = taskData.dependencies.map(Number);
+                  delete taskData.id;
+                  await api.tasks.create(taskData);
+                  await fetchData();
               }}
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
               onNotify={handleNotify}
-              onAddProject={async (proj) => await saveDoc("projects", proj)}
+              onAddProject={async (proj) => {
+                const data: any = { ...proj };
+                delete data.id;
+                await api.projects.create(data);
+                await fetchData();
+              }}
               onArchiveProject={async (id) => {
-                const proj = state.projects.find(p => p.id === id);
-                if (proj) await saveDoc("projects", { ...proj, archived: true });
+                await api.projects.update(parseInt(id), { archived: true });
+                await fetchData();
               }}
             />
           } />
           <Route path="/team" element={
             <TeamManagement 
               state={state}
-              onAddUser={async (u) => await saveDoc("users", u)}
-              onUpdateUser={async (u) => await saveDoc("users", u)}
-              onDeleteUser={async (id) => await removeDoc("users", id)}
+              onAddUser={async (u) => {
+                const data: any = { ...u };
+                delete data.id;
+                await api.users.create(data);
+                await fetchData();
+              }}
+              onUpdateUser={async (u) => {
+                await api.users.update(parseInt(u.id), u);
+                await fetchData();
+              }}
+              onDeleteUser={async (id) => {
+                await api.users.delete(parseInt(id));
+                await fetchData();
+              }}
             />
           } />
           <Route path="*" element={<Navigate to="/" />} />

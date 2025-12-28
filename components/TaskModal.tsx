@@ -1,9 +1,8 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Zap, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, User as UserIcon, Clock } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock } from 'lucide-react';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment } from '../types';
-import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, DEPARTMENT_COLORS, EFFORT_POINTS } from '../constants';
-import { suggestSuccessCriteria } from '../services/geminiService';
+import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 
 interface TaskModalProps {
   task: Task | null;
@@ -40,22 +39,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   });
 
   const [newComment, setNewComment] = useState('');
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [mentionFilter, setMentionFilter] = useState<string | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
-
-  const handleSuggestCriteria = async () => {
-    if (!editedTask.title) return;
-    setIsSuggesting(true);
-    const suggestions = await suggestSuccessCriteria(editedTask.title, editedTask.departments[0] || 'General');
-    if (suggestions.length > 0) {
-      setEditedTask(prev => ({
-        ...prev,
-        successCriteria: [...new Set([...prev.successCriteria, ...suggestions])]
-      }));
-    }
-    setIsSuggesting(false);
-  };
 
   const logActivity = (action: string) => {
     const newActivity: Activity = {
@@ -228,14 +213,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             <section>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Success Criteria</h3>
-                <button 
-                  onClick={handleSuggestCriteria}
-                  disabled={isSuggesting}
-                  className="flex items-center gap-2 text-[10px] font-black text-red-600 hover:text-red-700 disabled:opacity-50 uppercase bg-red-50 px-4 py-2 rounded-xl transition-all"
-                >
-                  <Zap size={14} fill="currentColor" />
-                  {isSuggesting ? 'Thinking...' : 'AI Suggest'}
-                </button>
               </div>
               <ul className="space-y-3">
                 {editedTask.successCriteria.map((criterion, idx) => (
