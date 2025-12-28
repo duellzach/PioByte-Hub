@@ -36,6 +36,13 @@ function sanitizeAnnouncement(announcement: any): any {
   return sanitized;
 }
 
+function sanitizeUser(user: any): any {
+  const sanitized: any = { ...user };
+  delete sanitized.id;
+  delete sanitized.createdAt;
+  return sanitized;
+}
+
 export interface IStorage {
   getUsers(): Promise<User[]>;
   getUser(id: number): Promise<User | undefined>;
@@ -92,9 +99,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
-    const cleanUser = { ...user };
-    delete (cleanUser as any).id;
-    const [updated] = await db.update(users).set(cleanUser).where(eq(users.id, id)).returning();
+    const sanitized = sanitizeUser(user);
+    const [updated] = await db.update(users).set(sanitized).where(eq(users.id, id)).returning();
     return updated;
   }
 
