@@ -557,7 +557,7 @@ app.post("/api/seed", async (req, res) => {
 });
 
 if (isProduction) {
-  app.get("*", (req, res) => {
+  app.get("/{*splat}", (req, res) => {
     res.sendFile(path.join(__dirname, "../dist/index.html"));
   });
 }
