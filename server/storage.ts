@@ -3,6 +3,39 @@ import { users, projects, tasks, notifications, announcements } from "../shared/
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement } from "../shared/schema";
 import { eq, desc } from "drizzle-orm";
 
+function toDate(value: any): Date | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (value instanceof Date) return value;
+  if (typeof value === 'number') return new Date(value);
+  if (typeof value === 'string') return new Date(value);
+  return undefined;
+}
+
+function sanitizeTask(task: any): any {
+  const sanitized: any = { ...task };
+  if ('createdAt' in sanitized) sanitized.createdAt = toDate(sanitized.createdAt);
+  if ('completedAt' in sanitized) sanitized.completedAt = toDate(sanitized.completedAt);
+  return sanitized;
+}
+
+function sanitizeProject(project: any): any {
+  const sanitized: any = { ...project };
+  if ('createdAt' in sanitized) sanitized.createdAt = toDate(sanitized.createdAt);
+  return sanitized;
+}
+
+function sanitizeNotification(notification: any): any {
+  const sanitized: any = { ...notification };
+  if ('timestamp' in sanitized) sanitized.timestamp = toDate(sanitized.timestamp);
+  return sanitized;
+}
+
+function sanitizeAnnouncement(announcement: any): any {
+  const sanitized: any = { ...announcement };
+  if ('timestamp' in sanitized) sanitized.timestamp = toDate(sanitized.timestamp);
+  return sanitized;
+}
+
 export interface IStorage {
   getUsers(): Promise<User[]>;
   getUser(id: number): Promise<User | undefined>;
@@ -59,7 +92,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
-    const [updated] = await db.update(users).set(user).where(eq(users.id, id)).returning();
+    const cleanUser = { ...user };
+    delete (cleanUser as any).id;
+    const [updated] = await db.update(users).set(cleanUser).where(eq(users.id, id)).returning();
     return updated;
   }
 
@@ -77,12 +112,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProject(project: InsertProject): Promise<Project> {
-    const [newProject] = await db.insert(projects).values(project).returning();
+    const sanitized = sanitizeProject(project);
+    const [newProject] = await db.insert(projects).values(sanitized).returning();
     return newProject;
   }
 
   async updateProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined> {
-    const [updated] = await db.update(projects).set(project).where(eq(projects.id, id)).returning();
+    const sanitized = sanitizeProject(project);
+    delete sanitized.id;
+    const [updated] = await db.update(projects).set(sanitized).where(eq(projects.id, id)).returning();
     return updated;
   }
 
@@ -104,12 +142,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTask(task: InsertTask): Promise<Task> {
-    const [newTask] = await db.insert(tasks).values(task).returning();
+    const sanitized = sanitizeTask(task);
+    const [newTask] = await db.insert(tasks).values(sanitized).returning();
     return newTask;
   }
 
   async updateTask(id: number, task: Partial<InsertTask>): Promise<Task | undefined> {
-    const [updated] = await db.update(tasks).set(task).where(eq(tasks.id, id)).returning();
+    const sanitized = sanitizeTask(task);
+    delete sanitized.id;
+    const [updated] = await db.update(tasks).set(sanitized).where(eq(tasks.id, id)).returning();
     return updated;
   }
 
@@ -126,12 +167,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNotification(notification: InsertNotification): Promise<Notification> {
-    const [newNotification] = await db.insert(notifications).values(notification).returning();
+    const sanitized = sanitizeNotification(notification);
+    const [newNotification] = await db.insert(notifications).values(sanitized).returning();
     return newNotification;
   }
 
   async updateNotification(id: number, notification: Partial<InsertNotification>): Promise<Notification | undefined> {
-    const [updated] = await db.update(notifications).set(notification).where(eq(notifications.id, id)).returning();
+    const sanitized = sanitizeNotification(notification);
+    delete sanitized.id;
+    const [updated] = await db.update(notifications).set(sanitized).where(eq(notifications.id, id)).returning();
     return updated;
   }
 
@@ -144,12 +188,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
-    const [newAnnouncement] = await db.insert(announcements).values(announcement).returning();
+    const sanitized = sanitizeAnnouncement(announcement);
+    const [newAnnouncement] = await db.insert(announcements).values(sanitized).returning();
     return newAnnouncement;
   }
 
   async updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
-    const [updated] = await db.update(announcements).set(announcement).where(eq(announcements.id, id)).returning();
+    const sanitized = sanitizeAnnouncement(announcement);
+    delete sanitized.id;
+    const [updated] = await db.update(announcements).set(sanitized).where(eq(announcements.id, id)).returning();
     return updated;
   }
 
