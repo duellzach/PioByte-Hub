@@ -28,11 +28,17 @@ app.get("/api/users", async (req, res) => {
 
 app.post("/api/users", async (req, res) => {
   try {
-    const existingUser = await storage.getUserByUsername(req.body.username?.toLowerCase());
+    const normalizedUsername = req.body.username?.toLowerCase().trim();
+    const existingUser = await storage.getUserByUsername(normalizedUsername);
     if (existingUser) {
       return res.status(400).json({ error: "Username already taken" });
     }
-    const user = await storage.createUser(req.body);
+    const userData = {
+      ...req.body,
+      username: normalizedUsername,
+      password: req.body.password || 'password'
+    };
+    const user = await storage.createUser(userData);
     res.status(201).json(user);
   } catch (error) {
     console.error("Error creating user:", error);
@@ -43,13 +49,15 @@ app.post("/api/users", async (req, res) => {
 app.put("/api/users/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    if (req.body.username) {
-      const existingUser = await storage.getUserByUsername(req.body.username.toLowerCase());
+    const updateData = { ...req.body };
+    if (updateData.username) {
+      updateData.username = updateData.username.toLowerCase().trim();
+      const existingUser = await storage.getUserByUsername(updateData.username);
       if (existingUser && existingUser.id !== id) {
         return res.status(400).json({ error: "Username already taken" });
       }
     }
-    const user = await storage.updateUser(id, req.body);
+    const user = await storage.updateUser(id, updateData);
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (error) {
@@ -72,7 +80,8 @@ app.delete("/api/users/:id", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const user = await storage.getUserByUsername(username.toLowerCase());
+    const normalizedUsername = username.toLowerCase().trim();
+    const user = await storage.getUserByUsername(normalizedUsername);
     if (user && user.password === password) {
       res.json(user);
     } else {
