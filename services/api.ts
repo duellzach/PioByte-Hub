@@ -107,5 +107,10 @@ export const api = {
     delete: (id: number, coachId: number) =>
       apiRequest<void>(`/time-entries/${id}`, { method: 'DELETE', body: JSON.stringify({ coachId }) }),
     getAudit: (id: number) => apiRequest<any[]>(`/time-entries/${id}/audit`),
+    bulkAdd: (coachId: number, userIds: number[], minutes: number, notes?: string, date?: string) =>
+      apiRequest<any[]>('/time-entries/bulk-add', { 
+        method: 'POST', 
+        body: JSON.stringify({ coachId, userIds, minutes, notes, date }) 
+      }),
   },
 };

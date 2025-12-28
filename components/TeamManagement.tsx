@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { User, AppState, Role, Department, TaskStatus } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check } from 'lucide-react';
+import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History } from 'lucide-react';
 import { DEPARTMENT_COLORS, ROLES, DEPARTMENTS } from '../constants';
 import { api } from '../services/api';
 
@@ -23,6 +23,10 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
   const [usernameError, setUsernameError] = useState('');
+  const [editingTimeEntry, setEditingTimeEntry] = useState<TimeEntry | null>(null);
+  const [timeEditForm, setTimeEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
+  const [auditEntry, setAuditEntry] = useState<TimeEntry | null>(null);
+  const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
@@ -41,6 +45,72 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     const activeTasks = userTasks.filter(t => t.status !== TaskStatus.Complete);
 
     return { total: userTasks.length, completed: completedTasks.length, effort: totalEffort, active: activeTasks.length };
+  };
+
+  const getUserTimeEntries = (userId: string) => {
+    return state.timeEntries
+      .filter(e => e.userId === userId)
+      .sort((a, b) => new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime());
+  };
+
+  const getUserTotalMinutes = (userId: string) => {
+    return state.timeEntries
+      .filter(e => e.userId === userId && e.status === 'completed' && e.roundedMinutes)
+      .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+  };
+
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
+  const formatTime = (date: Date | number | string) => {
+    const d = new Date(date);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDate = (date: Date | number | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const openTimeEditModal = (entry: TimeEntry) => {
+    setEditingTimeEntry(entry);
+    setTimeEditForm({
+      checkInAt: new Date(entry.checkInAt).toISOString().slice(0, 16),
+      checkOutAt: entry.checkOutAt ? new Date(entry.checkOutAt).toISOString().slice(0, 16) : '',
+      notes: entry.notes || '',
+    });
+  };
+
+  const handleSaveTimeEdit = async () => {
+    if (!editingTimeEntry || !state.currentUser) return;
+    try {
+      await api.timeEntries.update(parseInt(editingTimeEntry.id), parseInt(state.currentUser.id), {
+        checkInAt: timeEditForm.checkInAt,
+        checkOutAt: timeEditForm.checkOutAt || undefined,
+        notes: timeEditForm.notes,
+      });
+      setEditingTimeEntry(null);
+    } catch (error) {
+      console.error('Update failed:', error);
+    }
+  };
+
+  const openAuditModal = async (entry: TimeEntry) => {
+    setAuditEntry(entry);
+    try {
+      const logs = await api.timeEntries.getAudit(parseInt(entry.id));
+      setAuditLogs(logs);
+    } catch (error) {
+      console.error('Failed to fetch audit:', error);
+      setAuditLogs([]);
+    }
+  };
+
+  const getUserName = (userId: string) => {
+    return state.users.find(u => u.id === userId)?.name || 'Unknown';
   };
 
   const handleDeleteConfirm = () => {
@@ -494,9 +564,144 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 )}
                             </div>
                         </section>
+
+                        {isCoach && (
+                          <section>
+                            <div className="flex items-center justify-between mb-4 md:mb-6">
+                              <h3 className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 md:gap-3">
+                                <Clock className="text-red-600" size={14} /> Time History
+                              </h3>
+                              <div className="text-right">
+                                <p className="text-[9px] font-black text-slate-400 uppercase">Total Hours</p>
+                                <p className="text-lg font-black text-green-600">{formatDuration(getUserTotalMinutes(selectedUserForStats.id))}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-auto">
+                              {getUserTimeEntries(selectedUserForStats.id).map(entry => (
+                                <div key={entry.id} className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-all">
+                                  <div>
+                                    <p className="text-xs md:text-sm font-black text-slate-800">{formatDate(entry.checkInAt)}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold">
+                                      {formatTime(entry.checkInAt)} - {entry.checkOutAt ? formatTime(entry.checkOutAt) : 'In Progress'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {entry.roundedMinutes && (
+                                      <span className="text-xs font-black text-green-600">{formatDuration(entry.roundedMinutes)}</span>
+                                    )}
+                                    <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${
+                                      entry.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                      entry.status === 'checked_in' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-orange-100 text-orange-700'
+                                    }`}>
+                                      {entry.status.replace('_', ' ')}
+                                    </span>
+                                    <button onClick={() => openTimeEditModal(entry)} className="p-1.5 text-slate-400 hover:text-red-600">
+                                      <Edit3 size={12} />
+                                    </button>
+                                    <button onClick={() => openAuditModal(entry)} className="p-1.5 text-slate-400 hover:text-red-600">
+                                      <History size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                              {getUserTimeEntries(selectedUserForStats.id).length === 0 && (
+                                <div className="py-8 text-center text-slate-400 font-bold uppercase">No time entries yet</div>
+                              )}
+                            </div>
+                          </section>
+                        )}
                     </div>
                 </div>
             </div>
+        )}
+
+        {editingTimeEntry && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-2xl md:rounded-[32px] w-full max-w-lg p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Edit Time Entry</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase">{getUserName(editingTimeEntry.userId)}</p>
+                </div>
+                <button onClick={() => setEditingTimeEntry(null)} className="p-2 bg-slate-100 rounded-xl hover:text-red-600">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Check In</label>
+                  <input
+                    type="datetime-local"
+                    value={timeEditForm.checkInAt}
+                    onChange={(e) => setTimeEditForm({ ...timeEditForm, checkInAt: e.target.value })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Check Out</label>
+                  <input
+                    type="datetime-local"
+                    value={timeEditForm.checkOutAt}
+                    onChange={(e) => setTimeEditForm({ ...timeEditForm, checkOutAt: e.target.value })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Notes</label>
+                  <textarea
+                    value={timeEditForm.notes}
+                    onChange={(e) => setTimeEditForm({ ...timeEditForm, notes: e.target.value })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 font-medium h-20 resize-none"
+                    placeholder="Optional notes..."
+                  />
+                </div>
+                <button
+                  onClick={handleSaveTimeEdit}
+                  className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg uppercase tracking-widest text-sm"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {auditEntry && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-2xl md:rounded-[32px] w-full max-w-lg p-6 md:p-10 shadow-2xl max-h-[80vh] flex flex-col">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Audit Log</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase">{getUserName(auditEntry.userId)} - {formatDate(auditEntry.checkInAt)}</p>
+                </div>
+                <button onClick={() => setAuditEntry(null)} className="p-2 bg-slate-100 rounded-xl hover:text-red-600">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto space-y-3">
+                {auditLogs.map(log => (
+                  <div key={log.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
+                      <span className="text-[9px] text-slate-400 font-bold">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-600">By: {getUserName(log.actorId)}</p>
+                    {log.deltaMinutes !== undefined && log.deltaMinutes !== null && (
+                      <p className={`text-xs font-black mt-1 ${log.deltaMinutes >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {log.deltaMinutes >= 0 ? '+' : ''}{log.deltaMinutes} minutes
+                      </p>
+                    )}
+                  </div>
+                ))}
+                {auditLogs.length === 0 && (
+                  <p className="text-center text-slate-400 py-6 font-bold">No audit records</p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {isAdding && (

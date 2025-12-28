@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus } from 'lucide-react';
 import { api } from '../services/api';
 
 interface TimeTrackingProps {
@@ -30,6 +30,18 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
   const [editForm, setEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
   const [showHistory, setShowHistory] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [bulkForm, setBulkForm] = useState<{ 
+    selectedUsers: string[]; 
+    minutes: number; 
+    notes: string; 
+    date: string;
+  }>({
+    selectedUsers: [],
+    minutes: 45,
+    notes: 'Class time',
+    date: new Date().toISOString().split('T')[0],
+  });
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const currentUserId = parseInt(state.currentUser?.id || '0');
@@ -125,6 +137,42 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const getUserName = (userId: string) => {
     return state.users.find(u => u.id === userId)?.name || 'Unknown';
+  };
+
+  const handleBulkAdd = async () => {
+    if (bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0) return;
+    try {
+      await api.timeEntries.bulkAdd(
+        currentUserId,
+        bulkForm.selectedUsers.map(id => parseInt(id)),
+        bulkForm.minutes,
+        bulkForm.notes,
+        bulkForm.date
+      );
+      setBulkForm({ selectedUsers: [], minutes: 45, notes: 'Class time', date: new Date().toISOString().split('T')[0] });
+      setShowBulkAdd(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Bulk add failed:', error);
+    }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setBulkForm(prev => ({
+      ...prev,
+      selectedUsers: prev.selectedUsers.includes(userId)
+        ? prev.selectedUsers.filter(id => id !== userId)
+        : [...prev.selectedUsers, userId]
+    }));
+  };
+
+  const selectAllUsers = () => {
+    setBulkForm(prev => ({
+      ...prev,
+      selectedUsers: prev.selectedUsers.length === state.users.length 
+        ? [] 
+        : state.users.map(u => u.id)
+    }));
   };
 
   return (
@@ -244,6 +292,103 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </div>
         </div>
       </div>
+
+      {isCoach && (
+        <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-blue-200 p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                <Users size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight">Bulk Add Time</h3>
+                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Add class time for multiple members</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowBulkAdd(!showBulkAdd)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all"
+            >
+              <Plus size={14} /> {showBulkAdd ? 'Hide' : 'Add Time'}
+            </button>
+          </div>
+
+          {showBulkAdd && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  onClick={selectAllUsers}
+                  className={`p-3 rounded-xl border-2 text-xs font-black uppercase transition-all ${
+                    bulkForm.selectedUsers.length === state.users.length
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                  }`}
+                >
+                  {bulkForm.selectedUsers.length === state.users.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {state.users.map(user => (
+                  <button
+                    key={user.id}
+                    onClick={() => toggleUserSelection(user.id)}
+                    className={`p-3 rounded-xl border-2 text-xs font-bold transition-all truncate ${
+                      bulkForm.selectedUsers.includes(user.id)
+                        ? 'bg-blue-100 border-blue-400 text-blue-700'
+                        : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                    }`}
+                  >
+                    {user.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Minutes</label>
+                  <input
+                    type="number"
+                    value={bulkForm.minutes}
+                    onChange={(e) => setBulkForm({ ...bulkForm, minutes: parseInt(e.target.value) || 0 })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-blue-600 font-bold"
+                    min="1"
+                    step="15"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={bulkForm.date}
+                    onChange={(e) => setBulkForm({ ...bulkForm, date: e.target.value })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-blue-600 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Notes</label>
+                  <input
+                    type="text"
+                    value={bulkForm.notes}
+                    onChange={(e) => setBulkForm({ ...bulkForm, notes: e.target.value })}
+                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-blue-600 font-bold"
+                    placeholder="Class time"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleBulkAdd}
+                disabled={bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0}
+                className={`w-full py-4 font-black rounded-xl uppercase tracking-widest text-sm transition-all ${
+                  bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
+                }`}
+              >
+                Add {bulkForm.minutes} Minutes to {bulkForm.selectedUsers.length} Members
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {isCoach && pendingApprovals.length > 0 && (
         <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-orange-200 p-6 md:p-8">

@@ -9,7 +9,7 @@ import TeamManagement from './components/TeamManagement';
 import TimeTracking from './components/TimeTracking';
 import TaskModal from './components/TaskModal';
 import { api } from './services/api';
-import { Database, Zap } from 'lucide-react';
+import { Database, Zap, Clock } from 'lucide-react';
 
 const TeamLogo = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -227,7 +227,31 @@ const App: React.FC = () => {
                 </button>
             </div>
           ) : (
-            <form onSubmit={(e) => {
+            <>
+              {state.timeEntries.length > 0 && (
+                <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock size={14} className="text-red-600" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Team Hours</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {state.users.slice(0, 6).map(user => {
+                      const totalMins = state.timeEntries
+                        .filter(e => e.userId === user.id && e.status === 'completed' && e.roundedMinutes)
+                        .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+                      const hours = Math.floor(totalMins / 60);
+                      const mins = totalMins % 60;
+                      return (
+                        <div key={user.id} className="text-center p-2 bg-white rounded-xl">
+                          <p className="text-[9px] font-bold text-slate-500 truncate">{user.name.split(' ')[0]}</p>
+                          <p className="text-sm font-black text-slate-800">{hours > 0 ? `${hours}h ${mins}m` : `${mins}m`}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <form onSubmit={(e) => {
                 e.preventDefault();
                 const username = (e.currentTarget.elements.namedItem('username') as HTMLInputElement).value;
                 const password = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value;
@@ -245,6 +269,7 @@ const App: React.FC = () => {
                     Initialize System
                 </button>
               </form>
+            </>
           )}
 
           <div className="mt-12 pt-8 border-t border-slate-100 text-center">

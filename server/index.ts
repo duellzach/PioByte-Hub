@@ -496,6 +496,47 @@ app.delete("/api/time-entries/:id", async (req, res) => {
   }
 });
 
+app.post("/api/time-entries/bulk-add", async (req, res) => {
+  try {
+    const { coachId, userIds, minutes, notes, date } = req.body;
+    const results = [];
+    
+    const checkInAt = date ? new Date(date) : new Date();
+    checkInAt.setHours(9, 0, 0, 0);
+    const checkOutAt = new Date(checkInAt.getTime() + minutes * 60000);
+    const roundedMinutes = roundToQuarterHour(minutes);
+    
+    for (const userId of userIds) {
+      const entry = await storage.createTimeEntry({
+        userId,
+        checkInAt,
+        checkOutAt,
+        checkInConfirmedBy: coachId,
+        checkInConfirmedAt: new Date(),
+        checkOutConfirmedBy: coachId,
+        checkOutConfirmedAt: new Date(),
+        status: "completed",
+        roundedMinutes,
+        notes: notes || `Class time - ${roundedMinutes} minutes`,
+      });
+      
+      await storage.createTimeEntryAudit({
+        entryId: entry.id,
+        actorId: coachId,
+        actionType: "bulk_add",
+        newValues: { minutes: roundedMinutes, notes: entry.notes },
+      });
+      
+      results.push(entry);
+    }
+    
+    res.status(201).json(results);
+  } catch (error) {
+    console.error("Error bulk adding time:", error);
+    res.status(500).json({ error: "Failed to bulk add time" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

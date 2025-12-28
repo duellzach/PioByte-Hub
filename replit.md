@@ -73,6 +73,9 @@ After seeding the database:
   - Quarter-hour rounding (rounds UP to nearest 15 minutes)
   - Full audit trail for all time entry changes
   - Coaches can edit times and view audit logs
+  - Team hours displayed on login screen
+  - Coaches can view/edit time history in user profiles (Team page)
+  - Bulk add class time for multiple members at once
 
 ## Recent Changes (December 2024)
 - Migrated from Firebase to Replit PostgreSQL database
