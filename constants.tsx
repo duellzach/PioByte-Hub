@@ -1,0 +1,34 @@
+
+import React from 'react';
+import { Department, TaskStatus, Priority, Role } from './types';
+
+export const DEPARTMENTS = Object.values(Department);
+export const STATUSES = Object.values(TaskStatus);
+export const PRIORITIES = Object.values(Priority);
+export const ROLES = Object.values(Role);
+
+export const EFFORT_POINTS = [1, 2, 3, 5, 8];
+
+// Team Colors: Red (#E11D48), Black (#0F172A), White (#FFFFFF)
+export const DEPARTMENT_COLORS: Record<Department, string> = {
+  [Department.Mechanical]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Software]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Modeling]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Logistics]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Electrical]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Business]: 'bg-slate-100 text-slate-800 border-slate-300',
+};
+
+export const STATUS_COLORS: Record<TaskStatus, string> = {
+  [TaskStatus.NotStarted]: 'bg-slate-100 text-slate-600',
+  [TaskStatus.InProgress]: 'bg-red-50 text-red-600 border-red-100',
+  [TaskStatus.Blocked]: 'bg-black text-white',
+  [TaskStatus.Complete]: 'bg-green-100 text-green-600',
+};
+
+export const PRIORITY_COLORS: Record<Priority, string> = {
+  [Priority.Low]: 'bg-slate-100 text-slate-600',
+  [Priority.Medium]: 'bg-slate-100 text-slate-700 font-bold',
+  [Priority.High]: 'bg-red-100 text-red-700 font-bold border-red-200',
+  [Priority.Urgent]: 'bg-red-600 text-white font-black',
+};

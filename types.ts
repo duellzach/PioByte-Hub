@@ -1,0 +1,121 @@
+
+export enum Department {
+  Mechanical = 'Mechanical',
+  Software = 'Software',
+  Modeling = 'Modeling',
+  Logistics = 'Logistics',
+  Electrical = 'Electrical',
+  Business = 'Business'
+}
+
+export enum Role {
+  ScrumMaster = 'SCRUM Master',
+  TeamCaptain = 'Team Captain',
+  DepartmentHead = 'Department Head',
+  TeamMember = 'Team Member',
+  Coach = 'Coach'
+}
+
+export enum TaskStatus {
+  NotStarted = 'Not Started',
+  InProgress = 'In Progress',
+  Blocked = 'Blocked',
+  Complete = 'Complete'
+}
+
+export enum Priority {
+  Low = 'Low',
+  Medium = 'Medium',
+  High = 'High',
+  Urgent = 'Urgent'
+}
+
+export interface User {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  departments: Department[];
+  roles: Role[];
+}
+
+export interface Attachment {
+  id: string;
+  label: string;
+  url: string;
+  type: 'doc' | 'github' | 'cad' | 'other';
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface Activity {
+  id: string;
+  userId: string;
+  action: string;
+  timestamp: number;
+}
+
+export interface Notification {
+  id: string;
+  toUserId: string;
+  fromUserId: string;
+  taskId: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+}
+
+export interface Announcement {
+  id: string;
+  authorId: string;
+  text: string;
+  timestamp: number;
+  scope: 'Global' | 'Department';
+  targetDepartment?: Department;
+  comments: Comment[];
+}
+
+export interface Task {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: Priority;
+  effort?: number;
+  departments: Department[];
+  assignees: string[];
+  successCriteria: string[];
+  attachments: Attachment[];
+  comments: Comment[];
+  history: Activity[];
+  startDate: string;
+  dueDate: string;
+  dependencies: string[];
+  helpRequested?: boolean;
+  blockedReason?: string;
+  completedAt?: number;
+  createdAt: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  archived: boolean;
+}
+
+export interface AppState {
+  users: User[];
+  projects: Project[];
+  tasks: Task[];
+  notifications: Notification[];
+  announcements: Announcement[];
+  currentUser: User | null;
+}
