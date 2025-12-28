@@ -246,6 +246,28 @@ app.delete("/api/announcements/:id", async (req, res) => {
   }
 });
 
+app.post("/api/users/:id/change-password", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { currentPassword, newPassword } = req.body;
+    
+    const user = await storage.getUser(id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    if (user.password !== currentPassword) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+    
+    const updated = await storage.updateUser(id, { password: newPassword });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

@@ -88,4 +88,9 @@ export const api = {
   },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
+  changePassword: (userId: number, currentPassword: string, newPassword: string) =>
+    apiRequest<{ success: boolean }>(`/users/${userId}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
