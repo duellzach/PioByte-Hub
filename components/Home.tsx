@@ -54,9 +54,18 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
   const myNotifications = useMemo(() => {
     return state.notifications
-      .filter(n => n.toUserId === user?.id)
+      .filter(n => String(n.toUserId) === String(user?.id))
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [state.notifications, user]);
+
+  const myTotalHours = useMemo(() => {
+    const totalMins = state.timeEntries
+      .filter(e => String(e.userId) === String(user?.id) && e.status === 'completed' && e.roundedMinutes)
+      .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return { hours, mins, totalMins };
+  }, [state.timeEntries, user]);
 
   const velocityData = useMemo(() => {
     const weeks: Record<string, number> = {};
@@ -176,8 +185,8 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
     while ((match = mentionRegex.exec(newComment)) !== null) {
       const username = match[1].toLowerCase();
       const mentionedUser = state.users.find(u => u.username.toLowerCase() === username);
-      if (mentionedUser && mentionedUser.id !== user?.id) {
-        onNotify('broadcast-' + selectedAnnouncement.id, mentionedUser.id, `Mentioned you in a broadcast thread: "${newComment}"`);
+      if (mentionedUser && String(mentionedUser.id) !== String(user?.id)) {
+        onNotify('broadcast:' + selectedAnnouncement.id, String(mentionedUser.id), `Mentioned you in a broadcast thread: "${newComment}"`);
       }
     }
 
@@ -213,6 +222,13 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               <div className="flex items-center gap-2">
                 <TrendingUp size={14} className="text-red-600" />
                 <span className="text-[10px] font-black text-slate-950 uppercase tracking-widest">Wk Effort: {currentWeekEffort} PTS</span>
+              </div>
+              <div className="h-4 w-[1px] bg-slate-200"></div>
+              <div className="flex items-center gap-2">
+                <Clock size={14} className="text-red-600" />
+                <span className="text-[10px] font-black text-slate-950 uppercase tracking-widest">
+                  Total Hours: {myTotalHours.hours > 0 ? `${myTotalHours.hours}h ${myTotalHours.mins}m` : `${myTotalHours.mins}m`}
+                </span>
               </div>
           </div>
         </div>
@@ -383,30 +399,35 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           </div>
 
           <div className="space-y-4">
-            {myNotifications.length > 0 ? myNotifications.map(n => (
+            {myNotifications.length > 0 ? myNotifications.map(n => {
+              const isBroadcast = n.message.startsWith('[broadcast:');
+              const broadcastMatch = n.message.match(/^\[broadcast:(\d+)\]\s*/);
+              const displayMessage = broadcastMatch ? n.message.replace(broadcastMatch[0], '') : n.message;
+              const broadcastId = broadcastMatch ? broadcastMatch[1] : null;
+              
+              return (
               <div 
                 key={n.id} 
                 className={`p-8 rounded-[32px] border transition-all flex items-start gap-6 bg-white border-slate-200 ${!n.read ? 'shadow-lg border-l-4 border-l-red-600' : 'opacity-60'}`}
               >
-                <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${n.taskId.startsWith('broadcast-') ? 'bg-slate-900 text-white' : 'bg-red-50 text-red-600'}`}>
-                  {n.taskId.startsWith('broadcast-') ? <Megaphone size={20} /> : <MessageSquare size={20} />}
+                <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${isBroadcast ? 'bg-slate-900 text-white' : 'bg-red-50 text-red-600'}`}>
+                  {isBroadcast ? <Megaphone size={20} /> : <MessageSquare size={20} />}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-sm font-black text-slate-900 uppercase">
-                      {n.taskId.startsWith('broadcast-') ? 'Briefing Mention' : 'Mission Mention'}
+                      {isBroadcast ? 'Briefing Mention' : 'Mission Mention'}
                     </p>
                     <span className="text-[10px] font-bold text-slate-400">{new Date(n.timestamp).toLocaleTimeString()}</span>
                   </div>
                   <p className="text-slate-500 text-sm mb-4 leading-relaxed italic">
-                    <span className="font-bold text-slate-900 not-italic">@{state.users.find(u => u.id === n.fromUserId)?.username || 'System'}</span>: "{n.message.length > 80 ? n.message.substring(0, 80) + '...' : n.message}"
+                    <span className="font-bold text-slate-900 not-italic">@{state.users.find(u => String(u.id) === String(n.fromUserId))?.username || 'System'}</span>: "{displayMessage.length > 80 ? displayMessage.substring(0, 80) + '...' : displayMessage}"
                   </p>
                   <div className="flex gap-4">
-                    {n.taskId.startsWith('broadcast-') ? (
+                    {isBroadcast ? (
                        <button 
                         onClick={() => {
-                            const annId = n.taskId.replace('broadcast-', '');
-                            const ann = state.announcements.find(a => a.id === annId);
+                            const ann = state.announcements.find(a => String(a.id) === broadcastId);
                             if (ann) setSelectedAnnouncement(ann);
                         }}
                         className="text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
@@ -416,7 +437,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     ) : (
                       <button 
                         onClick={() => {
-                          const task = state.tasks.find(t => t.id === n.taskId);
+                          const task = state.tasks.find(t => String(t.id) === String(n.taskId));
                           if (task) onTaskClick(task);
                         }}
                         className="text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
@@ -426,7 +447,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     )}
                     {!n.read && (
                       <button 
-                        onClick={() => onClearNotification(n.id)}
+                        onClick={() => onClearNotification(String(n.id))}
                         className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600"
                       >
                         Acknowledge
@@ -435,7 +456,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   </div>
                 </div>
               </div>
-            )) : (
+            )}) : (
               <div className="bg-white p-16 rounded-[40px] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
                 <Bell size={48} className="text-slate-100 mb-4" />
                 <p className="text-lg font-black text-slate-300 uppercase tracking-widest">No Alerts</p>

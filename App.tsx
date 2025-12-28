@@ -153,11 +153,12 @@ const App: React.FC = () => {
   };
 
   const handleNotify = async (taskId: string, toUserId: string, message: string) => {
+    const isBroadcast = taskId.startsWith('broadcast:');
     await api.notifications.create({
       toUserId: parseInt(toUserId),
       fromUserId: parseInt(state.currentUser?.id || '0'),
-      taskId: parseInt(taskId),
-      message,
+      taskId: isBroadcast ? null : parseInt(taskId),
+      message: isBroadcast ? `[broadcast:${taskId.split(':')[1]}] ${message}` : message,
       read: false
     });
     await fetchData();
