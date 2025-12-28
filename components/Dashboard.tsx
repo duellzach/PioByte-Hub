@@ -1,8 +1,7 @@
-
 import React, { useMemo, useState } from 'react';
-import { AppState, TaskStatus, Task, Project, Department, Role, Announcement } from '../types';
-import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENT_COLORS } from '../constants';
-import { ListTodo, Timer, Ban, ExternalLink, ChevronRight, Zap, Users, Activity, CheckCircle2, AlertTriangle, MessageSquare, Flag, LifeBuoy, Megaphone, TrendingUp } from 'lucide-react';
+import { AppState, TaskStatus, Task, Project, Department } from '../types';
+import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
+import { Timer, Activity, CheckCircle2, AlertTriangle, MessageSquare, Flag, LifeBuoy, Megaphone, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import TaskModal from './TaskModal';
 
 interface DashboardProps {
@@ -14,6 +13,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask, onNotify }) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showPulse, setShowPulse] = useState(false);
 
   const activeProjects = useMemo(() => {
     return state.projects.filter(p => !p.archived);
@@ -104,156 +104,72 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     return stats;
   }, [state.tasks]);
 
-  return (
-    <div className="w-full h-full flex flex-col gap-8 animate-in fade-in duration-1000">
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        <div className="bg-slate-950 p-6 rounded-[32px] border border-white/10 shadow-2xl flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-black text-red-500 uppercase tracking-[0.3em] mb-1">Weekly Effort</p>
-            <p className="text-4xl font-black text-white">{currentWeekEffort} <span className="text-sm font-bold text-slate-500 uppercase">PTS</span></p>
-          </div>
-          <TrendingUp size={40} className="text-red-600 opacity-50" />
-        </div>
+  const totalActive = state.tasks.filter(t => t.status === TaskStatus.InProgress).length;
+  const totalBlocked = state.tasks.filter(t => t.status === TaskStatus.Blocked).length;
 
-        <div className="xl:col-span-3 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex items-center gap-8 overflow-x-auto kanban-scroll">
-          <div className="flex-shrink-0 border-r border-slate-100 pr-8">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Dept Load</p>
-            <div className="flex items-center gap-2">
-              <Users size={20} className="text-red-600" />
-              <span className="font-black text-slate-900 uppercase">Active Units</span>
-            </div>
-          </div>
-          <div className="flex gap-6">
-            {Object.entries(deptStats).map(([dept, count]) => (
-              <div key={dept} className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{dept}</span>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-16 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-600" style={{ width: `${Math.min(100, ((count as number) / 10) * 100)}%` }} />
-                  </div>
-                  <span className="text-xs font-black text-slate-900">{count as number}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+  return (
+    <div className="w-full h-full flex flex-col gap-4 md:gap-6 2xl:gap-8 animate-in fade-in duration-1000">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 2xl:gap-6">
+        <StatCard label="Weekly Effort" value={`${currentWeekEffort}`} unit="PTS" icon={<TrendingUp size={20} />} accent />
+        <StatCard label="Active Tasks" value={`${totalActive}`} unit="LIVE" icon={<Activity size={20} />} />
+        <StatCard label="Blocked" value={`${totalBlocked}`} unit="HELD" icon={<AlertTriangle size={20} />} warning={totalBlocked > 0} />
+        <StatCard label="Projects" value={`${activeProjects.length}`} unit="OPS" icon={<Flag size={20} />} />
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_450px] gap-8 overflow-hidden">
-        <div className="flex flex-col gap-6 overflow-auto pr-4 kanban-scroll">
-          <div className="grid grid-cols-[300px_1fr_1fr_1fr] gap-4 sticky top-0 z-20 bg-slate-50/90 backdrop-blur-md pb-4">
-            <div className="flex flex-col justify-end">
-              <h1 className="text-3xl font-black text-slate-950 tracking-tighter uppercase leading-none">WAR ROOM</h1>
-              <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">Multi-Board Operations</p>
+      <div className="lg:hidden">
+        <button 
+          onClick={() => setShowPulse(!showPulse)}
+          className="w-full flex items-center justify-between p-4 bg-slate-950 text-white rounded-2xl"
+        >
+          <span className="text-xs font-black uppercase tracking-widest">Live Pulse Feed</span>
+          {showPulse ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+        {showPulse && (
+          <div className="mt-2 bg-slate-950 rounded-2xl p-4 max-h-64 overflow-auto">
+            <PulseFeed livePulse={livePulse.slice(0, 10)} />
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 2xl:gap-8 overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+            <div>
+              <h1 className="text-xl md:text-2xl 2xl:text-3xl font-black text-slate-950 tracking-tighter uppercase leading-none">WAR ROOM</h1>
+              <p className="text-[9px] md:text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">Multi-Board Operations</p>
             </div>
-            <StatusHeader label="NOT STARTED" colorClass="bg-slate-300" />
-            <StatusHeader label="IN PROGRESS" colorClass="bg-red-600" />
-            <StatusHeader label="BLOCKED" colorClass="bg-black" />
+            <div className="hidden sm:flex gap-2">
+              <StatusBadge label="Not Started" color="bg-slate-300" />
+              <StatusBadge label="In Progress" color="bg-red-600" />
+              <StatusBadge label="Blocked" color="bg-black" />
+            </div>
           </div>
 
-          <div className="space-y-6 pb-20">
+          <div className="flex-1 overflow-auto pr-2 kanban-scroll space-y-4 md:space-y-6 pb-4">
             {activeProjects.map(project => (
-              <div key={project.id} className="grid grid-cols-[300px_1fr_1fr_1fr] gap-4 min-h-[200px] group">
-                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col justify-center transition-all group-hover:border-red-600/30">
-                  <h3 className="text-lg font-black text-slate-900 leading-tight mb-2 uppercase break-words">{project.name}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold line-clamp-2 uppercase leading-relaxed mb-4">{project.description}</p>
-                  <div className="flex items-center gap-2 text-[9px] font-black text-red-600">
-                    <Activity size={12} />
-                    <span>{tasksByMatrix[project.id][TaskStatus.InProgress].length} ACTIVE</span>
-                  </div>
-                </div>
-                <MatrixCell tasks={tasksByMatrix[project.id][TaskStatus.NotStarted]} onTaskClick={setSelectedTask} />
-                <MatrixCell tasks={tasksByMatrix[project.id][TaskStatus.InProgress]} onTaskClick={setSelectedTask} />
-                <MatrixCell tasks={tasksByMatrix[project.id][TaskStatus.Blocked]} onTaskClick={setSelectedTask} />
-              </div>
+              <ProjectRow 
+                key={project.id}
+                project={project}
+                tasks={tasksByMatrix[project.id]}
+                onTaskClick={setSelectedTask}
+              />
             ))}
           </div>
         </div>
 
-        <div className="hidden lg:flex flex-col bg-slate-950 rounded-[40px] border border-white/5 shadow-2xl p-8 overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
+        <div className="hidden lg:flex w-80 xl:w-96 2xl:w-[450px] flex-col bg-slate-950 rounded-2xl 2xl:rounded-[40px] border border-white/5 shadow-2xl p-4 md:p-6 2xl:p-8 overflow-hidden flex-shrink-0">
+          <div className="flex items-center justify-between mb-4 2xl:mb-8">
             <div>
-              <h2 className="text-xl font-black text-white tracking-tight uppercase">Live Pulse</h2>
-              <p className="text-[9px] font-black text-red-500 uppercase tracking-[0.3em]">Operational Flow</p>
+              <h2 className="text-base 2xl:text-xl font-black text-white tracking-tight uppercase">Live Pulse</h2>
+              <p className="text-[8px] 2xl:text-[9px] font-black text-red-500 uppercase tracking-[0.3em]">Operational Flow</p>
             </div>
             <div className="flex items-center gap-2">
-               <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Active Stream</span>
                <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_rgba(225,29,72,0.8)]" />
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto space-y-4 pr-2 kanban-scroll">
-            {livePulse.map((pulse: any, idx) => {
-              if (pulse.type === 'announcement') {
-                return (
-                  <div key={`ann-${pulse.id}`} className={`p-6 rounded-2xl border-2 border-red-600/30 bg-red-600/10 shadow-lg shadow-red-900/10 animate-pulse-slow`}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                        <Megaphone size={18} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-white uppercase tracking-tight">{pulse.userName}</p>
-                        <p className="text-[8px] font-bold text-red-500 uppercase tracking-[0.2em]">{pulse.scope === 'Global' ? 'GLOBAL BROADCAST' : `DEPT UPDATE: ${pulse.targetDepartment}`}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm font-black text-white leading-relaxed uppercase italic">
-                      "{pulse.text}"
-                    </p>
-                    <div className="mt-4 pt-3 border-t border-red-600/20 flex justify-between items-center text-[8px] font-black text-red-400 uppercase tracking-widest">
-                       <span className="flex items-center gap-1"><MessageSquare size={10} /> {pulse.commentCount} THREADS</span>
-                       <span>{new Date(pulse.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-                );
-              }
-
-              const isSOSActive = pulse.action.toUpperCase().includes('HELP REQUESTED');
-              const isSOSResolved = pulse.action.toUpperCase().includes('RESOLVED');
-              const isBlocking = pulse.action.toUpperCase().includes('BLOCKED');
-              const isComplete = pulse.action.toUpperCase().includes('COMPLETE');
-              
-              const pulseClass = isSOSActive ? 'bg-red-600 border-red-400' :
-                                isSOSResolved ? 'bg-slate-900/50 border-green-900/30' :
-                                isBlocking ? 'bg-black border-slate-700' : 
-                                isComplete ? 'bg-green-950/20 border-green-900/30' : 
-                                'bg-white/5 border-white/5';
-
-              return (
-                <div key={`act-${idx}`} className={`p-5 rounded-2xl border transition-all hover:bg-white/5 group/pulse ${pulseClass}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${
-                        isSOSActive ? 'bg-white text-red-600' : isSOSResolved ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {isSOSActive ? <LifeBuoy size={14} /> : isComplete ? <CheckCircle2 size={14} /> : <Activity size={14} />}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase text-white leading-none">{pulse.userName}</p>
-                        <p className={`text-[8px] font-bold uppercase tracking-widest ${isSOSActive ? 'text-white/60' : 'text-slate-500'}`}>{pulse.userRole}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className={`text-[11px] font-black uppercase tracking-tight ${isSOSActive ? 'text-white' : 'text-slate-300'}`}>
-                      {pulse.action}
-                    </p>
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isSOSActive ? 'text-white/50' : 'text-red-500/80'}`}>
-                      Target: {pulse.taskTitle}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          <div className="mt-8 pt-6 border-t border-white/5">
-            <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
-              <div className="flex items-center gap-2">
-                <Flag size={12} />
-                <span>Season 2025</span>
-              </div>
-              <span className="text-green-500">Secure Node</span>
-            </div>
+          <div className="flex-1 overflow-auto space-y-3 2xl:space-y-4 pr-2 kanban-scroll">
+            <PulseFeed livePulse={livePulse} />
           </div>
         </div>
       </div>
@@ -280,41 +196,161 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
   );
 };
 
-const StatusHeader: React.FC<{ label: string; colorClass: string }> = ({ label, colorClass }) => (
-  <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-    <div className={`w-3 h-3 rounded-full ${colorClass}`} />
-    <h4 className="text-[10px] font-black text-slate-900 tracking-widest uppercase">{label}</h4>
+const StatCard: React.FC<{ label: string; value: string; unit: string; icon: React.ReactNode; accent?: boolean; warning?: boolean }> = 
+  ({ label, value, unit, icon, accent, warning }) => (
+  <div className={`p-3 md:p-4 2xl:p-6 rounded-xl md:rounded-2xl 2xl:rounded-[32px] border shadow-sm flex items-center justify-between ${
+    accent ? 'bg-slate-950 border-white/10' : warning ? 'bg-red-50 border-red-100' : 'bg-white border-slate-200'
+  }`}>
+    <div>
+      <p className={`text-[8px] md:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 ${
+        accent ? 'text-red-500' : warning ? 'text-red-600' : 'text-slate-400'
+      }`}>{label}</p>
+      <p className={`text-lg md:text-2xl 2xl:text-4xl font-black ${accent ? 'text-white' : 'text-slate-900'}`}>
+        {value} <span className={`text-[8px] md:text-[10px] 2xl:text-sm font-bold uppercase ${accent ? 'text-slate-500' : 'text-slate-400'}`}>{unit}</span>
+      </p>
+    </div>
+    <div className={`hidden sm:block ${accent ? 'text-red-600 opacity-50' : warning ? 'text-red-400' : 'text-slate-300'}`}>
+      {icon}
+    </div>
   </div>
 );
 
-const MatrixCell: React.FC<{ tasks: Task[]; onTaskClick: (t: Task) => void }> = ({ tasks, onTaskClick }) => (
-  <div className="flex flex-col gap-2 p-3 bg-slate-100/50 rounded-3xl border-2 border-slate-50 min-h-[150px]">
-    {tasks.length > 0 ? tasks.map(task => (
-      <button 
-        key={task.id}
-        onClick={() => onTaskClick(task)}
-        className={`w-full text-left bg-white px-4 py-3 rounded-xl border-2 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all flex flex-col group/card ${
-            task.helpRequested ? 'border-red-600 animate-pulse' : 'border-slate-200 hover:border-red-600/30'
-        }`}
-      >
-        <div className="flex justify-between items-center mb-1">
-          <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${PRIORITY_COLORS[task.priority]}`}>
-            {task.priority}
-          </span>
-          <span className="text-[8px] font-black text-slate-400 uppercase">
-            {task.effort} PTS
-          </span>
-        </div>
-        <h5 className="text-[11px] font-black text-slate-900 leading-none truncate group-hover/card:text-red-600 transition-colors uppercase tracking-tight">
-          {task.title}
-        </h5>
-      </button>
-    )) : (
-      <div className="flex-1 flex items-center justify-center text-[8px] font-black text-slate-300 uppercase tracking-widest italic">
-        Standing By
-      </div>
-    )}
+const StatusBadge: React.FC<{ label: string; color: string }> = ({ label, color }) => (
+  <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+    <div className={`w-2 h-2 rounded-full ${color}`} />
+    <span className="text-[8px] 2xl:text-[10px] font-black text-slate-600 uppercase tracking-tight">{label}</span>
   </div>
+);
+
+const ProjectRow: React.FC<{ 
+  project: Project; 
+  tasks: Record<TaskStatus, Task[]>; 
+  onTaskClick: (t: Task) => void 
+}> = ({ project, tasks, onTaskClick }) => {
+  const [expanded, setExpanded] = useState(true);
+  
+  return (
+    <div className="bg-white rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <button 
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 md:p-4 2xl:p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
+      >
+        <div className="text-left">
+          <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 leading-tight uppercase">{project.name}</h3>
+          <p className="text-[9px] md:text-[10px] text-slate-400 font-bold line-clamp-1 uppercase">{project.description}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-1 text-[9px] font-black text-red-600">
+            <Activity size={12} />
+            <span>{tasks[TaskStatus.InProgress].length} ACTIVE</span>
+          </div>
+          {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+        </div>
+      </button>
+      
+      {expanded && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
+          <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />
+          <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" />
+          <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StatusColumn: React.FC<{ 
+  status: TaskStatus;
+  tasks: Task[]; 
+  onTaskClick: (t: Task) => void;
+  label: string;
+}> = ({ status, tasks, onTaskClick, label }) => (
+  <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px]">
+    <div className="flex items-center gap-2 mb-2 sm:hidden">
+      <div className={`w-2 h-2 rounded-full ${
+        status === TaskStatus.NotStarted ? 'bg-slate-300' : 
+        status === TaskStatus.InProgress ? 'bg-red-600' : 'bg-black'
+      }`} />
+      <span className="text-[8px] font-black text-slate-500 uppercase">{label}</span>
+    </div>
+    <div className="space-y-2">
+      {tasks.map(task => (
+        <button 
+          key={task.id}
+          onClick={() => onTaskClick(task)}
+          className={`w-full text-left bg-white px-3 py-2 md:px-4 md:py-3 rounded-lg md:rounded-xl border-2 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
+            task.helpRequested ? 'border-red-600' : 'border-slate-100 hover:border-red-600/30'
+          }`}
+        >
+          <div className="flex justify-between items-center mb-1">
+            <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
+              {task.priority}
+            </span>
+            <span className="text-[7px] md:text-[8px] font-black text-slate-400">{task.effort} PTS</span>
+          </div>
+          <h5 className="text-[10px] md:text-[11px] font-black text-slate-900 leading-tight truncate uppercase">{task.title}</h5>
+        </button>
+      ))}
+      {tasks.length === 0 && (
+        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 uppercase italic">
+          Empty
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
+  <>
+    {livePulse.map((pulse: any, idx) => {
+      if (pulse.type === 'announcement') {
+        return (
+          <div key={`ann-${pulse.id}`} className="p-3 md:p-4 2xl:p-6 rounded-xl 2xl:rounded-2xl border-2 border-red-600/30 bg-red-600/10">
+            <div className="flex items-center gap-2 md:gap-3 mb-2">
+              <div className="w-8 h-8 2xl:w-10 2xl:h-10 bg-red-600 rounded-lg 2xl:rounded-xl flex items-center justify-center text-white">
+                <Megaphone size={14} />
+              </div>
+              <div>
+                <p className="text-[9px] 2xl:text-[10px] font-black text-white uppercase">{pulse.userName}</p>
+                <p className="text-[7px] 2xl:text-[8px] font-bold text-red-500 uppercase tracking-widest">
+                  {pulse.scope === 'Global' ? 'GLOBAL' : pulse.targetDepartment}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] 2xl:text-sm font-black text-white leading-relaxed uppercase italic line-clamp-2">
+              "{pulse.text}"
+            </p>
+          </div>
+        );
+      }
+
+      const isSOSActive = pulse.action.toUpperCase().includes('HELP REQUESTED');
+      const isComplete = pulse.action.toUpperCase().includes('COMPLETE');
+      
+      return (
+        <div key={`act-${idx}`} className={`p-3 2xl:p-5 rounded-xl 2xl:rounded-2xl border transition-all ${
+          isSOSActive ? 'bg-red-600 border-red-400' : 
+          isComplete ? 'bg-green-950/20 border-green-900/30' : 
+          'bg-white/5 border-white/5'
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`w-6 h-6 2xl:w-8 2xl:h-8 rounded-lg flex items-center justify-center ${
+              isSOSActive ? 'bg-white text-red-600' : isComplete ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400'
+            }`}>
+              {isSOSActive ? <LifeBuoy size={12} /> : isComplete ? <CheckCircle2 size={12} /> : <Activity size={12} />}
+            </div>
+            <p className="text-[9px] 2xl:text-[10px] font-black uppercase text-white">{pulse.userName}</p>
+          </div>
+          <p className={`text-[9px] 2xl:text-[11px] font-black uppercase tracking-tight line-clamp-1 ${isSOSActive ? 'text-white' : 'text-slate-300'}`}>
+            {pulse.action}
+          </p>
+          <p className="text-[8px] 2xl:text-[9px] font-bold uppercase text-red-500/80 line-clamp-1">
+            {pulse.taskTitle}
+          </p>
+        </div>
+      );
+    })}
+  </>
 );
 
 export default Dashboard;
