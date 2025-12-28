@@ -36,12 +36,19 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     minutes: number; 
     notes: string; 
     date: string;
+    filterRole: string;
   }>({
     selectedUsers: [],
     minutes: 45,
     notes: 'Class time',
     date: new Date().toISOString().split('T')[0],
+    filterRole: '',
   });
+
+  const filteredUsersForBulk = useMemo(() => {
+    if (!bulkForm.filterRole) return state.users;
+    return state.users.filter(u => u.roles.includes(bulkForm.filterRole as Role));
+  }, [state.users, bulkForm.filterRole]);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const currentUserId = parseInt(state.currentUser?.id || '0');
@@ -149,7 +156,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         bulkForm.notes,
         bulkForm.date
       );
-      setBulkForm({ selectedUsers: [], minutes: 45, notes: 'Class time', date: new Date().toISOString().split('T')[0] });
+      setBulkForm({ selectedUsers: [], minutes: 45, notes: 'Class time', date: new Date().toISOString().split('T')[0], filterRole: '' });
       setShowBulkAdd(false);
       onRefresh();
     } catch (error) {
@@ -167,11 +174,24 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const selectAllUsers = () => {
+    const usersToSelect = filteredUsersForBulk;
+    const allSelected = usersToSelect.every(u => bulkForm.selectedUsers.includes(u.id));
     setBulkForm(prev => ({
       ...prev,
-      selectedUsers: prev.selectedUsers.length === state.users.length 
-        ? [] 
-        : state.users.map(u => u.id)
+      selectedUsers: allSelected 
+        ? prev.selectedUsers.filter(id => !usersToSelect.some(u => u.id === id))
+        : [...new Set([...prev.selectedUsers, ...usersToSelect.map(u => u.id)])]
+    }));
+  };
+
+  const selectByRole = (role: string) => {
+    const usersWithRole = state.users.filter(u => u.roles.includes(role as Role));
+    const allSelected = usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
+    setBulkForm(prev => ({
+      ...prev,
+      selectedUsers: allSelected
+        ? prev.selectedUsers.filter(id => !usersWithRole.some(u => u.id === id))
+        : [...new Set([...prev.selectedUsers, ...usersWithRole.map(u => u.id)])]
     }));
   };
 
@@ -315,6 +335,32 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
           {showBulkAdd && (
             <div className="space-y-4">
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Quick Select by Role</label>
+                <div className="flex flex-wrap gap-2">
+                  {[Role.ClassMember, Role.TeamMember, Role.DepartmentHead, Role.TeamCaptain, Role.ScrumMaster].map(role => {
+                    const usersWithRole = state.users.filter(u => u.roles.includes(role));
+                    const allSelected = usersWithRole.length > 0 && usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
+                    return (
+                      <button
+                        key={role}
+                        onClick={() => selectByRole(role)}
+                        disabled={usersWithRole.length === 0}
+                        className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${
+                          usersWithRole.length === 0
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                            : allSelected
+                              ? 'bg-green-600 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700'
+                        }`}
+                      >
+                        {role} ({usersWithRole.length})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   onClick={selectAllUsers}

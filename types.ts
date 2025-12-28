@@ -13,6 +13,7 @@ export enum Role {
   TeamCaptain = 'Team Captain',
   DepartmentHead = 'Department Head',
   TeamMember = 'Team Member',
+  ClassMember = 'Class Member',
   Coach = 'Coach'
 }
 
