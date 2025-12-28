@@ -28,6 +28,10 @@ app.get("/api/users", async (req, res) => {
 
 app.post("/api/users", async (req, res) => {
   try {
+    const existingUser = await storage.getUserByUsername(req.body.username?.toLowerCase());
+    if (existingUser) {
+      return res.status(400).json({ error: "Username already taken" });
+    }
     const user = await storage.createUser(req.body);
     res.status(201).json(user);
   } catch (error) {
@@ -39,6 +43,12 @@ app.post("/api/users", async (req, res) => {
 app.put("/api/users/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    if (req.body.username) {
+      const existingUser = await storage.getUserByUsername(req.body.username.toLowerCase());
+      if (existingUser && existingUser.id !== id) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+    }
     const user = await storage.updateUser(id, req.body);
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
