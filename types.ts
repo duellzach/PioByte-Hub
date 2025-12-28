@@ -111,11 +111,40 @@ export interface Project {
   archived: boolean;
 }
 
+export type TimeEntryStatus = 'pending_check_in' | 'checked_in' | 'pending_check_out' | 'completed';
+
+export interface TimeEntry {
+  id: string;
+  userId: string;
+  checkInAt: number;
+  checkOutAt?: number;
+  checkInConfirmedBy?: string;
+  checkInConfirmedAt?: number;
+  checkOutConfirmedBy?: string;
+  checkOutConfirmedAt?: number;
+  status: TimeEntryStatus;
+  roundedMinutes?: number;
+  notes?: string;
+  createdAt: number;
+}
+
+export interface TimeEntryAudit {
+  id: string;
+  entryId: string;
+  actorId: string;
+  actionType: string;
+  previousValues?: Record<string, any>;
+  newValues?: Record<string, any>;
+  deltaMinutes?: number;
+  createdAt: number;
+}
+
 export interface AppState {
   users: User[];
   projects: Project[];
   tasks: Task[];
   notifications: Notification[];
   announcements: Announcement[];
+  timeEntries: TimeEntry[];
   currentUser: User | null;
 }

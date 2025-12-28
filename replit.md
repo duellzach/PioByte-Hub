@@ -30,7 +30,8 @@ A task management and project tracking system for FRC (FIRST Robotics Competitio
 │   ├── KanbanBoard.tsx     # Kanban board for task management
 │   ├── Layout.tsx          # App layout wrapper
 │   ├── TaskModal.tsx       # Task detail/edit modal
-│   └── TeamManagement.tsx  # Team member management
+│   ├── TeamManagement.tsx  # Team member management
+│   └── TimeTracking.tsx    # Time clock & hours tracking
 ├── services/
 │   └── api.ts              # Frontend API client
 ├── server/
@@ -66,6 +67,12 @@ After seeding the database:
 - Task assignment, status tracking, and priority setting
 - Department-based filtering
 - "War Room" dashboard for operational overview
+- **Time Tracking System**:
+  - Check-in/check-out for team members
+  - Coach approval workflow (pending_check_in → checked_in → pending_check_out → completed)
+  - Quarter-hour rounding (rounds UP to nearest 15 minutes)
+  - Full audit trail for all time entry changes
+  - Coaches can edit times and view audit logs
 
 ## Recent Changes (December 2024)
 - Migrated from Firebase to Replit PostgreSQL database
@@ -73,3 +80,6 @@ After seeding the database:
 - Created Express API backend
 - Added Drizzle ORM for database operations
 - Updated frontend to use REST API instead of Firebase real-time sync
+- Added time tracking with coach approval workflow and audit logging
+- Responsive design for 4K, 1080p, and mobile screens
+- User management: coaches can edit names/handles, users can change passwords

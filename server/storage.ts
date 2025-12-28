@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement } from "../shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit } from "../shared/schema";
+import { eq, desc, and, isNull } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
   if (value === undefined || value === null) return undefined;
@@ -40,6 +40,16 @@ function sanitizeUser(user: any): any {
   const sanitized: any = { ...user };
   delete sanitized.id;
   delete sanitized.createdAt;
+  return sanitized;
+}
+
+function sanitizeTimeEntry(entry: any): any {
+  const sanitized: any = { ...entry };
+  if ('checkInAt' in sanitized) sanitized.checkInAt = toDate(sanitized.checkInAt);
+  if ('checkOutAt' in sanitized) sanitized.checkOutAt = toDate(sanitized.checkOutAt);
+  if ('checkInConfirmedAt' in sanitized) sanitized.checkInConfirmedAt = toDate(sanitized.checkInConfirmedAt);
+  if ('checkOutConfirmedAt' in sanitized) sanitized.checkOutConfirmedAt = toDate(sanitized.checkOutConfirmedAt);
+  if ('createdAt' in sanitized) sanitized.createdAt = toDate(sanitized.createdAt);
   return sanitized;
 }
 
@@ -208,6 +218,51 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAnnouncement(id: number): Promise<void> {
     await db.delete(announcements).where(eq(announcements.id, id));
+  }
+
+  async getTimeEntries(): Promise<TimeEntry[]> {
+    return db.select().from(timeEntries).orderBy(desc(timeEntries.createdAt));
+  }
+
+  async getTimeEntry(id: number): Promise<TimeEntry | undefined> {
+    const [entry] = await db.select().from(timeEntries).where(eq(timeEntries.id, id));
+    return entry;
+  }
+
+  async getTimeEntriesByUser(userId: number): Promise<TimeEntry[]> {
+    return db.select().from(timeEntries).where(eq(timeEntries.userId, userId)).orderBy(desc(timeEntries.createdAt));
+  }
+
+  async getOpenTimeEntry(userId: number): Promise<TimeEntry | undefined> {
+    const [entry] = await db.select().from(timeEntries)
+      .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.checkOutAt)));
+    return entry;
+  }
+
+  async createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry> {
+    const sanitized = sanitizeTimeEntry(entry);
+    const [newEntry] = await db.insert(timeEntries).values(sanitized).returning();
+    return newEntry;
+  }
+
+  async updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
+    const sanitized = sanitizeTimeEntry(entry);
+    delete sanitized.id;
+    const [updated] = await db.update(timeEntries).set(sanitized).where(eq(timeEntries.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTimeEntry(id: number): Promise<void> {
+    await db.delete(timeEntries).where(eq(timeEntries.id, id));
+  }
+
+  async getTimeEntryAudit(entryId: number): Promise<TimeEntryAudit[]> {
+    return db.select().from(timeEntryAudit).where(eq(timeEntryAudit.entryId, entryId)).orderBy(desc(timeEntryAudit.createdAt));
+  }
+
+  async createTimeEntryAudit(audit: InsertTimeEntryAudit): Promise<TimeEntryAudit> {
+    const [newAudit] = await db.insert(timeEntryAudit).values(audit).returning();
+    return newAudit;
   }
 
   async seedDatabase(): Promise<void> {

@@ -93,4 +93,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+  timeEntries: {
+    getAll: () => apiRequest<any[]>('/time-entries'),
+    get: (id: number) => apiRequest<any>(`/time-entries/${id}`),
+    checkIn: (userId: number) =>
+      apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId }) }),
+    checkOut: (id: number, userId: number) =>
+      apiRequest<any>(`/time-entries/${id}/check-out`, { method: 'POST', body: JSON.stringify({ userId }) }),
+    confirm: (id: number, coachId: number, confirmType: 'check_in' | 'check_out') =>
+      apiRequest<any>(`/time-entries/${id}/confirm`, { method: 'POST', body: JSON.stringify({ coachId, confirmType }) }),
+    update: (id: number, coachId: number, data: { checkInAt?: string; checkOutAt?: string; notes?: string }) =>
+      apiRequest<any>(`/time-entries/${id}`, { method: 'PUT', body: JSON.stringify({ coachId, ...data }) }),
+    delete: (id: number, coachId: number) =>
+      apiRequest<void>(`/time-entries/${id}`, { method: 'DELETE', body: JSON.stringify({ coachId }) }),
+    getAudit: (id: number) => apiRequest<any[]>(`/time-entries/${id}/audit`),
+  },
 };

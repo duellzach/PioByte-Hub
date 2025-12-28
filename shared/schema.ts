@@ -86,6 +86,44 @@ export const announcementsRelations = relations(announcements, ({ one }) => ({
   author: one(users, { fields: [announcements.authorId], references: [users.id] }),
 }));
 
+export const timeEntries = pgTable("time_entries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  checkInAt: timestamp("check_in_at").notNull(),
+  checkOutAt: timestamp("check_out_at"),
+  checkInConfirmedBy: integer("check_in_confirmed_by").references(() => users.id),
+  checkInConfirmedAt: timestamp("check_in_confirmed_at"),
+  checkOutConfirmedBy: integer("check_out_confirmed_by").references(() => users.id),
+  checkOutConfirmedAt: timestamp("check_out_confirmed_at"),
+  status: text("status").notNull().default("pending_check_in"),
+  roundedMinutes: integer("rounded_minutes"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const timeEntryAudit = pgTable("time_entry_audit", {
+  id: serial("id").primaryKey(),
+  entryId: integer("entry_id").notNull().references(() => timeEntries.id, { onDelete: "cascade" }),
+  actorId: integer("actor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  actionType: text("action_type").notNull(),
+  previousValues: jsonb("previous_values").$type<Record<string, any>>(),
+  newValues: jsonb("new_values").$type<Record<string, any>>(),
+  deltaMinutes: integer("delta_minutes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const timeEntriesRelations = relations(timeEntries, ({ one, many }) => ({
+  user: one(users, { fields: [timeEntries.userId], references: [users.id] }),
+  checkInConfirmer: one(users, { fields: [timeEntries.checkInConfirmedBy], references: [users.id] }),
+  checkOutConfirmer: one(users, { fields: [timeEntries.checkOutConfirmedBy], references: [users.id] }),
+  auditLogs: many(timeEntryAudit),
+}));
+
+export const timeEntryAuditRelations = relations(timeEntryAudit, ({ one }) => ({
+  entry: one(timeEntries, { fields: [timeEntryAudit.entryId], references: [timeEntries.id] }),
+  actor: one(users, { fields: [timeEntryAudit.actorId], references: [users.id] }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Project = typeof projects.$inferSelect;
@@ -96,3 +134,7 @@ export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = typeof announcements.$inferInsert;
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type InsertTimeEntry = typeof timeEntries.$inferInsert;
+export type TimeEntryAudit = typeof timeEntryAudit.$inferSelect;
+export type InsertTimeEntryAudit = typeof timeEntryAudit.$inferInsert;

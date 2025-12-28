@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppState, User, Project, Task, Role, Department, TaskStatus, Priority, Notification, Announcement } from './types';
+import { AppState, User, Project, Task, Role, Department, TaskStatus, Priority, Notification, Announcement, TimeEntry } from './types';
 import Layout from './components/Layout';
 import Home from './components/Home';
 import Dashboard from './components/Dashboard';
 import KanbanBoard from './components/KanbanBoard';
 import TeamManagement from './components/TeamManagement';
+import TimeTracking from './components/TimeTracking';
 import TaskModal from './components/TaskModal';
 import { api } from './services/api';
 import { Database, Zap } from 'lucide-react';
@@ -32,6 +33,7 @@ const App: React.FC = () => {
     tasks: [],
     notifications: [],
     announcements: [],
+    timeEntries: [],
     currentUser: null
   });
 
@@ -41,12 +43,13 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [users, projects, tasks, notifications, announcements] = await Promise.all([
+      const [users, projects, tasks, notifications, announcements, timeEntries] = await Promise.all([
         api.users.getAll(),
         api.projects.getAll(),
         api.tasks.getAll(),
         api.notifications.getAll(),
         api.announcements.getAll(),
+        api.timeEntries.getAll(),
       ]);
       setState(prev => ({
         ...prev,
@@ -74,6 +77,18 @@ const App: React.FC = () => {
           id: String(a.id), 
           authorId: String(a.authorId),
           timestamp: new Date(a.timestamp).getTime() 
+        })),
+        timeEntries: timeEntries.map((e: any) => ({
+          ...e,
+          id: String(e.id),
+          userId: String(e.userId),
+          checkInAt: new Date(e.checkInAt).getTime(),
+          checkOutAt: e.checkOutAt ? new Date(e.checkOutAt).getTime() : undefined,
+          checkInConfirmedBy: e.checkInConfirmedBy ? String(e.checkInConfirmedBy) : undefined,
+          checkInConfirmedAt: e.checkInConfirmedAt ? new Date(e.checkInConfirmedAt).getTime() : undefined,
+          checkOutConfirmedBy: e.checkOutConfirmedBy ? String(e.checkOutConfirmedBy) : undefined,
+          checkOutConfirmedAt: e.checkOutConfirmedAt ? new Date(e.checkOutConfirmedAt).getTime() : undefined,
+          createdAt: new Date(e.createdAt).getTime(),
         })),
       }));
       setIsCloudSynced(true);
@@ -293,6 +308,9 @@ const App: React.FC = () => {
                 await fetchData();
               }}
             />
+          } />
+          <Route path="/time" element={
+            <TimeTracking state={state} onRefresh={fetchData} />
           } />
           <Route path="/team" element={
             <TeamManagement 

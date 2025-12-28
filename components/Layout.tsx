@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -64,6 +64,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/" icon={<HomeIcon size={18} />} label="HOME" onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/war-room" icon={<LayoutDashboard size={18} />} label="WAR ROOM" onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/boards" icon={<Kanban size={18} />} label="BOARDS" onClick={() => setMobileMenuOpen(false)} />
+          <NavItem to="/time" icon={<Clock size={18} />} label="TIME" onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" onClick={() => setMobileMenuOpen(false)} />
         </nav>
 

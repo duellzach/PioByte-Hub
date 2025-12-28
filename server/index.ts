@@ -278,6 +278,224 @@ app.post("/api/users/:id/change-password", async (req, res) => {
   }
 });
 
+function roundToQuarterHour(minutes: number): number {
+  return Math.ceil(minutes / 15) * 15;
+}
+
+app.get("/api/time-entries", async (req, res) => {
+  try {
+    const entries = await storage.getTimeEntries();
+    res.json(entries);
+  } catch (error) {
+    console.error("Error fetching time entries:", error);
+    res.status(500).json({ error: "Failed to fetch time entries" });
+  }
+});
+
+app.get("/api/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    res.json(entry);
+  } catch (error) {
+    console.error("Error fetching time entry:", error);
+    res.status(500).json({ error: "Failed to fetch time entry" });
+  }
+});
+
+app.post("/api/time-entries/check-in", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const openEntry = await storage.getOpenTimeEntry(userId);
+    if (openEntry) {
+      return res.status(400).json({ error: "User already has an open time entry" });
+    }
+    const entry = await storage.createTimeEntry({
+      userId,
+      checkInAt: new Date(),
+      status: "pending_check_in",
+    });
+    await storage.createTimeEntryAudit({
+      entryId: entry.id,
+      actorId: userId,
+      actionType: "check_in",
+      newValues: { checkInAt: entry.checkInAt },
+    });
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error("Error checking in:", error);
+    res.status(500).json({ error: "Failed to check in" });
+  }
+});
+
+app.post("/api/time-entries/:id/check-out", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { userId } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    if (entry.checkOutAt) return res.status(400).json({ error: "Already checked out" });
+    
+    const checkOutAt = new Date();
+    const updated = await storage.updateTimeEntry(id, {
+      checkOutAt,
+      status: "pending_check_out",
+    });
+    await storage.createTimeEntryAudit({
+      entryId: id,
+      actorId: userId,
+      actionType: "check_out",
+      previousValues: { checkOutAt: null },
+      newValues: { checkOutAt },
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error checking out:", error);
+    res.status(500).json({ error: "Failed to check out" });
+  }
+});
+
+app.post("/api/time-entries/:id/confirm", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId, confirmType } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    
+    let updates: any = {};
+    let newStatus = entry.status;
+    let roundedMinutes = entry.roundedMinutes;
+    
+    if (confirmType === "check_in") {
+      updates.checkInConfirmedBy = coachId;
+      updates.checkInConfirmedAt = new Date();
+      newStatus = "checked_in";
+    } else if (confirmType === "check_out") {
+      updates.checkOutConfirmedBy = coachId;
+      updates.checkOutConfirmedAt = new Date();
+      newStatus = "completed";
+      if (entry.checkInAt && entry.checkOutAt) {
+        const duration = new Date(entry.checkOutAt).getTime() - new Date(entry.checkInAt).getTime();
+        const minutes = Math.floor(duration / 60000);
+        roundedMinutes = roundToQuarterHour(minutes);
+        updates.roundedMinutes = roundedMinutes;
+      }
+    }
+    updates.status = newStatus;
+    
+    const updated = await storage.updateTimeEntry(id, updates);
+    await storage.createTimeEntryAudit({
+      entryId: id,
+      actorId: coachId,
+      actionType: `confirm_${confirmType}`,
+      previousValues: { status: entry.status },
+      newValues: { status: newStatus, roundedMinutes },
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error confirming:", error);
+    res.status(500).json({ error: "Failed to confirm" });
+  }
+});
+
+app.put("/api/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId, checkInAt, checkOutAt, notes } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    
+    const previousValues: any = {};
+    const newValues: any = {};
+    const updates: any = {};
+    
+    if (checkInAt !== undefined) {
+      previousValues.checkInAt = entry.checkInAt;
+      newValues.checkInAt = checkInAt;
+      updates.checkInAt = new Date(checkInAt);
+    }
+    if (checkOutAt !== undefined) {
+      previousValues.checkOutAt = entry.checkOutAt;
+      newValues.checkOutAt = checkOutAt;
+      updates.checkOutAt = checkOutAt ? new Date(checkOutAt) : null;
+    }
+    if (notes !== undefined) {
+      previousValues.notes = entry.notes;
+      newValues.notes = notes;
+      updates.notes = notes;
+    }
+    
+    if (updates.checkInAt || updates.checkOutAt) {
+      const inTime = updates.checkInAt || entry.checkInAt;
+      const outTime = updates.checkOutAt || entry.checkOutAt;
+      if (inTime && outTime) {
+        const duration = new Date(outTime).getTime() - new Date(inTime).getTime();
+        const minutes = Math.floor(duration / 60000);
+        const newRounded = roundToQuarterHour(minutes);
+        const deltaMinutes = newRounded - (entry.roundedMinutes || 0);
+        updates.roundedMinutes = newRounded;
+        newValues.roundedMinutes = newRounded;
+        
+        await storage.createTimeEntryAudit({
+          entryId: id,
+          actorId: coachId,
+          actionType: "edit",
+          previousValues,
+          newValues,
+          deltaMinutes,
+        });
+      }
+    } else if (notes !== undefined) {
+      await storage.createTimeEntryAudit({
+        entryId: id,
+        actorId: coachId,
+        actionType: "edit_notes",
+        previousValues,
+        newValues,
+      });
+    }
+    
+    const updated = await storage.updateTimeEntry(id, updates);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating time entry:", error);
+    res.status(500).json({ error: "Failed to update time entry" });
+  }
+});
+
+app.get("/api/time-entries/:id/audit", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const audit = await storage.getTimeEntryAudit(id);
+    res.json(audit);
+  } catch (error) {
+    console.error("Error fetching audit:", error);
+    res.status(500).json({ error: "Failed to fetch audit" });
+  }
+});
+
+app.delete("/api/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (entry) {
+      await storage.createTimeEntryAudit({
+        entryId: id,
+        actorId: coachId,
+        actionType: "delete",
+        previousValues: entry,
+      });
+    }
+    await storage.deleteTimeEntry(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting time entry:", error);
+    res.status(500).json({ error: "Failed to delete time entry" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();
