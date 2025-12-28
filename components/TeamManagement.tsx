@@ -22,6 +22,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
@@ -320,7 +321,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase mb-1 md:mb-2">Manage Member</h2>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] md:text-xs">Editing {editingUser.name}</p>
                       </div>
-                      <button onClick={() => setEditingUser(null)} className="p-2 md:p-3 bg-slate-50 rounded-xl hover:text-red-600 transition-all">
+                      <button onClick={() => { setEditingUser(null); setUsernameError(''); }} className="p-2 md:p-3 bg-slate-50 rounded-xl hover:text-red-600 transition-all">
                         <X size={20} />
                       </button>
                     </div>
@@ -344,9 +345,19 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 <label className="block text-[8px] md:text-[9px] font-bold text-slate-400 uppercase mb-1 md:mb-2 ml-2">Username (Handle)</label>
                                 <input 
                                   value={editingUser.username}
-                                  onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value.toLowerCase() })}
-                                  className="w-full p-3 md:p-4 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl outline-none focus:border-red-600 transition-all font-bold text-sm md:text-base"
+                                  onChange={(e) => {
+                                    const newUsername = e.target.value.toLowerCase();
+                                    setEditingUser({ ...editingUser, username: newUsername });
+                                    const taken = state.users.some(u => u.id !== editingUser.id && u.username.toLowerCase() === newUsername);
+                                    setUsernameError(taken ? 'This handle is already taken by another team member' : '');
+                                  }}
+                                  className={`w-full p-3 md:p-4 bg-slate-50 border-2 rounded-xl md:rounded-2xl outline-none transition-all font-bold text-sm md:text-base ${usernameError ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-red-600'}`}
                                 />
+                                {usernameError && (
+                                  <p className="text-red-500 text-[9px] md:text-[10px] font-bold mt-1 ml-2 flex items-center gap-1">
+                                    <AlertCircle size={10} /> {usernameError}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </section>
@@ -425,10 +436,13 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     <div className="pt-6 md:pt-10">
                         <button 
                             onClick={() => {
+                                if (usernameError) return;
                                 onUpdateUser(editingUser);
                                 setEditingUser(null);
+                                setUsernameError('');
                             }}
-                            className="w-full py-4 md:py-6 bg-red-600 text-white font-black rounded-xl md:rounded-[32px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-widest text-xs md:text-sm"
+                            disabled={!!usernameError}
+                            className={`w-full py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${usernameError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/20'}`}
                         >
                             Save Changes
                         </button>
@@ -486,40 +500,90 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
         )}
 
         {isAdding && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-6 animate-in fade-in duration-300">
-                <div className="bg-white rounded-2xl md:rounded-[48px] w-full max-w-2xl p-6 md:p-16 shadow-2xl animate-in zoom-in duration-300 border-t-8 border-red-600">
-                    <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase mb-6 md:mb-10 text-center">Add New Member</h2>
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.currentTarget);
-                        const newUser: User = {
-                            id: Date.now().toString(),
-                            name: formData.get('name') as string,
-                            username: (formData.get('username') as string).toLowerCase(),
-                            password: 'password',
-                            roles: [Role.TeamMember],
-                            departments: [Department.Mechanical]
-                        };
-                        onAddUser(newUser);
-                        setIsAdding(false);
-                    }} className="space-y-4 md:space-y-8">
-                        <div>
-                            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 ml-2">Full Name</label>
-                            <input name="name" required placeholder="e.g. ALEX RIVERA" className="w-full p-4 md:p-6 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-[32px] outline-none focus:border-red-600 transition-all font-black text-sm md:text-lg uppercase tracking-tight" />
-                        </div>
-                        <div>
-                            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 ml-2">Username (Handle)</label>
-                            <input name="username" required placeholder="arivera" className="w-full p-4 md:p-6 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-[32px] outline-none focus:border-red-600 transition-all font-black text-sm md:text-lg tracking-tight" />
-                        </div>
-                        <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase text-center">Default password will be "password"</p>
-                        <div className="pt-4 md:pt-8 flex gap-3 md:gap-4">
-                            <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-4 md:py-6 text-slate-900 font-black hover:bg-slate-100 rounded-xl md:rounded-[32px] transition-all uppercase tracking-widest text-xs md:text-sm">Cancel</button>
-                            <button type="submit" className="flex-1 py-4 md:py-6 bg-red-600 text-white font-black rounded-xl md:rounded-[32px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-widest text-xs md:text-sm">Add Member</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <AddMemberModal 
+              users={state.users}
+              onAdd={(user) => { onAddUser(user); setIsAdding(false); }}
+              onCancel={() => setIsAdding(false)}
+            />
         )}
+    </div>
+  );
+};
+
+const AddMemberModal: React.FC<{
+  users: User[];
+  onAdd: (user: User) => void;
+  onCancel: () => void;
+}> = ({ users, onAdd, onCancel }) => {
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [error, setError] = useState('');
+
+  const handleUsernameChange = (value: string) => {
+    const lower = value.toLowerCase();
+    setUsername(lower);
+    const taken = users.some(u => u.username.toLowerCase() === lower);
+    setError(taken ? 'This handle is already taken' : '');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (error || !name.trim() || !username.trim()) return;
+    
+    const newUser: User = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      username: username.toLowerCase(),
+      password: 'password',
+      roles: [Role.TeamMember],
+      departments: [Department.Mechanical]
+    };
+    onAdd(newUser);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-6 animate-in fade-in duration-300">
+      <div className="bg-white rounded-2xl md:rounded-[48px] w-full max-w-2xl p-6 md:p-16 shadow-2xl animate-in zoom-in duration-300 border-t-8 border-red-600">
+        <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase mb-6 md:mb-10 text-center">Add New Member</h2>
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-8">
+          <div>
+            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 ml-2">Full Name</label>
+            <input 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required 
+              placeholder="e.g. ALEX RIVERA" 
+              className="w-full p-4 md:p-6 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-[32px] outline-none focus:border-red-600 transition-all font-black text-sm md:text-lg uppercase tracking-tight" 
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 ml-2">Username (Handle)</label>
+            <input 
+              value={username}
+              onChange={(e) => handleUsernameChange(e.target.value)}
+              required 
+              placeholder="arivera" 
+              className={`w-full p-4 md:p-6 bg-slate-50 border-2 rounded-xl md:rounded-[32px] outline-none transition-all font-black text-sm md:text-lg tracking-tight ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-red-600'}`} 
+            />
+            {error && (
+              <p className="text-red-500 text-[9px] md:text-[10px] font-bold mt-2 ml-2 flex items-center gap-1">
+                <AlertCircle size={10} /> {error}
+              </p>
+            )}
+          </div>
+          <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase text-center">Default password will be "password"</p>
+          <div className="pt-4 md:pt-8 flex gap-3 md:gap-4">
+            <button type="button" onClick={onCancel} className="flex-1 py-4 md:py-6 text-slate-900 font-black hover:bg-slate-100 rounded-xl md:rounded-[32px] transition-all uppercase tracking-widest text-xs md:text-sm">Cancel</button>
+            <button 
+              type="submit" 
+              disabled={!!error}
+              className={`flex-1 py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${error ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/20'}`}
+            >
+              Add Member
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
