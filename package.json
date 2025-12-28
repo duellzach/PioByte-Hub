@@ -9,6 +9,7 @@
     "client": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "NODE_ENV=production tsx server/index.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
