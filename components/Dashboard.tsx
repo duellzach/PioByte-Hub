@@ -131,11 +131,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
         )}
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 2xl:gap-8 overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-hidden min-h-0">
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
             <div>
-              <h1 className="text-xl md:text-2xl 2xl:text-3xl font-black text-slate-950 tracking-tighter uppercase leading-none">WAR ROOM</h1>
+              <h1 className="text-xl md:text-2xl font-black text-slate-950 tracking-tighter uppercase leading-none">WAR ROOM</h1>
               <p className="text-[9px] md:text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">Multi-Board Operations</p>
             </div>
             <div className="hidden sm:flex gap-2">
@@ -157,18 +157,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
           </div>
         </div>
 
-        <div className="hidden lg:flex w-80 xl:w-96 2xl:w-[450px] flex-col bg-slate-950 rounded-2xl 2xl:rounded-[40px] border border-white/5 shadow-2xl p-4 md:p-6 2xl:p-8 overflow-hidden flex-shrink-0">
-          <div className="flex items-center justify-between mb-4 2xl:mb-8">
+        <div className="hidden lg:flex w-64 xl:w-72 flex-col bg-slate-950 rounded-2xl border border-white/5 shadow-2xl p-4 overflow-hidden flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base 2xl:text-xl font-black text-white tracking-tight uppercase">Live Pulse</h2>
-              <p className="text-[8px] 2xl:text-[9px] font-black text-red-500 uppercase tracking-[0.3em]">Operational Flow</p>
+              <h2 className="text-sm font-black text-white tracking-tight uppercase">Live Pulse</h2>
+              <p className="text-[8px] font-black text-red-500 uppercase tracking-[0.3em]">Operational Flow</p>
             </div>
             <div className="flex items-center gap-2">
                <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_rgba(225,29,72,0.8)]" />
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto space-y-3 2xl:space-y-4 pr-2 kanban-scroll">
+          <div className="flex-1 overflow-auto space-y-3 pr-2 kanban-scroll">
             <PulseFeed livePulse={livePulse} />
           </div>
         </div>
