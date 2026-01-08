@@ -16,7 +16,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
   const [showPulse, setShowPulse] = useState(false);
 
   const activeProjects = useMemo(() => {
-    return state.projects.filter(p => !p.archived);
+    return state.projects.filter(p => !p.archived && p.showInWarRoom !== false);
   }, [state.projects]);
 
   const tasksByMatrix = useMemo(() => {

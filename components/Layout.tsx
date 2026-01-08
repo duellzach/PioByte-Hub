@@ -136,9 +136,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               </div>
               {isSynced ? <Cloud size={12} className="text-slate-300" /> : <CloudOff size={12} className="text-red-300" />}
             </div>
-            <div className="flex items-center gap-1 md:gap-2 px-2 md:px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 text-white text-[8px] md:text-[9px] xl:text-[10px] font-black rounded-lg uppercase tracking-tighter shadow-sm">
-              <span className="hidden md:inline">Build</span> 2025
-            </div>
           </div>
         </header>
         <div className="flex-1 overflow-auto bg-slate-50/50">

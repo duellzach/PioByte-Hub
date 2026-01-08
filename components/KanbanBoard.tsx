@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { AppState, Task, TaskStatus, Department, Project, Priority } from '../types';
+import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings } from 'lucide-react';
 import TaskModal from './TaskModal';
+import BoardSettingsModal from './BoardSettingsModal';
 
 interface KanbanBoardProps {
   state: AppState;
@@ -10,17 +11,19 @@ interface KanbanBoardProps {
   onDeleteTask: (taskId: string) => void;
   onAddTask: (task: Task) => void;
   onAddProject: (p: Project) => void;
+  onUpdateProject: (p: Project) => void;
   onArchiveProject: (id: string) => void;
   onNotify: (taskId: string, toUserId: string, message: string) => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onArchiveProject, onNotify }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify }) => {
   const [activeProjectId, setActiveProjectId] = useState<string>(state.projects.find(p => !p.archived)?.id || '');
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
   const [view, setView] = useState<'board' | 'help'>('board');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
@@ -29,6 +32,18 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [blockReasonInput, setBlockReasonInput] = useState('');
 
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.NotStarted);
+
+  const isCoachOrCaptain = state.currentUser?.roles.some(r => 
+    r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
+  );
+
+  const accessibleProjects = useMemo(() => {
+    return state.projects.filter(project => {
+      if (!project.department) return true;
+      if (isCoachOrCaptain) return true;
+      return state.currentUser?.departments.includes(project.department as Department);
+    });
+  }, [state.projects, state.currentUser, isCoachOrCaptain]);
 
   const activeProject = useMemo(() => state.projects.find(p => p.id === activeProjectId), [state.projects, activeProjectId]);
 
@@ -99,7 +114,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
       name: newProjectName,
       description: newProjectDesc,
       createdAt: Date.now(),
-      archived: false
+      archived: false,
+      scrumMasters: [],
+      showInWarRoom: true
     };
     onAddProject(newProject);
     setActiveProjectId(newId);
@@ -147,9 +164,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                 onChange={(e) => setActiveProjectId(e.target.value)}
                 className="flex-1 min-w-0 sm:flex-none sm:min-w-[160px] md:min-w-[200px] px-3 md:px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
               >
-                {state.projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 <optgroup label="Archived">
-                    {state.projects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </optgroup>
               </select>
               <button 
@@ -159,6 +176,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                   <FolderPlus size={16} />
               </button>
+              {activeProject && (
+                <button 
+                    onClick={() => setShowSettingsModal(true)}
+                    className="p-2 md:p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-colors shadow-sm"
+                    title="Board Settings"
+                >
+                    <Settings size={16} />
+                </button>
+              )}
               <select 
                 value={deptFilter} 
                 onChange={(e) => setDeptFilter(e.target.value as Department | 'All')}
@@ -421,6 +447,20 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               setShowAddModal(false);
           }}
           onDelete={onDeleteTask}
+        />
+      )}
+
+      {showSettingsModal && activeProject && (
+        <BoardSettingsModal
+          project={activeProject}
+          users={state.users}
+          currentUser={state.currentUser}
+          onClose={() => setShowSettingsModal(false)}
+          onSave={(updated) => {
+            onUpdateProject(updated);
+            setShowSettingsModal(false);
+          }}
+          onArchive={onArchiveProject}
         />
       )}
     </div>

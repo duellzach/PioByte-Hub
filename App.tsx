@@ -306,8 +306,15 @@ const App: React.FC = () => {
                 await api.projects.create(data);
                 await fetchData();
               }}
+              onUpdateProject={async (proj) => {
+                const data: any = { ...proj };
+                data.scrumMasters = proj.scrumMasters.map(Number);
+                await api.projects.update(parseInt(proj.id), data);
+                await fetchData();
+              }}
               onArchiveProject={async (id) => {
-                await api.projects.update(parseInt(id), { archived: true });
+                const project = state.projects.find(p => p.id === id);
+                await api.projects.update(parseInt(id), { archived: !project?.archived });
                 await fetchData();
               }}
             />
