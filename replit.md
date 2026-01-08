@@ -25,6 +25,7 @@ A task management and project tracking system for FRC (FIRST Robotics Competitio
 ├── index.tsx               # Application entry point
 ├── index.html              # HTML template
 ├── components/
+│   ├── BoardSettingsModal.tsx  # Board settings configuration
 │   ├── Dashboard.tsx       # War Room dashboard view
 │   ├── Home.tsx            # Home/feed view
 │   ├── KanbanBoard.tsx     # Kanban board for task management
@@ -77,7 +78,17 @@ After seeding the database:
   - Coaches can view/edit time history in user profiles (Team page)
   - Bulk add class time for multiple members at once
 
-## Recent Changes (December 2024)
+## Recent Changes (January 2025)
+- **Board Settings Feature**:
+  - Boards can be assigned to departments for access control
+  - Scrum Masters can be assigned to boards for ownership tracking
+  - Boards can be hidden from War Room dashboard via toggle
+  - Archive/restore toggle for boards
+  - Coaches and captains can see all boards regardless of department
+- Collapsible sidebar in Layout with smooth transitions
+- Removed "Build 2025" badge from header
+
+## Previous Changes (December 2024)
 - Migrated from Firebase to Replit PostgreSQL database
 - Removed AI/Gemini features
 - Created Express API backend
