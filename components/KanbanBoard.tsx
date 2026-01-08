@@ -17,7 +17,6 @@ interface KanbanBoardProps {
 }
 
 const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify }) => {
-  const [activeProjectId, setActiveProjectId] = useState<string>(state.projects.find(p => !p.archived)?.id || '');
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
   const [view, setView] = useState<'board' | 'help'>('board');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -44,6 +43,18 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
       return state.currentUser?.departments.includes(project.department as Department);
     });
   }, [state.projects, state.currentUser, isCoachOrCaptain]);
+
+  const firstAccessibleProject = useMemo(() => {
+    return accessibleProjects.find(p => !p.archived)?.id || accessibleProjects[0]?.id || '';
+  }, [accessibleProjects]);
+
+  const [activeProjectId, setActiveProjectId] = useState<string>(firstAccessibleProject);
+
+  React.useEffect(() => {
+    if (!accessibleProjects.find(p => p.id === activeProjectId)) {
+      setActiveProjectId(firstAccessibleProject);
+    }
+  }, [accessibleProjects, activeProjectId, firstAccessibleProject]);
 
   const activeProject = useMemo(() => state.projects.find(p => p.id === activeProjectId), [state.projects, activeProjectId]);
 
