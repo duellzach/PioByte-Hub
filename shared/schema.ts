@@ -16,6 +16,9 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   archived: boolean("archived").notNull().default(false),
+  department: text("department"),
+  scrumMasters: jsonb("scrum_masters").$type<number[]>().notNull().default([]),
+  showInWarRoom: boolean("show_in_war_room").notNull().default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
