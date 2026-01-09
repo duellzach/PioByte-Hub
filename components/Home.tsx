@@ -112,7 +112,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
   }, [state.tasks]);
 
   const handleSendBroadcast = () => {
-    if (!broadcastText.trim()) return;
+    if (!broadcastText.trim() || isMuted) return;
     const ann: Announcement = {
       id: Date.now().toString(),
       authorId: user?.id || 'unknown',

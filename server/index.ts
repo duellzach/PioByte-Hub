@@ -234,6 +234,13 @@ app.get("/api/announcements", async (req, res) => {
 
 app.post("/api/announcements", async (req, res) => {
   try {
+    const authorId = parseInt(req.body.authorId);
+    if (!isNaN(authorId)) {
+      const author = await storage.getUser(authorId);
+      if (author?.muted) {
+        return res.status(403).json({ error: "User is muted and cannot post announcements" });
+      }
+    }
     const announcement = await storage.createAnnouncement(req.body);
     res.status(201).json(announcement);
   } catch (error) {
