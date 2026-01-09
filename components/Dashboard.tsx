@@ -108,12 +108,28 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
   const totalBlocked = state.tasks.filter(t => t.status === TaskStatus.Blocked).length;
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 md:gap-6 2xl:gap-8 animate-in fade-in duration-1000">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 2xl:gap-6">
-        <StatCard label="Weekly Effort" value={`${currentWeekEffort}`} unit="PTS" icon={<TrendingUp size={20} />} accent />
-        <StatCard label="Active Tasks" value={`${totalActive}`} unit="LIVE" icon={<Activity size={20} />} />
-        <StatCard label="Blocked" value={`${totalBlocked}`} unit="HELD" icon={<AlertTriangle size={20} />} warning={totalBlocked > 0} />
-        <StatCard label="Projects" value={`${activeProjects.length}`} unit="OPS" icon={<Flag size={20} />} />
+    <div className="w-full h-full flex flex-col gap-3 md:gap-4 2xl:gap-6 animate-in fade-in duration-1000">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[10px] md:text-xs">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
+          <TrendingUp size={14} className="text-red-600" />
+          <span className="font-black text-red-600">{currentWeekEffort}</span>
+          <span className="text-red-400 font-bold">pts</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
+          <Activity size={14} className="text-slate-600" />
+          <span className="font-black text-slate-800">{totalActive}</span>
+          <span className="text-slate-400 font-bold">active</span>
+        </div>
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${totalBlocked > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+          <AlertTriangle size={14} className={totalBlocked > 0 ? 'text-amber-600' : 'text-slate-400'} />
+          <span className={`font-black ${totalBlocked > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{totalBlocked}</span>
+          <span className={`font-bold ${totalBlocked > 0 ? 'text-amber-500' : 'text-slate-400'}`}>blocked</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
+          <Flag size={14} className="text-slate-600" />
+          <span className="font-black text-slate-800">{activeProjects.length}</span>
+          <span className="text-slate-400 font-bold">projects</span>
+        </div>
       </div>
 
       <div className="lg:hidden">

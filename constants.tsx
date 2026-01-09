@@ -17,6 +17,7 @@ export const DEPARTMENT_COLORS: Record<Department, string> = {
   [Department.Logistics]: 'bg-slate-100 text-slate-800 border-slate-300',
   [Department.Electrical]: 'bg-slate-100 text-slate-800 border-slate-300',
   [Department.Business]: 'bg-slate-100 text-slate-800 border-slate-300',
+  [Department.Leadership]: 'bg-slate-100 text-slate-800 border-slate-300',
 };
 
 export const STATUS_COLORS: Record<TaskStatus, string> = {

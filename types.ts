@@ -5,7 +5,8 @@ export enum Department {
   Modeling = 'Modeling',
   Logistics = 'Logistics',
   Electrical = 'Electrical',
-  Business = 'Business'
+  Business = 'Business',
+  Leadership = 'Leadership'
 }
 
 export enum Role {

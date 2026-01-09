@@ -79,6 +79,18 @@ After seeding the database:
   - Bulk add class time for multiple members at once
 
 ## Recent Changes (January 2025)
+- **Task Creation Restrictions**:
+  - Only Department Heads, Scrum Masters, Team Captains, and Coaches can create tasks
+  - Regular team members can view and update tasks but cannot create new ones
+- **Leadership Department**:
+  - Added "Leadership" as a new department option
+- **War Room Metrics Minimized**:
+  - Compact inline stats bar replaces large metric cards
+  - More screen space for task boards
+- **Team Page Enhancements**:
+  - Department and role filters added
+  - Departments displayed on user cards
+  - Done/Effort stats visible only to coaches
 - **Mute Feature**:
   - Coaches can mute/unmute team members from the Team page
   - Muted users cannot post announcements or broadcast messages

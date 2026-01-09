@@ -36,6 +36,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
   );
 
+  const canCreateTask = state.currentUser?.roles.some(r => 
+    r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster || r === Role.DepartmentHead
+  );
+
   const accessibleProjects = useMemo(() => {
     return state.projects.filter(project => {
       if (!project.department) return true;
@@ -207,13 +211,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             </>
           )}
 
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="ml-auto flex items-center justify-center gap-1 md:gap-2 px-4 md:px-6 py-2 md:py-3 bg-red-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] md:text-xs tracking-wider"
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">New</span> Task
-          </button>
+          {canCreateTask && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="ml-auto flex items-center justify-center gap-1 md:gap-2 px-4 md:px-6 py-2 md:py-3 bg-red-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] md:text-xs tracking-wider"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">New</span> Task
+            </button>
+          )}
         </div>
       </div>
 
