@@ -38,6 +38,7 @@ export interface User {
   name: string;
   departments: Department[];
   roles: Role[];
+  muted?: boolean;
 }
 
 export interface Attachment {

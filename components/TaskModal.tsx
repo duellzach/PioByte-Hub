@@ -55,8 +55,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     }));
   };
 
+  const isMuted = currentUser?.muted === true;
+
   const addComment = () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || isMuted) return;
     const commentId = Date.now().toString();
     const comment: Comment = {
         id: commentId,

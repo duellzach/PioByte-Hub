@@ -79,6 +79,12 @@ After seeding the database:
   - Bulk add class time for multiple members at once
 
 ## Recent Changes (January 2025)
+- **Mute Feature**:
+  - Coaches can mute/unmute team members from the Team page
+  - Muted users cannot post announcements or broadcast messages
+  - Muted users cannot comment on announcements or tasks
+  - Visual indicator (muted badge) shown on user cards
+  - Coaches cannot be muted
 - **Board Settings Feature**:
   - Boards can be assigned to departments for access control
   - Scrum Masters can be assigned to boards for ownership tracking

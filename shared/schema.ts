@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   roles: jsonb("roles").$type<string[]>().notNull().default([]),
   departments: jsonb("departments").$type<string[]>().notNull().default([]),
+  muted: boolean("muted").notNull().default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

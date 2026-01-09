@@ -26,16 +26,18 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
   const [mentionFilter, setMentionFilter] = useState<string | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
 
+  const isMuted = user?.muted === true;
+
   const canBroadcastGlobal = useMemo(() => 
-    user?.roles.includes(Role.TeamCaptain) || user?.roles.includes(Role.Coach), 
-    [user]
+    !isMuted && (user?.roles.includes(Role.TeamCaptain) || user?.roles.includes(Role.Coach)), 
+    [user, isMuted]
   );
 
   const canBroadcastDept = useMemo(() => 
-    user?.roles.includes(Role.DepartmentHead) || 
+    !isMuted && (user?.roles.includes(Role.DepartmentHead) || 
     user?.roles.includes(Role.TeamCaptain) || 
-    user?.roles.includes(Role.Coach), 
-    [user]
+    user?.roles.includes(Role.Coach)), 
+    [user, isMuted]
   );
 
   const myTasks = useMemo(() => {
@@ -166,7 +168,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
   }, [mentionFilter, state.users]);
 
   const handleAddComment = () => {
-    if (!newComment.trim() || !selectedAnnouncement) return;
+    if (!newComment.trim() || !selectedAnnouncement || isMuted) return;
     
     const comment: Comment = {
       id: Date.now().toString(),

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History } from 'lucide-react';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2 } from 'lucide-react';
 import { DEPARTMENT_COLORS, ROLES, DEPARTMENTS } from '../constants';
 import { api } from '../services/api';
 
@@ -217,6 +217,15 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 <Settings size={16} />
                             </button>
                           )}
+                          {isCoach && user.id !== state.currentUser?.id && !user.roles.includes(Role.Coach) && (
+                            <button 
+                                onClick={() => onUpdateUser({ ...user, muted: !user.muted })}
+                                className={`p-2 md:p-3 ${user.muted ? 'text-red-600 bg-red-50' : 'text-slate-300'} hover:text-red-600 hover:bg-red-50 rounded-xl md:rounded-2xl transition-all`}
+                                title={user.muted ? "Unmute Member" : "Mute Member"}
+                            >
+                                {user.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            </button>
+                          )}
                           {isCoach && user.id !== state.currentUser?.id && (
                             <button 
                                 onClick={() => setUserToDelete(user)}
@@ -229,11 +238,21 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         </div>
                         
                         <div className="flex items-center gap-4 md:gap-6 mb-4 md:mb-8">
-                            <div className={`w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-3xl ${userIsCoach ? 'bg-black border-slate-700' : 'bg-slate-950 border-slate-900'} text-white flex items-center justify-center text-xl md:text-3xl font-black border-2 md:border-4 shadow-xl group-hover:bg-red-600 group-hover:border-red-500 transition-all transform group-hover:rotate-3`}>
+                            <div className={`relative w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-3xl ${userIsCoach ? 'bg-black border-slate-700' : 'bg-slate-950 border-slate-900'} text-white flex items-center justify-center text-xl md:text-3xl font-black border-2 md:border-4 shadow-xl group-hover:bg-red-600 group-hover:border-red-500 transition-all transform group-hover:rotate-3`}>
                                 {user.name[0].toUpperCase()}
+                                {user.muted && (
+                                  <div className="absolute -bottom-1 -right-1 p-1 bg-red-600 rounded-full">
+                                    <VolumeX size={10} className="text-white" />
+                                  </div>
+                                )}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h3 className="text-base md:text-xl font-black text-slate-900 tracking-tighter uppercase truncate">{user.name}</h3>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-base md:text-xl font-black text-slate-900 tracking-tighter uppercase truncate">{user.name}</h3>
+                                  {user.muted && (
+                                    <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-black rounded-full uppercase">Muted</span>
+                                  )}
+                                </div>
                                 <p className="text-[10px] md:text-xs text-red-600 font-bold flex items-center gap-1 md:gap-2 mt-1">
                                     <Mail size={12} /> @{user.username}
                                 </p>
