@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 
 interface TimeTrackingProps {
@@ -139,6 +139,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     } catch (error) {
       console.error('Failed to fetch audit:', error);
       setAuditLogs([]);
+    }
+  };
+
+  const handleDelete = async (entryId: string) => {
+    if (!confirm('Are you sure you want to delete this time entry? This cannot be undone.')) return;
+    try {
+      await api.timeEntries.delete(parseInt(entryId), currentUserId);
+      onRefresh();
+    } catch (error) {
+      console.error('Delete failed:', error);
     }
   };
 
@@ -487,6 +497,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   >
                     <History size={14} />
                   </button>
+                  <button
+                    onClick={() => handleDelete(entry.id)}
+                    className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all"
+                    title="Delete Entry"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -528,6 +545,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   </button>
                   <button onClick={() => openAuditModal(entry)} className="p-1.5 text-slate-400 hover:text-slate-600">
                     <History size={12} />
+                  </button>
+                  <button onClick={() => handleDelete(entry.id)} className="p-1.5 text-slate-400 hover:text-red-600">
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
