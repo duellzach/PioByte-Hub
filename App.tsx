@@ -147,6 +147,11 @@ const App: React.FC = () => {
     await fetchData();
   };
 
+  const handleDeleteAnnouncement = async (annId: string) => {
+    await api.announcements.delete(parseInt(annId));
+    await fetchData();
+  };
+
   const handleDeleteTask = async (taskId: string) => {
     await api.tasks.delete(parseInt(taskId));
     await fetchData();
@@ -273,6 +278,7 @@ const App: React.FC = () => {
               onClearNotification={handleClearNotification} 
               onAddAnnouncement={handleAddAnnouncement}
               onUpdateAnnouncement={handleUpdateAnnouncement}
+              onDeleteAnnouncement={handleDeleteAnnouncement}
               onNotify={handleNotify}
             />
           } />

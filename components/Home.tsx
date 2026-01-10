@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { AppState, Task, Notification, TaskStatus, Role, Announcement, Department, Comment } from '../types';
-import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp } from 'lucide-react';
+import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp, Trash2 } from 'lucide-react';
 import { PRIORITY_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -11,10 +11,11 @@ interface HomeProps {
   onClearNotification: (id: string) => void;
   onAddAnnouncement: (ann: Announcement) => void;
   onUpdateAnnouncement: (ann: Announcement) => void;
+  onDeleteAnnouncement: (annId: string) => void;
   onNotify: (taskId: string, toUserId: string, message: string) => void;
 }
 
-const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, onAddAnnouncement, onUpdateAnnouncement, onNotify }) => {
+const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, onAddAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement, onNotify }) => {
   const user = state.currentUser;
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
@@ -27,6 +28,25 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
   const commentInputRef = useRef<HTMLInputElement>(null);
 
   const isMuted = user?.muted === true;
+  const isCoach = user?.roles.includes(Role.Coach);
+
+  const deleteAnnouncementComment = (commentId: string) => {
+    if (!selectedAnnouncement || !confirm('Delete this comment?')) return;
+    const updatedAnn = {
+      ...selectedAnnouncement,
+      comments: selectedAnnouncement.comments?.filter(c => c.id !== commentId) || []
+    };
+    onUpdateAnnouncement(updatedAnn);
+    setSelectedAnnouncement(updatedAnn);
+  };
+
+  const handleDeleteAnnouncement = (annId: string) => {
+    if (!confirm('Delete this announcement? This cannot be undone.')) return;
+    onDeleteAnnouncement(annId);
+    if (selectedAnnouncement?.id === annId) {
+      setSelectedAnnouncement(null);
+    }
+  };
 
   const canBroadcastGlobal = useMemo(() => 
     !isMuted && (user?.roles.includes(Role.TeamCaptain) || user?.roles.includes(Role.Coach)), 
@@ -316,8 +336,17 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 <div 
                   key={ann.id} 
                   onClick={() => setSelectedAnnouncement(ann)}
-                  className="bg-white/5 border border-white/10 p-6 rounded-[24px] hover:bg-white/10 transition-all cursor-pointer group"
+                  className="bg-white/5 border border-white/10 p-6 rounded-[24px] hover:bg-white/10 transition-all cursor-pointer group relative"
                 >
+                  {isCoach && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteAnnouncement(ann.id); }}
+                      className="absolute top-3 right-3 p-1.5 text-white/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Delete announcement"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                   <p className="text-white text-xs font-bold leading-relaxed line-clamp-3 mb-4 italic">"{ann.text}"</p>
                   <div className="flex justify-between items-center border-t border-white/5 pt-3">
                      <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">@{author?.username}</span>
@@ -477,9 +506,20 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                    <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">Broadcast Thread</h2>
                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Briefing Discussion Sector</p>
                 </div>
-                <button onClick={() => setSelectedAnnouncement(null)} className="p-3 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
-                  <X size={24} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isCoach && (
+                    <button 
+                      onClick={() => handleDeleteAnnouncement(selectedAnnouncement.id)}
+                      className="p-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-all"
+                      title="Delete announcement"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedAnnouncement(null)} className="p-3 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
+                    <X size={24} />
+                  </button>
+                </div>
              </div>
 
              <div className="flex-1 overflow-auto p-8 space-y-8 kanban-scroll">
@@ -504,10 +544,21 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                        {selectedAnnouncement.comments?.map(c => {
                           const author = state.users.find(u => u.id === c.userId);
                           return (
-                            <div key={c.id} className="bg-slate-50 p-6 rounded-[24px] border border-slate-100">
+                            <div key={c.id} className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 group">
                                <div className="flex justify-between items-center mb-2">
                                   <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{author?.name}</span>
-                                  <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    {isCoach && (
+                                      <button 
+                                        onClick={() => deleteAnnouncementComment(c.id)}
+                                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-all"
+                                        title="Delete comment"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    )}
+                                  </div>
                                </div>
                                <div className="text-sm text-slate-600 leading-relaxed font-medium">
                                  {renderCommentText(c.text)}

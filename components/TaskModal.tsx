@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock } from 'lucide-react';
-import { Task, TaskStatus, Priority, Department, User, Activity, Comment } from '../types';
+import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 
 interface TaskModalProps {
@@ -56,6 +56,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   };
 
   const isMuted = currentUser?.muted === true;
+  const isCoach = currentUser?.roles.includes(Role.Coach);
+
+  const deleteComment = (commentId: string) => {
+    if (!confirm('Delete this comment?')) return;
+    setEditedTask(prev => ({
+      ...prev,
+      comments: prev.comments.filter(c => c.id !== commentId)
+    }));
+    logActivity('Comment deleted by coach');
+  };
 
   const addComment = () => {
     if (!newComment.trim() || isMuted) return;
@@ -281,10 +291,21 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                         {editedTask.comments.map(c => {
                           const user = users.find(u => u.id === c.userId);
                           return (
-                            <div key={c.id} className="bg-slate-50 p-6 rounded-[24px] border border-slate-100">
+                            <div key={c.id} className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 group">
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{user?.name || 'Unknown'}</span>
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                      {isCoach && (
+                                        <button 
+                                          onClick={() => deleteComment(c.id)}
+                                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-all"
+                                          title="Delete comment"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </div>
                                 </div>
                                 <div className="text-sm text-slate-600 leading-relaxed font-medium">
                                   {renderCommentText(c.text)}
