@@ -80,11 +80,21 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
+  const toLocalDateTimeString = (date: Date | number | string) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const openTimeEditModal = (entry: TimeEntry) => {
     setEditingTimeEntry(entry);
     setTimeEditForm({
-      checkInAt: new Date(entry.checkInAt).toISOString().slice(0, 16),
-      checkOutAt: entry.checkOutAt ? new Date(entry.checkOutAt).toISOString().slice(0, 16) : '',
+      checkInAt: toLocalDateTimeString(entry.checkInAt),
+      checkOutAt: entry.checkOutAt ? toLocalDateTimeString(entry.checkOutAt) : '',
       notes: entry.notes || '',
     });
   };
