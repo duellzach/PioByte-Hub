@@ -66,6 +66,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     );
   }, [state.timeEntries]);
 
+  const checkedInStudents = useMemo(() => {
+    return state.timeEntries.filter(e => e.status === 'checked_in');
+  }, [state.timeEntries]);
+
   const myEntries = useMemo(() => {
     return state.timeEntries
       .filter(e => e.userId === state.currentUser?.id)
@@ -104,6 +108,15 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       onRefresh();
     } catch (error) {
       console.error('Confirm failed:', error);
+    }
+  };
+
+  const handleCoachCheckOut = async (entryId: string, userId: string) => {
+    try {
+      await api.timeEntries.checkOut(parseInt(entryId), parseInt(userId));
+      onRefresh();
+    } catch (error) {
+      console.error('Coach check-out failed:', error);
     }
   };
 
@@ -503,6 +516,55 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     title="Delete Entry"
                   >
                     <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isCoach && checkedInStudents.length > 0 && (
+        <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-green-200 p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
+              <Clock size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight">Currently Checked In</h3>
+              <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">{checkedInStudents.length} students working</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {checkedInStudents.map(entry => (
+              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-green-200 rounded-xl flex items-center justify-center font-black text-green-700">
+                    {getUserName(entry.userId)[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-800">{getUserName(entry.userId)}</p>
+                    <p className="text-[10px] text-slate-500 font-bold">
+                      Checked in at {formatTime(entry.checkInAt)} • {formatDate(entry.checkInAt)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black px-2 py-1 rounded-lg uppercase bg-green-100 text-green-700">
+                    Active
+                  </span>
+                  <button
+                    onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
+                    className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-red-700 transition-all"
+                  >
+                    <LogOut size={12} /> Check Out
+                  </button>
+                  <button
+                    onClick={() => openEditModal(entry)}
+                    className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-all"
+                  >
+                    <Edit3 size={14} />
                   </button>
                 </div>
               </div>
