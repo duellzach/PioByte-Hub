@@ -281,7 +281,7 @@ const StatusColumn: React.FC<{
   onTaskClick: (t: Task) => void;
   label: string;
 }> = ({ status, tasks, onTaskClick, label }) => (
-  <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px]">
+  <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
     <div className="flex items-center gap-2 mb-2 sm:hidden">
       <div className={`w-2 h-2 rounded-full ${
         status === TaskStatus.NotStarted ? 'bg-slate-300' : 
@@ -289,26 +289,26 @@ const StatusColumn: React.FC<{
       }`} />
       <span className="text-[8px] font-black text-slate-500 uppercase">{label}</span>
     </div>
-    <div className="space-y-2">
+    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
       {tasks.map(task => (
         <button 
           key={task.id}
           onClick={() => onTaskClick(task)}
-          className={`w-full text-left bg-white px-3 py-2 md:px-4 md:py-3 rounded-lg md:rounded-xl border-2 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
+          className={`w-full text-left bg-white px-2 py-1.5 md:px-3 md:py-2 rounded-lg border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
             task.helpRequested ? 'border-red-600' : 'border-slate-100 hover:border-red-600/30'
           }`}
         >
-          <div className="flex justify-between items-center mb-1">
-            <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
+          <div className="flex justify-between items-center mb-0.5">
+            <span className={`text-[6px] md:text-[7px] font-black px-1 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
               {task.priority}
             </span>
-            <span className="text-[7px] md:text-[8px] font-black text-slate-400">{task.effort} PTS</span>
+            <span className="text-[6px] md:text-[7px] font-black text-slate-400">{task.effort}pt</span>
           </div>
-          <h5 className="text-[10px] md:text-[11px] font-black text-slate-900 leading-tight truncate uppercase">{task.title}</h5>
+          <h5 className="text-[9px] md:text-[10px] font-black text-slate-900 leading-tight truncate uppercase">{task.title}</h5>
         </button>
       ))}
       {tasks.length === 0 && (
-        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 uppercase italic">
+        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 uppercase italic col-span-full">
           Empty
         </div>
       )}

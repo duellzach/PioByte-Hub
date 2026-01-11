@@ -260,7 +260,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             </div>
           </div>
 
-          <div className="hidden md:grid flex-1 grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 2xl:gap-6 overflow-hidden">
+          <div className="hidden md:grid flex-1 grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 2xl:gap-6 min-h-0">
             {STATUSES.map(status => (
               <div 
                 key={status} 
@@ -277,16 +277,18 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                     {tasksByStatus[status].length}
                   </span>
                 </div>
-                <div className="flex-1 overflow-auto p-2 md:p-3 space-y-2 kanban-scroll">
-                  {tasksByStatus[status].map(task => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
-                      onClick={() => setSelectedTask(task)}
-                      onToggleHelp={(e) => toggleHelp(task, e)}
-                      onDragStart={(e) => handleDragStart(e, task.id)}
-                    />
-                  ))}
+                <div className="flex-1 overflow-auto p-2 md:p-3 kanban-scroll">
+                  <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
+                    {tasksByStatus[status].map(task => (
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        onClick={() => setSelectedTask(task)}
+                        onToggleHelp={(e) => toggleHelp(task, e)}
+                        onDragStart={(e) => handleDragStart(e, task.id)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
