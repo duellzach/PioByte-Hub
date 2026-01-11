@@ -277,7 +277,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                     {tasksByStatus[status].length}
                   </span>
                 </div>
-                <div className="flex-1 overflow-auto p-3 md:p-4 2xl:p-6 space-y-3 md:space-y-4 kanban-scroll">
+                <div className="flex-1 overflow-auto p-2 md:p-3 space-y-2 kanban-scroll">
                   {tasksByStatus[status].map(task => (
                     <TaskCard 
                       key={task.id} 
@@ -495,61 +495,56 @@ const TaskCard: React.FC<{
             onClick={onClick}
             draggable
             onDragStart={onDragStart}
-            className={`group bg-white p-4 md:p-5 2xl:p-6 rounded-xl md:rounded-2xl 2xl:rounded-[28px] border-2 shadow-sm hover:shadow-lg hover:scale-[1.01] transition-all cursor-grab active:cursor-grabbing relative overflow-hidden ${
+            className={`group bg-white p-2.5 md:p-3 rounded-lg md:rounded-xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-grab active:cursor-grabbing relative overflow-hidden ${
                 task.helpRequested ? 'border-red-600 shadow-red-600/5' : 'border-slate-100 hover:border-red-600/30'
             }`}
         >
             {task.helpRequested && (
-                <div className="absolute top-0 right-0 px-2 py-0.5 bg-red-600 text-white text-[6px] md:text-[7px] font-black uppercase tracking-widest">
+                <div className="absolute top-0 right-0 px-1.5 py-0.5 bg-red-600 text-white text-[5px] md:text-[6px] font-black uppercase tracking-widest">
                     SOS
                 </div>
             )}
-            <div className="flex justify-between items-start mb-2 md:mb-4">
-                <div className="flex gap-1.5 md:gap-2">
-                    <span className={`text-[7px] md:text-[8px] font-black px-1.5 md:px-2 py-0.5 rounded-md md:rounded-lg uppercase ${PRIORITY_COLORS[task.priority]}`}>
+            <div className="flex justify-between items-start mb-1.5">
+                <div className="flex gap-1">
+                    <span className={`text-[6px] md:text-[7px] font-black px-1 md:px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
                         {task.priority}
                     </span>
-                    <span className="text-[7px] md:text-[8px] font-black px-1.5 md:px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md md:rounded-lg border border-slate-200">
+                    <span className="text-[6px] md:text-[7px] font-black px-1 md:px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200">
                         {task.effort}pt
                     </span>
                 </div>
-                <GripVertical size={12} className="text-slate-200 group-hover:text-slate-400 hidden md:block" />
+                <GripVertical size={10} className="text-slate-200 group-hover:text-slate-400 hidden md:block" />
             </div>
-            <h4 className="text-xs md:text-sm font-black text-slate-900 leading-tight mb-2 md:mb-4 uppercase tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
+            <h4 className="text-[10px] md:text-xs font-black text-slate-900 leading-tight mb-1.5 uppercase tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
                 {task.title}
             </h4>
-            <div className="space-y-2 md:space-y-4">
-                <div className="flex flex-wrap gap-1 items-center justify-between">
-                    <div className="flex flex-wrap gap-1">
-                        {task.departments.slice(0, 2).map(d => (
-                            <span key={d} className="text-[6px] md:text-[7px] font-black text-slate-400 uppercase">
-                                {d}
-                            </span>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-1 text-[7px] md:text-[8px] font-black text-slate-400 uppercase">
-                        <Clock size={10} className="text-red-600/50" />
-                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                    </div>
-                </div>
-                <div className="flex items-center justify-between pt-2 md:pt-4 border-t border-slate-50">
-                    <div className="flex -space-x-1.5 md:-space-x-2">
-                        {task.assignees.slice(0, 3).map((id, i) => (
-                            <div key={id} className="w-5 h-5 md:w-6 md:h-6 rounded-md md:rounded-lg bg-slate-950 text-white border-2 border-white flex items-center justify-center text-[7px] md:text-[8px] font-black shadow-sm">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="flex -space-x-1">
+                        {task.assignees.slice(0, 2).map((id, i) => (
+                            <div key={id} className="w-4 h-4 md:w-5 md:h-5 rounded bg-slate-950 text-white border border-white flex items-center justify-center text-[6px] md:text-[7px] font-black">
                                 {id[0]}
                             </div>
                         ))}
+                        {task.assignees.length > 2 && (
+                            <div className="w-4 h-4 md:w-5 md:h-5 rounded bg-slate-200 text-slate-500 border border-white flex items-center justify-center text-[6px] md:text-[7px] font-black">
+                                +{task.assignees.length - 2}
+                            </div>
+                        )}
                     </div>
-                    <button 
-                        onClick={onToggleHelp}
-                        className={`p-1.5 md:p-2 rounded-lg md:rounded-xl transition-all ${
-                            task.helpRequested ? 'bg-red-600 text-white shadow-lg' : 'bg-slate-50 text-slate-300 hover:text-red-600 hover:bg-red-50'
-                        }`}
-                        title="Request SOS"
-                    >
-                        <LifeBuoy size={12} />
-                    </button>
+                    <span className="text-[6px] md:text-[7px] font-bold text-slate-400">
+                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    </span>
                 </div>
+                <button 
+                    onClick={onToggleHelp}
+                    className={`p-1 rounded transition-all ${
+                        task.helpRequested ? 'bg-red-600 text-white shadow' : 'bg-slate-50 text-slate-300 hover:text-red-600 hover:bg-red-50'
+                    }`}
+                    title="Request SOS"
+                >
+                    <LifeBuoy size={10} />
+                </button>
             </div>
         </div>
     );
