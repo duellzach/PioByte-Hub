@@ -159,8 +159,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     if (!editingEntry) return;
     try {
       await api.timeEntries.update(parseInt(editingEntry.id), currentUserId, {
-        checkInAt: editForm.checkInAt,
-        checkOutAt: editForm.checkOutAt || undefined,
+        checkInAt: new Date(editForm.checkInAt).toISOString(),
+        checkOutAt: editForm.checkOutAt ? new Date(editForm.checkOutAt).toISOString() : undefined,
         notes: editForm.notes,
       });
       setEditingEntry(null);

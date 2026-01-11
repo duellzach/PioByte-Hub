@@ -103,8 +103,8 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     if (!editingTimeEntry || !state.currentUser) return;
     try {
       await api.timeEntries.update(parseInt(editingTimeEntry.id), parseInt(state.currentUser.id), {
-        checkInAt: timeEditForm.checkInAt,
-        checkOutAt: timeEditForm.checkOutAt || undefined,
+        checkInAt: new Date(timeEditForm.checkInAt).toISOString(),
+        checkOutAt: timeEditForm.checkOutAt ? new Date(timeEditForm.checkOutAt).toISOString() : undefined,
         notes: timeEditForm.notes,
       });
       setEditingTimeEntry(null);
