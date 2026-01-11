@@ -70,6 +70,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return state.timeEntries.filter(e => e.status === 'checked_in');
   }, [state.timeEntries]);
 
+  const notCheckedInUsers = useMemo(() => {
+    const activeUserIds = state.timeEntries
+      .filter(e => e.status === 'checked_in' || e.status === 'pending_check_in' || e.status === 'pending_check_out')
+      .map(e => e.userId);
+    return state.users.filter(u => !activeUserIds.includes(u.id) && !u.roles.includes(Role.Coach));
+  }, [state.timeEntries, state.users]);
+
   const myEntries = useMemo(() => {
     return state.timeEntries
       .filter(e => e.userId === state.currentUser?.id)
@@ -117,6 +124,15 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       onRefresh();
     } catch (error) {
       console.error('Coach check-out failed:', error);
+    }
+  };
+
+  const handleCoachCheckIn = async (userId: string) => {
+    try {
+      await api.timeEntries.checkIn(parseInt(userId));
+      onRefresh();
+    } catch (error) {
+      console.error('Coach check-in failed:', error);
     }
   };
 
@@ -567,6 +583,40 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <Edit3 size={14} />
                   </button>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isCoach && notCheckedInUsers.length > 0 && (
+        <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-200 p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center">
+              <Users size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight">Not Checked In</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{notCheckedInUsers.length} students available</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {notCheckedInUsers.map(user => (
+              <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 bg-slate-200 rounded-lg flex items-center justify-center font-black text-sm text-slate-600 flex-shrink-0">
+                    {user.name[0]}
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 truncate">{user.name.split(' ')[0]}</p>
+                </div>
+                <button
+                  onClick={() => handleCoachCheckIn(user.id)}
+                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex-shrink-0"
+                  title="Check In"
+                >
+                  <LogIn size={14} />
+                </button>
               </div>
             ))}
           </div>
