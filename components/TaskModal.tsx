@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock } from 'lucide-react';
+import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search } from 'lucide-react';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 
@@ -40,7 +40,25 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
   const [newComment, setNewComment] = useState('');
   const [mentionFilter, setMentionFilter] = useState<string | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
   const commentInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredUsersForAssignment = useMemo(() => {
+    let filtered = users;
+    if (editedTask.departments.length > 0) {
+      filtered = filtered.filter(u => 
+        u.departments.some(d => editedTask.departments.includes(d))
+      );
+    }
+    if (assigneeSearch.trim()) {
+      const search = assigneeSearch.toLowerCase();
+      filtered = filtered.filter(u => 
+        u.username.toLowerCase().includes(search) || 
+        u.name.toLowerCase().includes(search)
+      );
+    }
+    return filtered;
+  }, [users, editedTask.departments, assigneeSearch]);
 
   const logActivity = (action: string) => {
     const newActivity: Activity = {
@@ -453,31 +471,48 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Authorized Units</label>
+              <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by username..."
+                  value={assigneeSearch}
+                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-colors"
+                />
+              </div>
+              {editedTask.departments.length === 0 && (
+                <p className="text-[9px] text-amber-600 font-bold mb-2 ml-1">Select sectors above to filter available units</p>
+              )}
               <div className="space-y-2 max-h-48 overflow-auto kanban-scroll pr-2">
-                {users.map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                        const newAssignees = editedTask.assignees.includes(u.id)
-                            ? editedTask.assignees.filter(id => id !== u.id)
-                            : [...editedTask.assignees, u.id];
-                        setEditedTask({...editedTask, assignees: newAssignees});
-                    }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
-                        editedTask.assignees.includes(u.id)
-                        ? 'bg-red-50 border-red-600/20 text-red-600 shadow-sm'
-                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-slate-950 text-white flex items-center justify-center text-[10px] font-black">
-                        {u.name[0]}
-                    </div>
-                    <div className="text-left">
-                      <p className="tracking-tight">{u.name}</p>
-                      <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
-                    </div>
-                  </button>
-                ))}
+                {filteredUsersForAssignment.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-4">No matching users found</p>
+                ) : (
+                  filteredUsersForAssignment.map(u => (
+                    <button
+                      key={u.id}
+                      onClick={() => {
+                          const newAssignees = editedTask.assignees.includes(u.id)
+                              ? editedTask.assignees.filter(id => id !== u.id)
+                              : [...editedTask.assignees, u.id];
+                          setEditedTask({...editedTask, assignees: newAssignees});
+                      }}
+                      className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
+                          editedTask.assignees.includes(u.id)
+                          ? 'bg-red-50 border-red-600/20 text-red-600 shadow-sm'
+                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-slate-950 text-white flex items-center justify-center text-[10px] font-black">
+                          {u.name[0]}
+                      </div>
+                      <div className="text-left">
+                        <p className="tracking-tight">{u.name}</p>
+                        <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
