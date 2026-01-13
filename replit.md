@@ -100,9 +100,14 @@ After seeding the database:
 - **Board Settings Feature**:
   - Boards can be assigned to departments for access control
   - Scrum Masters can be assigned to boards for ownership tracking
+  - Assigned scrum masters automatically get the Scrum Master role
+  - Scrum master names displayed on War Room project rows with badge
   - Boards can be hidden from War Room dashboard via toggle
   - Archive/restore toggle for boards
   - Coaches and captains can see all boards regardless of department
+- **Task Assignment Improvements**:
+  - "Authorized Units" filtered by selected sectors (departments)
+  - Search box to filter users by username when assigning tasks
 - Collapsible sidebar in Layout with smooth transitions
 - Removed "Build 2025" badge from header
 
