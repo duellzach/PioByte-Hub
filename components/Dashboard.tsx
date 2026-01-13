@@ -245,7 +245,7 @@ const ProjectRow: React.FC<{
   onTaskClick: (t: Task) => void;
   users: User[];
 }> = ({ project, tasks, onTaskClick, users }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   
   const scrumMasterDisplay = useMemo(() => {
     if (!project.scrumMasters || project.scrumMasters.length === 0) return null;
@@ -262,7 +262,7 @@ const ProjectRow: React.FC<{
     <div className="bg-white rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
       <button 
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-2 md:p-3 2xl:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+        className="w-full p-3 md:p-4 2xl:p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
       >
         <div className="text-left">
           <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 leading-tight uppercase">{project.name}</h3>
@@ -286,7 +286,7 @@ const ProjectRow: React.FC<{
       </button>
       
       {expanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 md:gap-2 p-2 md:p-3 2xl:p-4 pt-0 md:pt-0 2xl:pt-0">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
           <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />
           <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" />
           <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" />
@@ -302,7 +302,7 @@ const StatusColumn: React.FC<{
   onTaskClick: (t: Task) => void;
   label: string;
 }> = ({ status, tasks, onTaskClick, label }) => (
-  <div className="bg-slate-50 rounded-lg md:rounded-xl p-1.5 md:p-2 min-h-[60px] md:min-h-[70px] max-h-[150px] 2xl:max-h-[180px] overflow-auto kanban-scroll">
+  <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
     <div className="flex items-center gap-2 mb-2 sm:hidden">
       <div className={`w-2 h-2 rounded-full ${
         status === TaskStatus.NotStarted ? 'bg-slate-300' : 
