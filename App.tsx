@@ -54,7 +54,7 @@ const App: React.FC = () => {
       setState(prev => ({
         ...prev,
         users: users.map((u: any) => ({ ...u, id: String(u.id) })),
-        projects: projects.map((p: any) => ({ ...p, id: String(p.id), createdAt: new Date(p.createdAt).getTime() })),
+        projects: projects.map((p: any) => ({ ...p, id: String(p.id), createdAt: new Date(p.createdAt).getTime(), scrumMasters: (p.scrumMasters || []).map(String) })),
         tasks: tasks.map((t: any) => ({ 
           ...t, 
           id: String(t.id), 
@@ -316,6 +316,12 @@ const App: React.FC = () => {
                 const data: any = { ...proj };
                 data.scrumMasters = proj.scrumMasters.map(Number);
                 await api.projects.update(parseInt(proj.id), data);
+                for (const smId of proj.scrumMasters) {
+                  const user = state.users.find(u => u.id === smId);
+                  if (user && !user.roles.includes(Role.ScrumMaster)) {
+                    await api.users.update(parseInt(smId), { roles: [...user.roles, Role.ScrumMaster] });
+                  }
+                }
                 await fetchData();
               }}
               onArchiveProject={async (id) => {

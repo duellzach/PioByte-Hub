@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { AppState, TaskStatus, Task, Project, Department } from '../types';
+import { AppState, TaskStatus, Task, Project, Department, User } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Timer, Activity, CheckCircle2, AlertTriangle, MessageSquare, Flag, LifeBuoy, Megaphone, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Timer, Activity, CheckCircle2, AlertTriangle, MessageSquare, Flag, LifeBuoy, Megaphone, TrendingUp, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
 import TaskModal from './TaskModal';
 
 interface DashboardProps {
@@ -168,6 +168,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
                 project={project}
                 tasks={tasksByMatrix[project.id]}
                 onTaskClick={setSelectedTask}
+                users={state.users}
               />
             ))}
           </div>
@@ -241,9 +242,18 @@ const StatusBadge: React.FC<{ label: string; color: string }> = ({ label, color 
 const ProjectRow: React.FC<{ 
   project: Project; 
   tasks: Record<TaskStatus, Task[]>; 
-  onTaskClick: (t: Task) => void 
-}> = ({ project, tasks, onTaskClick }) => {
+  onTaskClick: (t: Task) => void;
+  users: User[];
+}> = ({ project, tasks, onTaskClick, users }) => {
   const [expanded, setExpanded] = useState(true);
+  
+  const scrumMasterNames = useMemo(() => {
+    if (!project.scrumMasters || project.scrumMasters.length === 0) return null;
+    return project.scrumMasters
+      .map(id => users.find(u => u.id === id)?.name)
+      .filter(Boolean)
+      .join(', ');
+  }, [project.scrumMasters, users]);
   
   return (
     <div className="bg-white rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -253,7 +263,15 @@ const ProjectRow: React.FC<{
       >
         <div className="text-left">
           <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 leading-tight uppercase">{project.name}</h3>
-          <p className="text-[9px] md:text-[10px] text-slate-400 font-bold line-clamp-1 uppercase">{project.description}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            <p className="text-[9px] md:text-[10px] text-slate-400 font-bold line-clamp-1 uppercase">{project.description}</p>
+            {scrumMasterNames && (
+              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                <UserCheck size={10} />
+                SM: {scrumMasterNames}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-1 text-[9px] font-black text-red-600">
