@@ -105,6 +105,7 @@ After seeding the database:
   - Boards can be hidden from War Room dashboard via toggle
   - Archive/restore toggle for boards
   - Coaches and captains can see all boards regardless of department
+  - "Allow All Task Creation" toggle - when enabled, any team member can create tasks on that board
 - **Task Assignment Improvements**:
   - "Authorized Units" filtered by selected sectors (departments)
   - Search box to filter users by username when assigning tasks

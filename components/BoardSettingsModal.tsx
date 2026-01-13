@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Project, User, Department, Role } from '../types';
 import { DEPARTMENTS } from '../constants';
-import { X, Settings, Archive, Eye, EyeOff, Users, Building2 } from 'lucide-react';
+import { X, Settings, Archive, Eye, EyeOff, Users, Building2, UserPlus, UserCheck } from 'lucide-react';
 
 interface BoardSettingsModalProps {
   project: Project;
@@ -25,6 +25,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
   const [department, setDepartment] = useState<string>(project.department || '');
   const [scrumMasters, setScrumMasters] = useState<string[]>(project.scrumMasters || []);
   const [showInWarRoom, setShowInWarRoom] = useState(project.showInWarRoom ?? true);
+  const [allowAllTaskCreation, setAllowAllTaskCreation] = useState(project.allowAllTaskCreation ?? false);
 
   const eligibleScrumMasters = users.filter(u => 
     u.roles.includes(Role.ScrumMaster) || 
@@ -52,7 +53,8 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
       description,
       department: department || undefined,
       scrumMasters,
-      showInWarRoom
+      showInWarRoom,
+      allowAllTaskCreation
     });
   };
 
@@ -135,6 +137,29 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
               </button>
               <p className="text-[9px] text-slate-400 ml-2">Toggle whether this board shows on the War Room dashboard</p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+              {allowAllTaskCreation ? <UserCheck size={14} /> : <UserPlus size={14} />}
+              Task Creation Permissions
+            </label>
+            <button
+              onClick={() => setAllowAllTaskCreation(!allowAllTaskCreation)}
+              className={`w-full p-4 border-2 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
+                allowAllTaskCreation 
+                  ? 'bg-green-50 border-green-200 text-green-700' 
+                  : 'bg-slate-50 border-slate-100 text-slate-500'
+              }`}
+            >
+              {allowAllTaskCreation ? <UserCheck size={18} /> : <UserPlus size={18} />}
+              {allowAllTaskCreation ? 'All Members Can Create Tasks' : 'Leaders Only Can Create Tasks'}
+            </button>
+            <p className="text-[9px] text-slate-400 ml-2">
+              {allowAllTaskCreation 
+                ? 'Any team member can create tasks on this board' 
+                : 'Only Department Heads, Scrum Masters, Captains, and Coaches can create tasks'}
+            </p>
           </div>
 
           <div className="space-y-3">

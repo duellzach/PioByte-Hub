@@ -36,7 +36,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
   );
 
-  const canCreateTask = state.currentUser?.roles.some(r => 
+  const hasLeaderRole = state.currentUser?.roles.some(r => 
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster || r === Role.DepartmentHead
   );
 
@@ -61,6 +61,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   }, [accessibleProjects, activeProjectId, firstAccessibleProject]);
 
   const activeProject = useMemo(() => state.projects.find(p => p.id === activeProjectId), [state.projects, activeProjectId]);
+
+  const canCreateTask = hasLeaderRole || activeProject?.allowAllTaskCreation;
 
   const projectTasks = useMemo(() => {
     let tasks = state.tasks.filter(t => t.projectId === activeProjectId);

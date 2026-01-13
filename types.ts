@@ -115,6 +115,7 @@ export interface Project {
   department?: string;
   scrumMasters: string[];
   showInWarRoom: boolean;
+  allowAllTaskCreation?: boolean;
 }
 
 export type TimeEntryStatus = 'pending_check_in' | 'checked_in' | 'pending_check_out' | 'completed';
