@@ -149,19 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-hidden min-h-0">
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-            <div>
-              <h1 className="text-xl md:text-2xl font-black text-slate-950 tracking-tighter uppercase leading-none">WAR ROOM</h1>
-              <p className="text-[9px] md:text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">Multi-Board Operations</p>
-            </div>
-            <div className="hidden sm:flex gap-2">
-              <StatusBadge label="Not Started" color="bg-slate-300" />
-              <StatusBadge label="In Progress" color="bg-red-600" />
-              <StatusBadge label="Blocked" color="bg-black" />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-auto pr-2 kanban-scroll space-y-4 md:space-y-6 pb-4">
+          <div className="flex-1 overflow-auto pr-2 kanban-scroll space-y-3 md:space-y-4 pb-4">
             {activeProjects.map(project => (
               <ProjectRow 
                 key={project.id}
@@ -229,13 +217,6 @@ const StatCard: React.FC<{ label: string; value: string; unit: string; icon: Rea
     <div className={`hidden sm:block ${accent ? 'text-red-600 opacity-50' : warning ? 'text-red-400' : 'text-slate-300'}`}>
       {icon}
     </div>
-  </div>
-);
-
-const StatusBadge: React.FC<{ label: string; color: string }> = ({ label, color }) => (
-  <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
-    <div className={`w-2 h-2 rounded-full ${color}`} />
-    <span className="text-[8px] 2xl:text-[10px] font-black text-slate-600 uppercase tracking-tight">{label}</span>
   </div>
 );
 
