@@ -247,10 +247,13 @@ const ProjectRow: React.FC<{
 }> = ({ project, tasks, onTaskClick, users }) => {
   const [expanded, setExpanded] = useState(true);
   
-  const scrumMasterNames = useMemo(() => {
+  const scrumMasterDisplay = useMemo(() => {
     if (!project.scrumMasters || project.scrumMasters.length === 0) return null;
     return project.scrumMasters
-      .map(id => users.find(u => u.id === id)?.name)
+      .map(id => {
+        const user = users.find(u => u.id === id);
+        return user ? `@${user.username}` : null;
+      })
       .filter(Boolean)
       .join(', ');
   }, [project.scrumMasters, users]);
@@ -265,10 +268,10 @@ const ProjectRow: React.FC<{
           <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 leading-tight uppercase">{project.name}</h3>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <p className="text-[9px] md:text-[10px] text-slate-400 font-bold line-clamp-1 uppercase">{project.description}</p>
-            {scrumMasterNames && (
-              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+            {scrumMasterDisplay && (
+              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                 <UserCheck size={10} />
-                SM: {scrumMasterNames}
+                SM: {scrumMasterDisplay}
               </span>
             )}
           </div>
