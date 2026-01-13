@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, TaskStatus, Task, Project, Department, User } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
+import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause } from 'lucide-react';
 import TaskModal from './TaskModal';
 
 interface DashboardProps {
@@ -14,6 +14,49 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask, onNotify }) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showPulse, setShowPulse] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollDirection = useRef<'down' | 'up'>('down');
+
+  useEffect(() => {
+    if (!autoScroll || !scrollRef.current) return;
+    
+    const scrollContainer = scrollRef.current;
+    const scrollSpeed = 1;
+    const pauseAtEnds = 2000;
+    let isPaused = false;
+    
+    const interval = setInterval(() => {
+      if (isPaused || !scrollContainer) return;
+      
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const maxScroll = scrollHeight - clientHeight;
+      
+      if (scrollDirection.current === 'down') {
+        if (scrollTop >= maxScroll - 2) {
+          isPaused = true;
+          setTimeout(() => {
+            scrollDirection.current = 'up';
+            isPaused = false;
+          }, pauseAtEnds);
+        } else {
+          scrollContainer.scrollTop += scrollSpeed;
+        }
+      } else {
+        if (scrollTop <= 2) {
+          isPaused = true;
+          setTimeout(() => {
+            scrollDirection.current = 'down';
+            isPaused = false;
+          }, pauseAtEnds);
+        } else {
+          scrollContainer.scrollTop -= scrollSpeed;
+        }
+      }
+    }, 30);
+    
+    return () => clearInterval(interval);
+  }, [autoScroll]);
 
   const activeProjects = useMemo(() => {
     return state.projects.filter(p => !p.archived && p.showInWarRoom !== false);
@@ -98,7 +141,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-hidden min-h-0">
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-auto pr-2 kanban-scroll space-y-3 md:space-y-4 pb-4">
+          <div className="flex items-center justify-end mb-2">
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                autoScroll 
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {autoScroll ? <Pause size={12} /> : <Play size={12} />}
+              {autoScroll ? 'Auto-Scroll On' : 'Auto-Scroll'}
+            </button>
+          </div>
+          <div ref={scrollRef} className="flex-1 overflow-auto pr-2 kanban-scroll space-y-3 md:space-y-4 pb-4">
             {activeProjects.map(project => (
               <ProjectRow 
                 key={project.id}
