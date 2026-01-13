@@ -266,10 +266,29 @@ const App: React.FC = () => {
   }
 
   const unreadCount = state.notifications.filter(n => n.toUserId === state.currentUser?.id && !n.read).length;
+  
+  const activeProjects = state.projects.filter(p => !p.archived && p.showInWarRoom !== false);
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  const weeklyEffort = state.tasks.reduce((acc, t) => {
+    if (t.status === TaskStatus.Complete && t.completedAt && t.completedAt >= startOfWeek.getTime()) {
+      return acc + (t.effort || 0);
+    }
+    return acc;
+  }, 0);
+  
+  const layoutStats = {
+    weeklyEffort,
+    activeCount: state.tasks.filter(t => t.status === TaskStatus.InProgress).length,
+    blockedCount: state.tasks.filter(t => t.status === TaskStatus.Blocked).length,
+    projectCount: activeProjects.length
+  };
 
   return (
     <HashRouter>
-      <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced}>
+      <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced} stats={layoutStats}>
         <Routes>
           <Route path="/" element={
             <Home 

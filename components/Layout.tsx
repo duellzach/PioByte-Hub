@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,6 +8,12 @@ interface LayoutProps {
   notificationsCount: number;
   onLogout: () => void;
   isSynced?: boolean;
+  stats?: {
+    weeklyEffort: number;
+    activeCount: number;
+    blockedCount: number;
+    projectCount: number;
+  };
 }
 
 const TeamLogo = ({ className }: { className?: string }) => (
@@ -25,7 +31,7 @@ const TeamLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -125,15 +131,33 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               </h2>
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-4 xl:gap-6">
-            <div className="hidden sm:flex items-center gap-2 xl:gap-4 bg-slate-50 px-2 md:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl xl:rounded-2xl border border-slate-100">
-              <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'}`} />
-              <div className="text-left hidden md:block">
-                <p className="text-[7px] xl:text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Sync</p>
-                <p className="text-[9px] xl:text-[10px] font-black text-slate-900 uppercase tracking-tighter leading-none">
-                  {isSynced ? 'Online' : 'Offline'}
-                </p>
+          <div className="flex items-center gap-2 md:gap-3">
+            {stats && (
+              <div className="hidden md:flex items-center gap-2 text-[10px]">
+                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-lg border border-red-100">
+                  <TrendingUp size={12} className="text-red-600" />
+                  <span className="font-black text-red-600">{stats.weeklyEffort}</span>
+                  <span className="text-red-400 font-bold">pts</span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                  <Activity size={12} className="text-slate-600" />
+                  <span className="font-black text-slate-800">{stats.activeCount}</span>
+                  <span className="text-slate-400 font-bold">active</span>
+                </div>
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${stats.blockedCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <AlertTriangle size={12} className={stats.blockedCount > 0 ? 'text-amber-600' : 'text-slate-400'} />
+                  <span className={`font-black ${stats.blockedCount > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{stats.blockedCount}</span>
+                  <span className={`font-bold ${stats.blockedCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}>blocked</span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                  <Flag size={12} className="text-slate-600" />
+                  <span className="font-black text-slate-800">{stats.projectCount}</span>
+                  <span className="text-slate-400 font-bold">projects</span>
+                </div>
               </div>
+            )}
+            <div className="hidden sm:flex items-center gap-2 bg-slate-50 px-2 py-1.5 rounded-xl border border-slate-100">
+              <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'}`} />
               {isSynced ? <Cloud size={12} className="text-slate-300" /> : <CloudOff size={12} className="text-red-300" />}
             </div>
           </div>

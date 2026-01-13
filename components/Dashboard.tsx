@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AppState, TaskStatus, Task, Project, Department, User } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Timer, Activity, CheckCircle2, AlertTriangle, MessageSquare, Flag, LifeBuoy, Megaphone, TrendingUp, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
+import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
 import TaskModal from './TaskModal';
 
 interface DashboardProps {
@@ -36,20 +36,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     });
     return matrix;
   }, [state.tasks, activeProjects]);
-
-  const currentWeekEffort = useMemo(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    return state.tasks.reduce((acc, t) => {
-        if (t.status === TaskStatus.Complete && t.completedAt && t.completedAt >= startOfWeek.getTime()) {
-            return acc + (t.effort || 0);
-        }
-        return acc;
-    }, 0);
-  }, [state.tasks]);
 
   const livePulse = useMemo(() => {
     const activities = state.tasks.flatMap(t => t.history.map(h => {
@@ -93,45 +79,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
       .slice(0, 30);
   }, [state.tasks, state.users, state.projects, state.announcements, state.currentUser]);
 
-  const deptStats = useMemo(() => {
-    const stats: Record<Department, number> = {} as any;
-    Object.values(Department).forEach(d => stats[d] = 0);
-    state.tasks.forEach(t => {
-      if (t.status !== TaskStatus.Complete) {
-        t.departments.forEach(d => stats[d]++);
-      }
-    });
-    return stats;
-  }, [state.tasks]);
-
-  const totalActive = state.tasks.filter(t => t.status === TaskStatus.InProgress).length;
-  const totalBlocked = state.tasks.filter(t => t.status === TaskStatus.Blocked).length;
-
   return (
     <div className="w-full h-full flex flex-col gap-3 md:gap-4 2xl:gap-6 animate-in fade-in duration-1000">
-      <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[10px] md:text-xs">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
-          <TrendingUp size={14} className="text-red-600" />
-          <span className="font-black text-red-600">{currentWeekEffort}</span>
-          <span className="text-red-400 font-bold">pts</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
-          <Activity size={14} className="text-slate-600" />
-          <span className="font-black text-slate-800">{totalActive}</span>
-          <span className="text-slate-400 font-bold">active</span>
-        </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${totalBlocked > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
-          <AlertTriangle size={14} className={totalBlocked > 0 ? 'text-amber-600' : 'text-slate-400'} />
-          <span className={`font-black ${totalBlocked > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{totalBlocked}</span>
-          <span className={`font-bold ${totalBlocked > 0 ? 'text-amber-500' : 'text-slate-400'}`}>blocked</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
-          <Flag size={14} className="text-slate-600" />
-          <span className="font-black text-slate-800">{activeProjects.length}</span>
-          <span className="text-slate-400 font-bold">projects</span>
-        </div>
-      </div>
-
       <div className="lg:hidden">
         <button 
           onClick={() => setShowPulse(!showPulse)}
