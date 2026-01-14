@@ -78,11 +78,19 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
   const deleteComment = (commentId: string) => {
     if (!confirm('Delete this comment?')) return;
-    setEditedTask(prev => ({
-      ...prev,
-      comments: prev.comments.filter(c => c.id !== commentId)
-    }));
-    logActivity('Comment deleted by coach');
+    const deleteActivity: Activity = {
+      id: Date.now().toString(),
+      userId: currentUser?.id || 'unknown',
+      action: 'Comment deleted by coach',
+      timestamp: Date.now()
+    };
+    const updatedTask = {
+      ...editedTask,
+      comments: editedTask.comments.filter(c => c.id !== commentId),
+      history: [deleteActivity, ...editedTask.history]
+    };
+    setEditedTask(updatedTask);
+    onSave(updatedTask);
   };
 
   const addComment = () => {
@@ -108,13 +116,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
       }
     }
 
-    setEditedTask(prev => ({
-        ...prev,
-        comments: [comment, ...prev.comments]
-    }));
-    
     const commentPreview = newComment.length > 25 ? newComment.substring(0, 25) + '...' : newComment;
-    logActivity(`Comment posted: "${commentPreview}"`);
+    const commentActivity: Activity = {
+      id: (Date.now() + 1).toString(),
+      userId: currentUser?.id || 'unknown',
+      action: `Comment posted: "${commentPreview}"`,
+      timestamp: Date.now()
+    };
+    
+    const updatedTask = {
+      ...editedTask,
+      comments: [comment, ...editedTask.comments],
+      history: [commentActivity, ...editedTask.history]
+    };
+    
+    setEditedTask(updatedTask);
+    onSave(updatedTask);
     
     setNewComment('');
     setMentionFilter(null);
