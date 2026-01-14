@@ -196,6 +196,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
             onUpdateTask(updated);
             setSelectedTask(null);
           }}
+          onSaveWithoutClose={(updated) => {
+            onUpdateTask(updated);
+          }}
           onDelete={(id) => {
             onDeleteTask(id);
             setSelectedTask(null);

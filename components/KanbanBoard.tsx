@@ -467,6 +467,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               setSelectedTask(null);
               setShowAddModal(false);
           }}
+          onSaveWithoutClose={(task) => {
+              if (selectedTask) onUpdateTask(task);
+          }}
           onDelete={onDeleteTask}
         />
       )}

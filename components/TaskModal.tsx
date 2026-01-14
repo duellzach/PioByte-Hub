@@ -11,11 +11,12 @@ interface TaskModalProps {
   currentUser: User | null;
   onClose: () => void;
   onSave: (task: Task) => void;
+  onSaveWithoutClose?: (task: Task) => void;
   onNotify?: (toUserId: string, message: string) => void;
   onDelete?: (taskId: string) => void;
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onNotify, onDelete }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
   const [editedTask, setEditedTask] = useState<Task>(task || {
     id: Math.random().toString(36).substr(2, 9),
     projectId: 'default',
@@ -90,7 +91,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
       history: [deleteActivity, ...editedTask.history]
     };
     setEditedTask(updatedTask);
-    onSave(updatedTask);
+    if (onSaveWithoutClose) onSaveWithoutClose(updatedTask);
   };
 
   const addComment = () => {
@@ -131,7 +132,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     };
     
     setEditedTask(updatedTask);
-    onSave(updatedTask);
+    if (onSaveWithoutClose) onSaveWithoutClose(updatedTask);
     
     setNewComment('');
     setMentionFilter(null);
