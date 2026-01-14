@@ -79,6 +79,9 @@ After seeding the database:
   - Bulk add class time for multiple members at once
 
 ## Recent Changes (January 2025)
+- **Task Completion Celebration**:
+  - Confetti animation plays when a task is marked as Complete
+  - Colorful confetti falls from the top of the screen for 4 seconds
 - **Task Creation Restrictions**:
   - Only Department Heads, Scrum Masters, Team Captains, and Coaches can create tasks
   - Regular team members can view and update tasks but cannot create new ones

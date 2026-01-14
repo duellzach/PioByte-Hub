@@ -8,6 +8,7 @@ import KanbanBoard from './components/KanbanBoard';
 import TeamManagement from './components/TeamManagement';
 import TimeTracking from './components/TimeTracking';
 import TaskModal from './components/TaskModal';
+import Confetti from './components/Confetti';
 import { api } from './services/api';
 import { Database, Zap } from 'lucide-react';
 
@@ -40,6 +41,7 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeTaskModal, setActiveTaskModal] = useState<Task | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -127,6 +129,9 @@ const App: React.FC = () => {
   };
 
   const handleUpdateTask = async (updatedTask: Task) => {
+    const existingTask = state.tasks.find(t => t.id === updatedTask.id);
+    const isNewlyCompleted = updatedTask.status === TaskStatus.Complete && existingTask?.status !== TaskStatus.Complete;
+    
     const taskData: any = { ...updatedTask };
     if (taskData.status === TaskStatus.Complete && !taskData.completedAt) {
       taskData.completedAt = new Date().toISOString();
@@ -137,6 +142,11 @@ const App: React.FC = () => {
     taskData.assignees = taskData.assignees.map(Number);
     taskData.dependencies = taskData.dependencies.map(Number);
     await api.tasks.update(parseInt(updatedTask.id), taskData);
+    
+    if (isNewlyCompleted) {
+      setShowConfetti(true);
+    }
+    
     await fetchData();
   };
 
@@ -387,12 +397,16 @@ const App: React.FC = () => {
               await handleUpdateTask(updated);
               setActiveTaskModal(null);
             }}
+            onSaveWithoutClose={async (updated) => {
+              await handleUpdateTask(updated);
+            }}
             onDelete={async (id) => {
               await handleDeleteTask(id);
               setActiveTaskModal(null);
             }}
           />
         )}
+        <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
       </Layout>
     </HashRouter>
   );
