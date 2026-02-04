@@ -66,6 +66,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     const matrix: Record<string, Record<TaskStatus, Task[]>> = {};
     activeProjects.forEach(proj => {
       matrix[proj.id] = {
+        [TaskStatus.Backlog]: [],
         [TaskStatus.NotStarted]: [],
         [TaskStatus.InProgress]: [],
         [TaskStatus.Blocked]: [],
@@ -275,7 +276,8 @@ const ProjectRow: React.FC<{
       </button>
       
       {expanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 md:gap-3 p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
+          <StatusColumn status={TaskStatus.Backlog} tasks={tasks[TaskStatus.Backlog]} onTaskClick={onTaskClick} label="Backlog" />
           <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />
           <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" />
           <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" />
@@ -294,6 +296,7 @@ const StatusColumn: React.FC<{
   <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
     <div className="flex items-center gap-2 mb-2 sm:hidden">
       <div className={`w-2 h-2 rounded-full ${
+        status === TaskStatus.Backlog ? 'bg-purple-400' :
         status === TaskStatus.NotStarted ? 'bg-slate-300' : 
         status === TaskStatus.InProgress ? 'bg-red-600' : 'bg-black'
       }`} />

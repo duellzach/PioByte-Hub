@@ -30,7 +30,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [blockingTask, setBlockingTask] = useState<{id: string, newStatus: TaskStatus} | null>(null);
   const [blockReasonInput, setBlockReasonInput] = useState('');
 
-  const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.NotStarted);
+  const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.Backlog);
 
   const isCoachOrCaptain = state.currentUser?.roles.some(r => 
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
@@ -78,6 +78,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 
   const tasksByStatus = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = {
+      [TaskStatus.Backlog]: [],
       [TaskStatus.NotStarted]: [],
       [TaskStatus.InProgress]: [],
       [TaskStatus.Blocked]: [],
@@ -262,7 +263,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             </div>
           </div>
 
-          <div className="hidden md:grid flex-1 grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 2xl:gap-6 min-h-0">
+          <div className="hidden md:grid flex-1 grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 2xl:gap-6 min-h-0">
             {STATUSES.map(status => (
               <div 
                 key={status} 

@@ -78,6 +78,19 @@ After seeding the database:
   - Coaches can view/edit time history in user profiles (Team page)
   - Bulk add class time for multiple members at once
 
+## Recent Changes (February 2025)
+- **Backlog Status**:
+  - New "Backlog" status added before "Not Started" for long-term brainstorming tasks
+  - Purple color theme for Backlog items
+  - Displays on both Kanban boards and War Room dashboard
+- **Larger Comment Box**:
+  - Comment input changed from single-line to multi-line textarea (4 rows)
+  - Comment display area increased from max-h-64 to max-h-96
+  - Enter to send, Shift+Enter for new line
+- **Database Optimization**:
+  - Data refresh interval increased from 5 to 15 seconds
+  - Reduces PostgreSQL compute hours by ~67%
+
 ## Recent Changes (January 2025)
 - **Task Completion Celebration**:
   - Confetti animation plays when a task is marked as Complete

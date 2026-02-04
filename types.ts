@@ -19,6 +19,7 @@ export enum Role {
 }
 
 export enum TaskStatus {
+  Backlog = 'Backlog',
   NotStarted = 'Not Started',
   InProgress = 'In Progress',
   Blocked = 'Blocked',

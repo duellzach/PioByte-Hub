@@ -21,6 +21,7 @@ export const DEPARTMENT_COLORS: Record<Department, string> = {
 };
 
 export const STATUS_COLORS: Record<TaskStatus, string> = {
+  [TaskStatus.Backlog]: 'bg-purple-50 text-purple-600 border-purple-100',
   [TaskStatus.NotStarted]: 'bg-slate-100 text-slate-600',
   [TaskStatus.InProgress]: 'bg-red-50 text-red-600 border-red-100',
   [TaskStatus.Blocked]: 'bg-black text-white',

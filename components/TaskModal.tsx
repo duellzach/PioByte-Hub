@@ -42,7 +42,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const [newComment, setNewComment] = useState('');
   const [mentionFilter, setMentionFilter] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState('');
-  const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredUsersForAssignment = useMemo(() => {
     let filtered = users;
@@ -138,7 +138,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     setMentionFilter(null);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setNewComment(val);
     
@@ -323,7 +323,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       </div>
                     )}
 
-                    <div className="space-y-4 mb-6 max-h-64 overflow-auto pr-2 kanban-scroll">
+                    <div className="space-y-4 mb-6 max-h-96 overflow-auto pr-2 kanban-scroll">
                         {editedTask.comments.map(c => {
                           const user = users.find(u => u.id === c.userId);
                           return (
@@ -350,20 +350,25 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                           );
                         })}
                     </div>
-                    <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input 
+                    <div className="flex flex-col gap-3">
+                        <div className="relative">
+                          <textarea 
                               ref={commentInputRef}
                               value={newComment}
                               onChange={handleInputChange}
-                              onKeyDown={(e) => e.key === 'Enter' && addComment()}
-                              placeholder="Message... @handle"
-                              className="w-full text-sm p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all pr-12 font-medium"
+                              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addComment())}
+                              placeholder="Write a comment... Use @handle to mention someone. Press Enter to send, Shift+Enter for new line."
+                              rows={4}
+                              className="w-full text-sm p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all pr-12 font-medium resize-none"
                           />
-                          <AtSign size={16} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                          <AtSign size={16} className="absolute right-5 top-5 text-slate-300" />
                         </div>
-                        <button onClick={addComment} className="px-6 bg-red-600 text-white rounded-[24px] hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all">
-                            <Plus size={20} />
+                        <button 
+                          onClick={addComment} 
+                          disabled={isMuted || !newComment.trim()}
+                          className="w-full py-3 bg-red-600 text-white rounded-[24px] hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all font-black text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            <Plus size={16} /> Post Comment
                         </button>
                     </div>
                 </section>
