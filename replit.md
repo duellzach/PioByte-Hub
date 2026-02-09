@@ -90,6 +90,13 @@ After seeding the database:
 - **Database Optimization**:
   - Data refresh interval increased from 5 to 15 seconds
   - Reduces PostgreSQL compute hours by ~67%
+- **Success Criteria Enhancements**:
+  - Success criteria upgraded from plain text to checkable items with completion tracking
+  - Click the circle/checkbox to mark a criterion as complete or incomplete
+  - Inline text editing — click on any criterion text to edit it directly
+  - Completed items show green background with strikethrough text
+  - Progress counter shows "X/Y completed" at the top of the section
+  - Backward compatible — existing string-based criteria auto-migrate to the new format
 
 ## Recent Changes (January 2025)
 - **Task Completion Celebration**:
