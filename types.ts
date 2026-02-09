@@ -84,6 +84,12 @@ export interface Announcement {
   comments: Comment[];
 }
 
+export interface SuccessCriterion {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -94,7 +100,7 @@ export interface Task {
   effort?: number;
   departments: Department[];
   assignees: string[];
-  successCriteria: string[];
+  successCriteria: SuccessCriterion[];
   attachments: Attachment[];
   comments: Comment[];
   history: Activity[];

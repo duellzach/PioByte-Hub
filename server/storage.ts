@@ -11,6 +11,16 @@ function toDate(value: any): Date | undefined {
   return undefined;
 }
 
+function migrateSuccessCriteria(criteria: any[]): {id: string; text: string; completed: boolean}[] {
+  if (!Array.isArray(criteria)) return [];
+  return criteria.map((item, idx) => {
+    if (typeof item === 'string') {
+      return { id: `migrated-${idx}-${Date.now()}`, text: item, completed: false };
+    }
+    return item;
+  });
+}
+
 function sanitizeTask(task: any): any {
   const sanitized: any = { ...task };
   if ('createdAt' in sanitized) sanitized.createdAt = toDate(sanitized.createdAt);
@@ -145,16 +155,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTasks(): Promise<Task[]> {
-    return db.select().from(tasks).orderBy(desc(tasks.createdAt));
+    const result = await db.select().from(tasks).orderBy(desc(tasks.createdAt));
+    return result.map(t => ({ ...t, successCriteria: migrateSuccessCriteria(t.successCriteria as any) }));
   }
 
   async getTask(id: number): Promise<Task | undefined> {
     const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
-    return task;
+    if (!task) return undefined;
+    return { ...task, successCriteria: migrateSuccessCriteria(task.successCriteria as any) };
   }
 
   async getTasksByProject(projectId: number): Promise<Task[]> {
-    return db.select().from(tasks).where(eq(tasks.projectId, projectId));
+    const result = await db.select().from(tasks).where(eq(tasks.projectId, projectId));
+    return result.map(t => ({ ...t, successCriteria: migrateSuccessCriteria(t.successCriteria as any) }));
   }
 
   async createTask(task: InsertTask): Promise<Task> {

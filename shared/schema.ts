@@ -34,7 +34,7 @@ export const tasks = pgTable("tasks", {
   effort: integer("effort"),
   departments: jsonb("departments").$type<string[]>().notNull().default([]),
   assignees: jsonb("assignees").$type<number[]>().notNull().default([]),
-  successCriteria: jsonb("success_criteria").$type<string[]>().notNull().default([]),
+  successCriteria: jsonb("success_criteria").$type<{id: string; text: string; completed: boolean}[]>().notNull().default([]),
   attachments: jsonb("attachments").$type<{id: string; label: string; url: string; type: string}[]>().notNull().default([]),
   comments: jsonb("comments").$type<{id: string; userId: number; text: string; timestamp: number}[]>().notNull().default([]),
   history: jsonb("history").$type<{id: string; userId: number; action: string; timestamp: number}[]>().notNull().default([]),

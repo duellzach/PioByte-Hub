@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search } from 'lucide-react';
-import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role } from '../types';
+import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 
 interface TaskModalProps {
@@ -261,12 +261,41 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             <section>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Success Criteria</h3>
+                {editedTask.successCriteria.length > 0 && (
+                  <span className="text-xs font-bold text-slate-400">
+                    {editedTask.successCriteria.filter(c => c.completed).length}/{editedTask.successCriteria.length} completed
+                  </span>
+                )}
               </div>
               <ul className="space-y-3">
                 {editedTask.successCriteria.map((criterion, idx) => (
-                  <li key={idx} className="flex items-start gap-4 p-5 bg-slate-50 rounded-[24px] border border-slate-100 group">
-                    <CheckCircle size={20} className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-slate-700 font-bold uppercase text-xs tracking-tight flex-1">{criterion}</span>
+                  <li key={criterion.id} className={`flex items-start gap-4 p-5 rounded-[24px] border group transition-all ${criterion.completed ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-100'}`}>
+                    <button
+                      onClick={() => {
+                        const updated = editedTask.successCriteria.map((c, i) => 
+                          i === idx ? { ...c, completed: !c.completed } : c
+                        );
+                        setEditedTask({ ...editedTask, successCriteria: updated });
+                      }}
+                      className="mt-0.5 flex-shrink-0"
+                    >
+                      {criterion.completed ? (
+                        <CheckCircle size={20} className="text-green-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-slate-300 hover:border-green-500 transition-colors" />
+                      )}
+                    </button>
+                    <input
+                      type="text"
+                      value={criterion.text}
+                      onChange={(e) => {
+                        const updated = editedTask.successCriteria.map((c, i) =>
+                          i === idx ? { ...c, text: e.target.value } : c
+                        );
+                        setEditedTask({ ...editedTask, successCriteria: updated });
+                      }}
+                      className={`flex-1 bg-transparent outline-none font-bold uppercase text-xs tracking-tight ${criterion.completed ? 'text-green-700 line-through' : 'text-slate-700'}`}
+                    />
                     <button 
                       onClick={() => setEditedTask({
                         ...editedTask, 
@@ -282,12 +311,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     <input 
                         id="new-criterion"
                         className="flex-1 text-sm p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold uppercase placeholder:font-normal" 
-                        placeholder="Add manual criterion..."
+                        placeholder="Add success criterion..."
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 const val = (e.target as HTMLInputElement).value;
                                 if (val) {
-                                    setEditedTask(prev => ({...prev, successCriteria: [...prev.successCriteria, val]}));
+                                    const newCriterion: SuccessCriterion = {
+                                      id: Date.now().toString(),
+                                      text: val,
+                                      completed: false
+                                    };
+                                    setEditedTask(prev => ({...prev, successCriteria: [...prev.successCriteria, newCriterion]}));
                                     (e.target as HTMLInputElement).value = '';
                                 }
                             }
