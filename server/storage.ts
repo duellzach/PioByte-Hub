@@ -247,9 +247,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOpenTimeEntry(userId: number): Promise<TimeEntry | undefined> {
-    const [entry] = await db.select().from(timeEntries)
+    const results = await db.select().from(timeEntries)
       .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.checkOutAt)));
-    return entry;
+    return results.find(e => e.status !== 'completed');
   }
 
   async createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry> {

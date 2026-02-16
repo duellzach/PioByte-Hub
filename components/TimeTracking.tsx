@@ -66,7 +66,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const myOpenEntry = useMemo(() => {
     return state.timeEntries.find(e => 
       e.userId === state.currentUser?.id && 
-      (!e.checkOutAt || e.status !== 'completed')
+      e.status !== 'completed' &&
+      !e.checkOutAt
     );
   }, [state.timeEntries, state.currentUser]);
 

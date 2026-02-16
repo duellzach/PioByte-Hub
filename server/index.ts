@@ -301,6 +301,15 @@ function roundToQuarterHour(minutes: number): number {
 app.get("/api/time-entries", async (req, res) => {
   try {
     const entries = await storage.getTimeEntries();
+    for (const entry of entries) {
+      if (entry.checkOutAt && entry.roundedMinutes != null && entry.checkOutConfirmedBy && entry.status !== 'completed') {
+        await storage.updateTimeEntry(entry.id, { status: 'completed' });
+        entry.status = 'completed';
+      } else if (entry.checkOutAt && entry.status === 'checked_in') {
+        await storage.updateTimeEntry(entry.id, { status: 'pending_check_out' });
+        entry.status = 'pending_check_out';
+      }
+    }
     res.json(entries);
   } catch (error) {
     console.error("Error fetching time entries:", error);
@@ -386,7 +395,11 @@ app.post("/api/time-entries/:id/confirm", async (req, res) => {
     if (confirmType === "check_in") {
       updates.checkInConfirmedBy = coachId;
       updates.checkInConfirmedAt = new Date();
-      newStatus = "checked_in";
+      if (entry.checkOutAt) {
+        newStatus = "pending_check_out";
+      } else {
+        newStatus = "checked_in";
+      }
     } else if (confirmType === "check_out") {
       updates.checkOutConfirmedBy = coachId;
       updates.checkOutConfirmedAt = new Date();
