@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,24 +34,9 @@ const TeamLogo = ({ className }: { className?: string }) => (
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('piobytes-theme') === 'dark';
-  });
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('piobytes-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('piobytes-theme', 'light');
-    }
-  };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       <div 
         className={`md:hidden fixed inset-0 bg-black/60 z-40 transition-opacity ${
           mobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -98,15 +83,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/boards" icon={<Kanban size={18} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/time" icon={<Clock size={18} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          
-          <button
-            onClick={toggleDarkMode}
-            title={collapsed ? (darkMode ? "LIGHT MODE" : "DARK MODE") : ""}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 xl:gap-4 px-3 xl:px-5'} py-3 xl:py-4 rounded-xl transition-all font-black text-[10px] xl:text-xs tracking-widest text-slate-500 hover:text-white hover:bg-white/5 mt-2`}
-          >
-            <div className="flex-shrink-0">{darkMode ? <Sun size={18} /> : <Moon size={18} />}</div>
-            {!collapsed && <span>{darkMode ? 'LIGHT MODE' : 'DARK MODE'}</span>}
-          </button>
         </nav>
 
         <div className={`${collapsed ? 'p-2' : 'p-4 xl:p-6'} border-t border-white/10 bg-black/40`}>
@@ -137,11 +113,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
-        <header className="h-14 md:h-16 xl:h-20 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 md:px-8 xl:px-12 justify-between gap-3">
+      <main className="flex-1 flex flex-col overflow-hidden bg-white">
+        <header className="h-14 md:h-16 xl:h-20 bg-white border-b border-slate-200 flex items-center px-4 md:px-8 xl:px-12 justify-between gap-3">
           <div className="flex items-center gap-3">
             <button 
-              className="md:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
+              className="md:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl"
               onClick={() => setMobileMenuOpen(true)}
             >
               <Menu size={22} />
@@ -150,7 +126,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <div className="md:hidden text-red-600">
                 <TeamLogo className="w-7 h-7" />
               </div>
-              <h2 className="text-sm md:text-lg xl:text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
+              <h2 className="text-sm md:text-lg xl:text-2xl font-black text-slate-900 tracking-tight uppercase">
                 <span className="hidden sm:inline">PIO-BYTES </span>HUB
               </h2>
             </div>
@@ -158,35 +134,35 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <div className="flex items-center gap-2 md:gap-3">
             {stats && (
               <div className="hidden md:flex items-center gap-2 text-[10px]">
-                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-100 dark:border-red-800">
+                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-lg border border-red-100">
                   <TrendingUp size={12} className="text-red-600" />
                   <span className="font-black text-red-600">{stats.weeklyEffort}</span>
                   <span className="text-red-400 font-bold">pts</span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-100 dark:border-slate-600">
-                  <Activity size={12} className="text-slate-600 dark:text-slate-300" />
-                  <span className="font-black text-slate-800 dark:text-slate-200">{stats.activeCount}</span>
+                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                  <Activity size={12} className="text-slate-600" />
+                  <span className="font-black text-slate-800">{stats.activeCount}</span>
                   <span className="text-slate-400 font-bold">active</span>
                 </div>
-                <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${stats.blockedCount > 0 ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600'}`}>
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border ${stats.blockedCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
                   <AlertTriangle size={12} className={stats.blockedCount > 0 ? 'text-amber-600' : 'text-slate-400'} />
-                  <span className={`font-black ${stats.blockedCount > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>{stats.blockedCount}</span>
-                  <span className={`font-bold ${stats.blockedCount > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400'}`}>blocked</span>
+                  <span className={`font-black ${stats.blockedCount > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{stats.blockedCount}</span>
+                  <span className={`font-bold ${stats.blockedCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}>blocked</span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-100 dark:border-slate-600">
-                  <Flag size={12} className="text-slate-600 dark:text-slate-300" />
-                  <span className="font-black text-slate-800 dark:text-slate-200">{stats.projectCount}</span>
+                <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                  <Flag size={12} className="text-slate-600" />
+                  <span className="font-black text-slate-800">{stats.projectCount}</span>
                   <span className="text-slate-400 font-bold">projects</span>
                 </div>
               </div>
             )}
-            <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-700 px-2 py-1.5 rounded-xl border border-slate-100 dark:border-slate-600">
+            <div className="hidden sm:flex items-center gap-2 bg-slate-50 px-2 py-1.5 rounded-xl border border-slate-100">
               <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'}`} />
               {isSynced ? <Cloud size={12} className="text-slate-300" /> : <CloudOff size={12} className="text-red-300" />}
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-slate-50/50 dark:bg-slate-900">
+        <div className="flex-1 overflow-auto bg-slate-50/50">
           <div className="w-full h-full p-2 md:p-4 lg:p-6 xl:p-8 transition-all duration-300">
             {children}
           </div>

@@ -148,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
                 autoScroll 
                   ? 'bg-red-600 text-white' 
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}
             >
               {autoScroll ? <Pause size={12} /> : <Play size={12} />}
@@ -213,17 +213,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
 const StatCard: React.FC<{ label: string; value: string; unit: string; icon: React.ReactNode; accent?: boolean; warning?: boolean }> = 
   ({ label, value, unit, icon, accent, warning }) => (
   <div className={`p-3 md:p-4 2xl:p-6 rounded-xl md:rounded-2xl 2xl:rounded-[32px] border shadow-sm flex items-center justify-between ${
-    accent ? 'bg-slate-950 border-white/10' : warning ? 'bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+    accent ? 'bg-slate-950 border-white/10' : warning ? 'bg-red-50 border-red-100' : 'bg-white border-slate-200'
   }`}>
     <div>
       <p className={`text-[8px] md:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 ${
         accent ? 'text-red-500' : warning ? 'text-red-600' : 'text-slate-400'
       }`}>{label}</p>
-      <p className={`text-lg md:text-2xl 2xl:text-4xl font-black ${accent ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+      <p className={`text-lg md:text-2xl 2xl:text-4xl font-black ${accent ? 'text-white' : 'text-slate-900'}`}>
         {value} <span className={`text-[8px] md:text-[10px] 2xl:text-sm font-bold uppercase ${accent ? 'text-slate-500' : 'text-slate-400'}`}>{unit}</span>
       </p>
     </div>
-    <div className={`hidden sm:block ${accent ? 'text-red-600 opacity-50' : warning ? 'text-red-400' : 'text-slate-300 dark:text-slate-600'}`}>
+    <div className={`hidden sm:block ${accent ? 'text-red-600 opacity-50' : warning ? 'text-red-400' : 'text-slate-300'}`}>
       {icon}
     </div>
   </div>
@@ -249,17 +249,17 @@ const ProjectRow: React.FC<{
   }, [project.scrumMasters, users]);
   
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
       <button 
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-3 md:p-4 2xl:p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+        className="w-full p-3 md:p-4 2xl:p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
       >
         <div className="text-left">
-          <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 dark:text-white leading-tight uppercase">{project.name}</h3>
+          <h3 className="text-sm md:text-base 2xl:text-lg font-black text-slate-900 leading-tight uppercase">{project.name}</h3>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <p className="text-[9px] md:text-[10px] text-slate-400 font-bold line-clamp-1 uppercase">{project.description}</p>
             {scrumMasterDisplay && (
-              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-800">
+              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                 <UserCheck size={10} />
                 SM: {scrumMasterDisplay}
               </span>
@@ -293,22 +293,22 @@ const StatusColumn: React.FC<{
   onTaskClick: (t: Task) => void;
   label: string;
 }> = ({ status, tasks, onTaskClick, label }) => (
-  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
+  <div className="bg-slate-50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
     <div className="flex items-center gap-2 mb-2 sm:hidden">
       <div className={`w-2 h-2 rounded-full ${
         status === TaskStatus.Backlog ? 'bg-purple-400' :
         status === TaskStatus.NotStarted ? 'bg-slate-300' : 
         status === TaskStatus.InProgress ? 'bg-red-600' : 'bg-black'
       }`} />
-      <span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase">{label}</span>
+      <span className="text-[8px] font-black text-slate-500 uppercase">{label}</span>
     </div>
     <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
       {tasks.map(task => (
         <button 
           key={task.id}
           onClick={() => onTaskClick(task)}
-          className={`w-full text-left bg-white dark:bg-slate-800 px-2 py-1.5 md:px-3 md:py-2 rounded-lg border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
-            task.helpRequested ? 'border-red-600' : 'border-slate-100 dark:border-slate-700 hover:border-red-600/30'
+          className={`w-full text-left bg-white px-2 py-1.5 md:px-3 md:py-2 rounded-lg border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
+            task.helpRequested ? 'border-red-600' : 'border-slate-100 hover:border-red-600/30'
           }`}
         >
           <div className="flex justify-between items-center mb-0.5">
@@ -317,11 +317,11 @@ const StatusColumn: React.FC<{
             </span>
             <span className="text-[6px] md:text-[7px] font-black text-slate-400">{task.effort}pt</span>
           </div>
-          <h5 className="text-[9px] md:text-[10px] font-black text-slate-900 dark:text-white leading-tight truncate uppercase">{task.title}</h5>
+          <h5 className="text-[9px] md:text-[10px] font-black text-slate-900 leading-tight truncate uppercase">{task.title}</h5>
         </button>
       ))}
       {tasks.length === 0 && (
-        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase italic col-span-full">
+        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 uppercase italic col-span-full">
           Empty
         </div>
       )}
