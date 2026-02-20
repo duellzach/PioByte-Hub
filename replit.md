@@ -82,10 +82,12 @@ After seeding the database:
 - **FRC Scout Module**:
   - Tournament event management (create, edit, delete events)
   - Pit scouting with robot specs, drivetrain, capabilities/deficiencies tags, ratings (offense/defense/overall 1-10)
-  - Match scouting with counter inputs (+/- buttons), alliance tracking (Red/Blue), climb levels, coral/algae scoring
+  - Match scouting with fuel scoring (Rebuilt theme), counter inputs (+/- buttons), alliance tracking (Red/Blue), climb levels
   - Robot dashboard showing all scouted robots with search, detail views, match history
   - QR code data sharing for offline environments (pako compression, chunked QR codes for large datasets)
-  - QR import via camera scanner (html5-qrcode) with chunk collection and preview
+  - Selective match export — choose which matches to include in QR codes
+  - QR import via camera scanner (html5-qrcode dynamic import) with chunk collection and preview
+  - Pit Display tab for drive team — large team branding, stats overview, robot leaderboard
   - Event creation restricted to Coach and TeamCaptain roles
   - Database: scout_events, pit_scouts, match_scouts tables
   - 14 REST API endpoints including bulk import/export
