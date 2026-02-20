@@ -90,6 +90,7 @@ After seeding the database:
   - Pit Display tab for drive team — large team branding, stats overview, robot leaderboard
   - Blue Alliance API integration — live win/loss record, event schedule, upcoming matches on Pit Display
   - TBA event key field on scout events links to thebluealliance.com data
+  - Auto-import teams from TBA — pulls team names, numbers, and locations into pit scout entries for editing
   - Event creation restricted to Coach and TeamCaptain roles
   - Database: scout_events, pit_scouts, match_scouts tables
   - 14 REST API endpoints including bulk import/export

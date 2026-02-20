@@ -746,6 +746,16 @@ app.get("/api/tba/event/:eventKey/matches", async (req, res) => {
   }
 });
 
+app.get("/api/tba/event/:eventKey/teams", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/event/${req.params.eventKey}/teams`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA event teams error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA event teams" });
+  }
+});
+
 app.get("/api/tba/event/:eventKey/rankings", async (req, res) => {
   try {
     const data = await tbaFetch(`/event/${req.params.eventKey}/rankings`);

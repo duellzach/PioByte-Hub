@@ -117,6 +117,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [tbaMatches, setTbaMatches] = useState<any[]>([]);
   const [tbaRecord, setTbaRecord] = useState<{ wins: number; losses: number; ties: number } | null>(null);
   const [tbaLoading, setTbaLoading] = useState(false);
+  const [tbaImporting, setTbaImporting] = useState(false);
 
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
@@ -216,6 +217,62 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
     setTbaLoading(false);
   }, []);
+
+  const importTeamsFromTba = async () => {
+    if (!activeEvent?.tbaEventKey) return;
+    setTbaImporting(true);
+    try {
+      const teams = await api.tba.getEventTeams(activeEvent.tbaEventKey);
+      if (!teams || teams.length === 0) {
+        alert('No teams found for this event on The Blue Alliance.');
+        setTbaImporting(false);
+        return;
+      }
+      const existingNumbers = new Set(pitScouts.map((ps: any) => ps.teamNumber));
+      const newTeams = teams.filter((t: any) => !existingNumbers.has(t.team_number));
+      if (newTeams.length === 0) {
+        alert(`All ${teams.length} teams from this event are already in your scouting list.`);
+        setTbaImporting(false);
+        return;
+      }
+      let imported = 0;
+      for (const team of newTeams) {
+        try {
+          await api.scout.createPitScout(activeEvent.id, {
+            teamNumber: team.team_number,
+            teamName: team.nickname || team.name || `Team ${team.team_number}`,
+            robotName: '',
+            drivetrain: '',
+            weight: 0,
+            speed: 0,
+            height: 0,
+            capabilities: [],
+            deficiencies: [],
+            autonomousRoutine: 'None',
+            notes: team.city && team.state_prov ? `From ${team.city}, ${team.state_prov}` : '',
+            offenseRating: 5,
+            defenseRating: 5,
+            overallRating: 5,
+            scoutedBy: parseInt(currentUser.id),
+          });
+          imported++;
+        } catch (err) {
+          console.error(`Failed to import team ${team.team_number}:`, err);
+        }
+      }
+      const failed = newTeams.length - imported;
+      let msg = `Imported ${imported} new teams!`;
+      if (existingNumbers.size > 0) msg += ` (${existingNumbers.size} already existed)`;
+      if (failed > 0) msg += ` (${failed} failed to import)`;
+      msg += ' You can now edit their robot details.';
+      alert(msg);
+      fetchEventData(activeEvent.id);
+    } catch (err) {
+      console.error('TBA team import failed:', err);
+      alert('Failed to import teams from The Blue Alliance. Check the event key and try again.');
+    }
+    setTbaImporting(false);
+  };
 
   const enterEvent = (event: any) => {
     setActiveEvent(event);
@@ -653,6 +710,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
                 />
               </div>
+              {activeEvent?.tbaEventKey && (
+                <button
+                  onClick={importTeamsFromTba}
+                  disabled={tbaImporting}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download size={16} /> {tbaImporting ? 'Importing...' : 'Import from TBA'}
+                </button>
+              )}
               <button
                 onClick={() => { resetPitForm(); setEditingPit(null); setShowPitForm(true); }}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"

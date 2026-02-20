@@ -108,6 +108,7 @@ export const api = {
   },
   tba: {
     getEventMatches: (eventKey: string) => apiRequest<any[]>(`/tba/event/${eventKey}/matches`),
+    getEventTeams: (eventKey: string) => apiRequest<any[]>(`/tba/event/${eventKey}/teams`),
     getEventRankings: (eventKey: string) => apiRequest<any>(`/tba/event/${eventKey}/rankings`),
     getTeamMatches: (teamKey: string, eventKey: string) => apiRequest<any[]>(`/tba/team/${teamKey}/event/${eventKey}/matches`),
     getTeamStatus: (teamKey: string, eventKey: string) => apiRequest<any>(`/tba/team/${teamKey}/event/${eventKey}/status`),
