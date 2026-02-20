@@ -566,6 +566,179 @@ app.post("/api/time-entries/bulk-add", async (req, res) => {
   }
 });
 
+app.get("/api/scout-events", async (req, res) => {
+  try {
+    const events = await storage.getScoutEvents();
+    res.json(events);
+  } catch (error) {
+    console.error("Error fetching scout events:", error);
+    res.status(500).json({ error: "Failed to fetch scout events" });
+  }
+});
+
+app.post("/api/scout-events", async (req, res) => {
+  try {
+    const event = await storage.createScoutEvent(req.body);
+    res.status(201).json(event);
+  } catch (error) {
+    console.error("Error creating scout event:", error);
+    res.status(500).json({ error: "Failed to create scout event" });
+  }
+});
+
+app.put("/api/scout-events/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const event = await storage.updateScoutEvent(id, req.body);
+    if (!event) return res.status(404).json({ error: "Scout event not found" });
+    res.json(event);
+  } catch (error) {
+    console.error("Error updating scout event:", error);
+    res.status(500).json({ error: "Failed to update scout event" });
+  }
+});
+
+app.delete("/api/scout-events/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteScoutEvent(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting scout event:", error);
+    res.status(500).json({ error: "Failed to delete scout event" });
+  }
+});
+
+app.get("/api/scout-events/:eventId/pit-scouts", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const scouts = await storage.getPitScouts(eventId);
+    res.json(scouts);
+  } catch (error) {
+    console.error("Error fetching pit scouts:", error);
+    res.status(500).json({ error: "Failed to fetch pit scouts" });
+  }
+});
+
+app.post("/api/scout-events/:eventId/pit-scouts", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const scout = await storage.createPitScout({ ...req.body, eventId });
+    res.status(201).json(scout);
+  } catch (error) {
+    console.error("Error creating pit scout:", error);
+    res.status(500).json({ error: "Failed to create pit scout" });
+  }
+});
+
+app.put("/api/pit-scouts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const scout = await storage.updatePitScout(id, req.body);
+    if (!scout) return res.status(404).json({ error: "Pit scout not found" });
+    res.json(scout);
+  } catch (error) {
+    console.error("Error updating pit scout:", error);
+    res.status(500).json({ error: "Failed to update pit scout" });
+  }
+});
+
+app.delete("/api/pit-scouts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deletePitScout(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting pit scout:", error);
+    res.status(500).json({ error: "Failed to delete pit scout" });
+  }
+});
+
+app.get("/api/scout-events/:eventId/match-scouts", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const scouts = await storage.getMatchScouts(eventId);
+    res.json(scouts);
+  } catch (error) {
+    console.error("Error fetching match scouts:", error);
+    res.status(500).json({ error: "Failed to fetch match scouts" });
+  }
+});
+
+app.post("/api/scout-events/:eventId/match-scouts", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const scout = await storage.createMatchScout({ ...req.body, eventId });
+    res.status(201).json(scout);
+  } catch (error) {
+    console.error("Error creating match scout:", error);
+    res.status(500).json({ error: "Failed to create match scout" });
+  }
+});
+
+app.put("/api/match-scouts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const scout = await storage.updateMatchScout(id, req.body);
+    if (!scout) return res.status(404).json({ error: "Match scout not found" });
+    res.json(scout);
+  } catch (error) {
+    console.error("Error updating match scout:", error);
+    res.status(500).json({ error: "Failed to update match scout" });
+  }
+});
+
+app.delete("/api/match-scouts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteMatchScout(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting match scout:", error);
+    res.status(500).json({ error: "Failed to delete match scout" });
+  }
+});
+
+app.post("/api/scout-events/:eventId/import", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const { pitScouts: pitData, matchScouts: matchData } = req.body;
+    const results: any = { pitScouts: [], matchScouts: [] };
+    if (pitData && Array.isArray(pitData)) {
+      for (const ps of pitData) {
+        const { id, createdAt, updatedAt, eventId: _eid, ...cleanPs } = ps;
+        const scout = await storage.createPitScout({ ...cleanPs, eventId });
+        results.pitScouts.push(scout);
+      }
+    }
+    if (matchData && Array.isArray(matchData)) {
+      for (const ms of matchData) {
+        const { id, createdAt, eventId: _eid, ...cleanMs } = ms;
+        const scout = await storage.createMatchScout({ ...cleanMs, eventId });
+        results.matchScouts.push(scout);
+      }
+    }
+    res.status(201).json(results);
+  } catch (error) {
+    console.error("Error importing scout data:", error);
+    res.status(500).json({ error: "Failed to import scout data" });
+  }
+});
+
+app.get("/api/scout-events/:eventId/export", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getScoutEvent(eventId);
+    if (!event) return res.status(404).json({ error: "Scout event not found" });
+    const pitScoutsData = await storage.getPitScouts(eventId);
+    const matchScoutsData = await storage.getMatchScouts(eventId);
+    res.json({ event, pitScouts: pitScoutsData, matchScouts: matchScoutsData });
+  } catch (error) {
+    console.error("Error exporting scout data:", error);
+    res.status(500).json({ error: "Failed to export scout data" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

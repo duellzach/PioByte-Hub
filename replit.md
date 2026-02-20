@@ -30,6 +30,7 @@ A task management and project tracking system for FRC (FIRST Robotics Competitio
 │   ├── Home.tsx            # Home/feed view
 │   ├── KanbanBoard.tsx     # Kanban board for task management
 │   ├── Layout.tsx          # App layout wrapper
+│   ├── Scout.tsx           # FRC scouting module (pit/match/QR)
 │   ├── TaskModal.tsx       # Task detail/edit modal
 │   ├── TeamManagement.tsx  # Team member management
 │   └── TimeTracking.tsx    # Time clock & hours tracking
@@ -77,6 +78,18 @@ After seeding the database:
   - Team hours displayed on login screen
   - Coaches can view/edit time history in user profiles (Team page)
   - Bulk add class time for multiple members at once
+
+- **FRC Scout Module**:
+  - Tournament event management (create, edit, delete events)
+  - Pit scouting with robot specs, drivetrain, capabilities/deficiencies tags, ratings (offense/defense/overall 1-10)
+  - Match scouting with counter inputs (+/- buttons), alliance tracking (Red/Blue), climb levels, coral/algae scoring
+  - Robot dashboard showing all scouted robots with search, detail views, match history
+  - QR code data sharing for offline environments (pako compression, chunked QR codes for large datasets)
+  - QR import via camera scanner (html5-qrcode) with chunk collection and preview
+  - Event creation restricted to Coach and TeamCaptain roles
+  - Database: scout_events, pit_scouts, match_scouts tables
+  - 14 REST API endpoints including bulk import/export
+  - Self-contained component with internal state management (no routing for sub-views)
 
 ## Recent Changes (February 2025)
 - **Backlog Status**:

@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout } from "../shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -94,6 +94,24 @@ export interface IStorage {
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
   deleteAnnouncement(id: number): Promise<void>;
+
+  getScoutEvents(): Promise<ScoutEvent[]>;
+  getScoutEvent(id: number): Promise<ScoutEvent | undefined>;
+  createScoutEvent(event: InsertScoutEvent): Promise<ScoutEvent>;
+  updateScoutEvent(id: number, event: Partial<InsertScoutEvent>): Promise<ScoutEvent | undefined>;
+  deleteScoutEvent(id: number): Promise<void>;
+
+  getPitScouts(eventId: number): Promise<PitScout[]>;
+  getPitScout(id: number): Promise<PitScout | undefined>;
+  createPitScout(scout: InsertPitScout): Promise<PitScout>;
+  updatePitScout(id: number, scout: Partial<InsertPitScout>): Promise<PitScout | undefined>;
+  deletePitScout(id: number): Promise<void>;
+
+  getMatchScouts(eventId: number): Promise<MatchScout[]>;
+  getMatchScout(id: number): Promise<MatchScout | undefined>;
+  createMatchScout(scout: InsertMatchScout): Promise<MatchScout>;
+  updateMatchScout(id: number, scout: Partial<InsertMatchScout>): Promise<MatchScout | undefined>;
+  deleteMatchScout(id: number): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -276,6 +294,81 @@ export class DatabaseStorage implements IStorage {
   async createTimeEntryAudit(audit: InsertTimeEntryAudit): Promise<TimeEntryAudit> {
     const [newAudit] = await db.insert(timeEntryAudit).values(audit).returning();
     return newAudit;
+  }
+
+  async getScoutEvents(): Promise<ScoutEvent[]> {
+    return db.select().from(scoutEvents).orderBy(desc(scoutEvents.createdAt));
+  }
+
+  async getScoutEvent(id: number): Promise<ScoutEvent | undefined> {
+    const [event] = await db.select().from(scoutEvents).where(eq(scoutEvents.id, id));
+    return event;
+  }
+
+  async createScoutEvent(event: InsertScoutEvent): Promise<ScoutEvent> {
+    const [newEvent] = await db.insert(scoutEvents).values(event).returning();
+    return newEvent;
+  }
+
+  async updateScoutEvent(id: number, event: Partial<InsertScoutEvent>): Promise<ScoutEvent | undefined> {
+    const sanitized: any = { ...event };
+    delete sanitized.id;
+    const [updated] = await db.update(scoutEvents).set(sanitized).where(eq(scoutEvents.id, id)).returning();
+    return updated;
+  }
+
+  async deleteScoutEvent(id: number): Promise<void> {
+    await db.delete(scoutEvents).where(eq(scoutEvents.id, id));
+  }
+
+  async getPitScouts(eventId: number): Promise<PitScout[]> {
+    return db.select().from(pitScouts).where(eq(pitScouts.eventId, eventId)).orderBy(desc(pitScouts.createdAt));
+  }
+
+  async getPitScout(id: number): Promise<PitScout | undefined> {
+    const [scout] = await db.select().from(pitScouts).where(eq(pitScouts.id, id));
+    return scout;
+  }
+
+  async createPitScout(scout: InsertPitScout): Promise<PitScout> {
+    const [newScout] = await db.insert(pitScouts).values(scout).returning();
+    return newScout;
+  }
+
+  async updatePitScout(id: number, scout: Partial<InsertPitScout>): Promise<PitScout | undefined> {
+    const sanitized: any = { ...scout };
+    delete sanitized.id;
+    const [updated] = await db.update(pitScouts).set(sanitized).where(eq(pitScouts.id, id)).returning();
+    return updated;
+  }
+
+  async deletePitScout(id: number): Promise<void> {
+    await db.delete(pitScouts).where(eq(pitScouts.id, id));
+  }
+
+  async getMatchScouts(eventId: number): Promise<MatchScout[]> {
+    return db.select().from(matchScouts).where(eq(matchScouts.eventId, eventId)).orderBy(desc(matchScouts.createdAt));
+  }
+
+  async getMatchScout(id: number): Promise<MatchScout | undefined> {
+    const [scout] = await db.select().from(matchScouts).where(eq(matchScouts.id, id));
+    return scout;
+  }
+
+  async createMatchScout(scout: InsertMatchScout): Promise<MatchScout> {
+    const [newScout] = await db.insert(matchScouts).values(scout).returning();
+    return newScout;
+  }
+
+  async updateMatchScout(id: number, scout: Partial<InsertMatchScout>): Promise<MatchScout | undefined> {
+    const sanitized: any = { ...scout };
+    delete sanitized.id;
+    const [updated] = await db.update(matchScouts).set(sanitized).where(eq(matchScouts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMatchScout(id: number): Promise<void> {
+    await db.delete(matchScouts).where(eq(matchScouts.id, id));
   }
 
   async seedDatabase(): Promise<void> {

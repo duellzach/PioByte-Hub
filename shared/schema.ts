@@ -139,7 +139,68 @@ export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = typeof announcements.$inferInsert;
+export const scoutEvents = pgTable("scout_events", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  location: text("location").notNull().default(""),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const pitScouts = pgTable("pit_scouts", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  teamNumber: integer("team_number").notNull(),
+  teamName: text("team_name").notNull().default(""),
+  robotName: text("robot_name").notNull().default(""),
+  drivetrain: text("drivetrain").notNull().default(""),
+  weight: integer("weight"),
+  speed: integer("speed"),
+  height: integer("height"),
+  capabilities: jsonb("capabilities").$type<string[]>().notNull().default([]),
+  deficiencies: jsonb("deficiencies").$type<string[]>().notNull().default([]),
+  autonomousRoutine: text("autonomous_routine").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  photoUrl: text("photo_url"),
+  offenseRating: integer("offense_rating").notNull().default(5),
+  defenseRating: integer("defense_rating").notNull().default(5),
+  overallRating: integer("overall_rating").notNull().default(5),
+  scoutedBy: integer("scouted_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const matchScouts = pgTable("match_scouts", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  matchNumber: integer("match_number").notNull(),
+  teamNumber: integer("team_number").notNull(),
+  alliance: text("alliance").notNull().default("Red"),
+  autoScore: integer("auto_score").notNull().default(0),
+  teleopScore: integer("teleop_score").notNull().default(0),
+  endgameScore: integer("endgame_score").notNull().default(0),
+  penalties: integer("penalties").notNull().default(0),
+  autoClimb: boolean("auto_climb").notNull().default(false),
+  endClimbLevel: integer("end_climb_level").notNull().default(0),
+  coralScored: integer("coral_scored").notNull().default(0),
+  algaeScored: integer("algae_scored").notNull().default(0),
+  humanPlayerScore: integer("human_player_score").notNull().default(0),
+  defenseRating: integer("defense_rating").notNull().default(3),
+  notes: text("notes").notNull().default(""),
+  scoutedBy: integer("scouted_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 export type TimeEntryAudit = typeof timeEntryAudit.$inferSelect;
 export type InsertTimeEntryAudit = typeof timeEntryAudit.$inferInsert;
+export type ScoutEvent = typeof scoutEvents.$inferSelect;
+export type InsertScoutEvent = typeof scoutEvents.$inferInsert;
+export type PitScout = typeof pitScouts.$inferSelect;
+export type InsertPitScout = typeof pitScouts.$inferInsert;
+export type MatchScout = typeof matchScouts.$inferSelect;
+export type InsertMatchScout = typeof matchScouts.$inferInsert;

@@ -1,0 +1,104 @@
+Here is the comprehensive documentation for the FRC Scout Rebuilt application, along with suggestions for improvement and a software quality checklist.
+FRC Scout Rebuilt - Application Documentation
+1. Executive Summary
+FRC Scout Rebuilt is a progressive web application (PWA) designed for the FIRST Robotics Competition. It enables teams to scout robots, track match performance, and analyze alliance compatibility entirely offline. The app features a "local-first" architecture, using device storage for data persistence and QR codes for peer-to-peer data synchronization without requiring an internet connection.
+2. Feature Breakdown
+A. Dashboard (Home)
+The central hub for data analysis and robot management.
+Robot List: Searchable list of all scouted teams with quick-glance stats (Rating, Offense/Defense scores).
+Detailed Robot View:
+Radar Chart: Visual comparison overlaying a specific robot's stats against your team's "Main Bot" to assess compatibility.
+Physical Specs: Displays weight, speed, height, and drivetrain type.
+Match History: Chronological list of matches played by the robot with individual performance metrics.
+Quick Ratings: Edit "Compatibility," "Offense," and "Defense" ratings directly from the view.
+Capabilities: Visual tags for proficiencies (e.g., "Shooter", "Climber") and deficiencies.
+B. Match Scouting (MatchForm)
+A high-speed data entry interface for recording match results.
+Alliance Selection: Toggle between Red and Blue alliances.
+Performance Tracking:
+Fuel Scored: Counter input for fuel elements.
+Climbing: Boolean toggle for "Auto Climb" and level selector (0-3) for "End Climb".
+Human Player: Counter for thrown elements.
+Penalties: Tracker for fouls committed.
+Conflict Resolution: Detects if a match number already exists and offers to merge or overwrite data.
+Alliance Totals: Automatically calculates total alliance scores based on individual robot performances.
+C. Robot Scouting (RobotForm)
+A comprehensive intake form for static robot data (Pit Scouting).
+Identity: Team Number, School Name, Robot Name.
+Media: Integrated camera capture and file upload for robot photos.
+Mechanical Specs: Drivetrain (Swerve, Tank, Mecanum), Weight, Speed, Height, and Climber dimensions.
+Autonomous: Dropdown for autonomous routine types (e.g., Motion Profiling, Vision).
+Qualitative Analysis: Tag-based system for Proficiencies and Deficiencies.
+D. Data Sharing (QRTools)
+The offline synchronization engine.
+Export Modes:
+Full Bots: Exports selected robots and all their associated match data.
+Bot Stats Only: Exports robot profiles with isolated performance stats (smaller payload).
+Matches: Exports specific match results.
+QR Generation: Compresses data (including thumbnail images) into a JSON payload rendered as a QR code.
+Scanner: Built-in camera scanner using jsqr to read codes from other devices and merge data into the local database.
+E. "My Bot" Configuration
+Allows the user to configure their own team's robot data. This serves as the "baseline" (100% mark) for the radar chart comparisons on the dashboard.
+3. Technical Architecture
+Frontend Stack
+Framework: React 19 with TypeScript for type safety.
+Build Tool: Vite for fast development and optimized production builds.
+Styling: Tailwind CSS for utility-first, responsive design with Dark Mode support.
+Icons: Lucide-React for consistent, lightweight SVG iconography.
+Visualization: Recharts for data visualization (Radar/Spider charts).
+Backend & Data Persistence
+NoSQL Local Storage: The app runs entirely client-side.
+Storage Key: frc_scout_rebuilt_data
+Data Structure:
+robots: Array of RobotData objects (static specs).
+matches: Array of MatchData objects (dynamic performance).
+mainBot: Single RobotData object for baseline comparison.
+Data Transfer Protocol
+Format: JSON strings compressed for QR payloads.
+Payload Structure: { r: RobotData[], m: MatchData[] }
+Image Compression: Images are downscaled to ~60px thumbnails before QR encoding to prevent data overflow.
+4. Suggestions for Future Improvement
+To enhance efficiency, scalability, and user experience, we recommend the following:
+Performance & Architecture
+IndexedDB Implementation: Move from localStorage (limited to ~5MB) to IndexedDB (Dexie.js or IDB) to store full-resolution images and thousands of match records without hitting quotas.
+Virtualized Lists: Implement react-window or react-virtuoso for the Dashboard and Match lists. Rendering hundreds of robot cards can cause scroll lag on lower-end mobile devices.
+PWA Service Workers: Fully configure the Vite PWA plugin to cache assets aggressively, ensuring the app loads instantly even in "Airplane Mode."
+Features & UX
+Blue Alliance API Integration: Add an optional "Online Mode" to fetch official match schedules and team names from The Blue Alliance API when internet is available.
+Undo/Redo History: Implement a state history stack for the Match Form to recover accidental data clears.
+CSV Export: Add a button to export data as a .csv file for analysis in Excel or Tableau.
+Form Validation: Add stricter validation (e.g., preventing negative scores, warning on unrealistic values like 500 fuel points).
+5. "Good Program" Checklist
+Use this checklist to evaluate this (or any) software project before release.
+✅ Functionality & Reliability
+
+Core Loop: Does the main feature (scouting -> saving -> viewing) work without crashing?
+
+Edge Cases: Does it handle empty inputs, zero values, or extremely long text strings gracefully?
+
+Error Handling: Are errors (e.g., "Camera not found") caught and displayed to the user in plain English?
+
+Persistence: Does data survive a page refresh or browser restart?
+✅ Usability (UX)
+
+Feedback: Does the user get confirmation (toast/alert) after saving or deleting data?
+
+Navigation: Is it always clear how to go back? (e.g., "Back to List" buttons).
+
+Accessibility: Do images have alt text? Are colors distinguishable for color-blind users (Red vs. Blue alliance)?
+
+Mobile Responsiveness: Do buttons have large enough touch targets (min 44px)? Does the layout break on small screens?
+✅ Code Quality
+
+Type Safety: Are any types minimized? Are interfaces (RobotData, MatchData) strictly defined?
+
+Modularity: Are components small and focused? (e.g., MatchForm handles input, Dashboard handles display).
+
+Clean Code: Are variable names descriptive (fuelScored vs fs)? Is dead code removed?
+
+Performance: Are expensive calculations (like filtering lists or generating charts) memoized using useMemo?
+✅ Security
+
+Input Sanitization: Is user input treated as untrusted? (React handles most XSS, but JSON imports should be validated).
+
+Permissions: Does the app request Camera permissions only when needed?

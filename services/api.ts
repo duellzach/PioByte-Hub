@@ -90,6 +90,22 @@ export const api = {
         body: JSON.stringify({ tasks }),
       }),
   },
+  scout: {
+    getEvents: () => apiRequest<any[]>('/scout-events'),
+    createEvent: (event: any) => apiRequest<any>('/scout-events', { method: 'POST', body: JSON.stringify(event) }),
+    updateEvent: (id: number, event: any) => apiRequest<any>(`/scout-events/${id}`, { method: 'PUT', body: JSON.stringify(event) }),
+    deleteEvent: (id: number) => apiRequest<void>(`/scout-events/${id}`, { method: 'DELETE' }),
+    getPitScouts: (eventId: number) => apiRequest<any[]>(`/scout-events/${eventId}/pit-scouts`),
+    createPitScout: (eventId: number, scout: any) => apiRequest<any>(`/scout-events/${eventId}/pit-scouts`, { method: 'POST', body: JSON.stringify(scout) }),
+    updatePitScout: (id: number, scout: any) => apiRequest<any>(`/pit-scouts/${id}`, { method: 'PUT', body: JSON.stringify(scout) }),
+    deletePitScout: (id: number) => apiRequest<void>(`/pit-scouts/${id}`, { method: 'DELETE' }),
+    getMatchScouts: (eventId: number) => apiRequest<any[]>(`/scout-events/${eventId}/match-scouts`),
+    createMatchScout: (eventId: number, scout: any) => apiRequest<any>(`/scout-events/${eventId}/match-scouts`, { method: 'POST', body: JSON.stringify(scout) }),
+    updateMatchScout: (id: number, scout: any) => apiRequest<any>(`/match-scouts/${id}`, { method: 'PUT', body: JSON.stringify(scout) }),
+    deleteMatchScout: (id: number) => apiRequest<void>(`/match-scouts/${id}`, { method: 'DELETE' }),
+    exportEvent: (eventId: number) => apiRequest<any>(`/scout-events/${eventId}/export`),
+    importEvent: (eventId: number, data: any) => apiRequest<any>(`/scout-events/${eventId}/import`, { method: 'POST', body: JSON.stringify(data) }),
+  },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
   changePassword: (userId: number, currentPassword: string, newPassword: string) =>
