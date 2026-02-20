@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -100,7 +100,7 @@ const TagInput: React.FC<{ tags: string[]; onChange: (tags: string[]) => void; l
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'qr'>('robots');
+  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'qr' | 'display'>('robots');
   const [pitScouts, setPitScouts] = useState<any[]>([]);
   const [matchScoutsData, setMatchScoutsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -122,10 +122,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   });
 
   const [matchForm, setMatchForm] = useState({
-    matchNumber: 1, teamNumber: 0, alliance: 'Red', autoScore: 0, teleopScore: 0, endgameScore: 0,
+    matchNumber: 1, teamNumber: 0, alliance: 'Red',
     penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
-    humanPlayerScore: 0, defenseRating: 3, notes: ''
+    defenseRating: 3, notes: ''
   });
+
+  const [selectedMatchIds, setSelectedMatchIds] = useState<Set<number>>(new Set());
 
   const [qrData, setQrData] = useState<string[]>([]);
   const [qrChunkIndex, setQrChunkIndex] = useState(0);
@@ -276,9 +278,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const resetMatchForm = () => {
     setMatchForm({
-      matchNumber: 1, teamNumber: 0, alliance: 'Red', autoScore: 0, teleopScore: 0, endgameScore: 0,
+      matchNumber: 1, teamNumber: 0, alliance: 'Red',
       penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
-      humanPlayerScore: 0, defenseRating: 3, notes: ''
+      defenseRating: 3, notes: ''
     });
   };
 
@@ -298,9 +300,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setEditingMatch(match);
     setMatchForm({
       matchNumber: match.matchNumber, teamNumber: match.teamNumber, alliance: match.alliance,
-      autoScore: match.autoScore, teleopScore: match.teleopScore, endgameScore: match.endgameScore,
       penalties: match.penalties, autoClimb: match.autoClimb, endClimbLevel: match.endClimbLevel,
-      coralScored: match.coralScored, algaeScored: match.algaeScored, humanPlayerScore: match.humanPlayerScore,
+      coralScored: match.coralScored, algaeScored: match.algaeScored,
       defenseRating: match.defenseRating, notes: match.notes
     });
     setShowMatchForm(true);
@@ -310,7 +311,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (!activeEvent) return;
     try {
       const exportData = await api.scout.exportEvent(activeEvent.id);
-      const payload = { pitScouts: exportData.pitScouts, matchScouts: exportData.matchScouts };
+      const filteredMatches = selectedMatchIds.size > 0
+        ? exportData.matchScouts.filter((m: any) => selectedMatchIds.has(m.id))
+        : exportData.matchScouts;
+      const payload = { pitScouts: exportData.pitScouts, matchScouts: filteredMatches };
       const jsonStr = JSON.stringify(payload);
       const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
       const base64 = btoa(String.fromCharCode(...compressed));
@@ -336,10 +340,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setScanning(true);
     setScannedChunks(new Map());
     setImportPreview(null);
-    setTimeout(() => {
+    setTimeout(async () => {
       if (scannerContainerRef.current) {
         try {
-          const { Html5Qrcode } = require('html5-qrcode');
+          const { Html5Qrcode } = await import('html5-qrcode');
           const scanner = new Html5Qrcode("qr-scanner-container");
           scannerRef.current = scanner;
           scanner.start(
@@ -382,7 +386,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       if (next.size === totalNum) {
         const sorted: string[] = [];
         for (let i = 1; i <= totalNum; i++) {
-          sorted.push(next.get(`${i}/${totalNum}`) || '');
+          sorted.push((next.get(`${i}/${totalNum}`) as string) || '');
         }
         const fullBase64 = sorted.join('');
         try {
@@ -538,10 +542,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         Match {m.matchNumber}
                       </span>
                       <span className="text-sm font-bold text-slate-700">
-                        Auto: {m.autoScore} | Teleop: {m.teleopScore} | End: {m.endgameScore}
+                        Fuel: {m.coralScored} scored, {m.algaeScored} missed
                       </span>
                     </div>
-                    <span className="text-lg font-black text-slate-900">{m.autoScore + m.teleopScore + m.endgameScore}</span>
+                    <span className="text-lg font-black text-slate-900">{m.coralScored - m.penalties}</span>
                   </div>
                 </div>
               ))}
@@ -584,7 +588,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         </div>
 
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-          {(['robots', 'matches', 'qr'] as const).map(tab => (
+          {(['robots', 'matches', 'qr', 'display'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -592,7 +596,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : 'QR Share'}
+              {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : tab === 'qr' ? 'QR Share' : 'Pit Display'}
             </button>
           ))}
         </div>
@@ -681,12 +685,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <div>
                         <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
                         <p className="text-[10px] text-slate-400 font-bold">
-                          Auto: {m.autoScore} | Teleop: {m.teleopScore} | End: {m.endgameScore} | Pen: -{m.penalties}
+                          Fuel: {m.coralScored} scored, {m.algaeScored} missed | Pen: -{m.penalties}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xl font-black text-slate-900">{m.autoScore + m.teleopScore + m.endgameScore - m.penalties}</span>
+                      <span className="text-xl font-black text-slate-900">{m.coralScored - m.penalties}</span>
                       <div className="flex gap-1">
                         <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
                         <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
@@ -708,7 +712,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'qr' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
               <div className="flex items-center gap-3">
@@ -720,6 +724,50 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Share via QR code</p>
                 </div>
               </div>
+
+              {matchScoutsData.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select Matches to Export</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMatchIds(new Set(matchScoutsData.map((m: any) => m.id)))}
+                        className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black hover:bg-slate-200 transition-all"
+                      >Select All</button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMatchIds(new Set())}
+                        className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black hover:bg-slate-200 transition-all"
+                      >Deselect All</button>
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 rounded-xl p-2">
+                    {[...matchScoutsData].sort((a, b) => a.matchNumber - b.matchNumber).map((m: any) => (
+                      <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-all">
+                        <input
+                          type="checkbox"
+                          checked={selectedMatchIds.has(m.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedMatchIds);
+                            if (e.target.checked) next.add(m.id); else next.delete(m.id);
+                            setSelectedMatchIds(next);
+                          }}
+                          className="w-4 h-4 accent-red-600"
+                        />
+                        <span className="text-xs font-black text-slate-700">M{m.matchNumber}</span>
+                        <span className="text-xs font-bold text-slate-500">Team {m.teamNumber}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
+                          {m.alliance}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-bold">
+                    {selectedMatchIds.size === 0 ? 'All matches will be exported' : `${selectedMatchIds.size} match${selectedMatchIds.size !== 1 ? 'es' : ''} selected`}
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={generateQR}
@@ -755,7 +803,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   )}
                   <p className="text-[10px] text-slate-400 font-bold text-center">
-                    {pitScouts.length} robots, {matchScoutsData.length} matches encoded
+                    {pitScouts.length} robots, {selectedMatchIds.size > 0 ? `${selectedMatchIds.size} of ${matchScoutsData.length}` : matchScoutsData.length} matches encoded
                   </p>
                 </div>
               )}
@@ -822,7 +870,80 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               )}
             </div>
           </div>
-        )}
+        ) : activeTab === 'display' ? (
+          <div className="space-y-6 md:space-y-8">
+            <div className="bg-gradient-to-br from-red-600 to-red-800 rounded-2xl md:rounded-[32px] p-8 md:p-12 text-center shadow-2xl">
+              <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tight">Team 10991</h1>
+              <p className="text-2xl md:text-3xl font-black text-red-200 uppercase tracking-widest mt-2">Pio-Bytes</p>
+              <div className="inline-block mt-4 px-6 py-2 bg-white/20 backdrop-blur-sm rounded-full">
+                <span className="text-sm md:text-base font-black text-white uppercase tracking-widest">Rebuilt 2025–2026</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
+                <Bot size={32} className="text-red-600 mx-auto mb-3" />
+                <p className="text-3xl md:text-4xl font-black text-slate-900">{pitScouts.length}</p>
+                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Robots Scouted</p>
+              </div>
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
+                <Swords size={32} className="text-red-600 mx-auto mb-3" />
+                <p className="text-3xl md:text-4xl font-black text-slate-900">{matchScoutsData.length}</p>
+                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Matches Recorded</p>
+              </div>
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
+                <Flame size={32} className="text-orange-500 mx-auto mb-3" />
+                <p className="text-3xl md:text-4xl font-black text-slate-900">
+                  {pitScouts.length > 0 ? (pitScouts.reduce((s: number, p: any) => s + (p.offenseRating || 0), 0) / pitScouts.length).toFixed(1) : '—'}
+                </p>
+                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Avg Offense</p>
+              </div>
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
+                <Monitor size={32} className="text-blue-600 mx-auto mb-3" />
+                <p className="text-3xl md:text-4xl font-black text-slate-900">
+                  {pitScouts.length > 0 ? (pitScouts.reduce((s: number, p: any) => s + (p.defenseRating || 0), 0) / pitScouts.length).toFixed(1) : '—'}
+                </p>
+                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Avg Defense</p>
+              </div>
+            </div>
+
+            {pitScouts.length > 0 && (
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Scouted Robot Leaderboard</h3>
+                <div className="space-y-3">
+                  {[...pitScouts].sort((a: any, b: any) => (b.overallRating || 0) - (a.overallRating || 0)).map((ps: any, idx: number) => (
+                    <div key={ps.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${
+                        idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base md:text-lg font-black text-slate-900 truncate">
+                          Team {ps.teamNumber} {ps.teamName ? `— ${ps.teamName}` : ''}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold truncate">{ps.robotName || 'Unnamed'} • {ps.drivetrain || '—'}</p>
+                      </div>
+                      <div className="flex gap-2 md:gap-3 flex-shrink-0">
+                        <span className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-black">OFF {ps.offenseRating}</span>
+                        <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">DEF {ps.defenseRating}</span>
+                        <span className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-black">OVR {ps.overallRating}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pitScouts.length === 0 && (
+              <div className="py-16 text-center">
+                <Bot size={56} className="text-slate-200 mx-auto mb-4" />
+                <p className="text-xl font-black text-slate-300 uppercase tracking-tight">No Robots Scouted Yet</p>
+                <p className="text-slate-400 text-sm mt-1">Scout robots to populate the pit display</p>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {showPitForm && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -1034,16 +1155,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 md:gap-4">
-                  <Counter label="Auto Score" value={matchForm.autoScore} onChange={(v) => setMatchForm({ ...matchForm, autoScore: v })} />
-                  <Counter label="Teleop Score" value={matchForm.teleopScore} onChange={(v) => setMatchForm({ ...matchForm, teleopScore: v })} />
-                  <Counter label="Endgame Score" value={matchForm.endgameScore} onChange={(v) => setMatchForm({ ...matchForm, endgameScore: v })} />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 md:gap-4">
-                  <Counter label="Coral Scored" value={matchForm.coralScored} onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })} />
-                  <Counter label="Algae Scored" value={matchForm.algaeScored} onChange={(v) => setMatchForm({ ...matchForm, algaeScored: v })} />
-                  <Counter label="Human Player" value={matchForm.humanPlayerScore} onChange={(v) => setMatchForm({ ...matchForm, humanPlayerScore: v })} />
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  <Counter label="Fuel Scored" value={matchForm.coralScored} onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })} color="green" />
+                  <Counter label="Fuel Missed" value={matchForm.algaeScored} onChange={(v) => setMatchForm({ ...matchForm, algaeScored: v })} color="orange" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
