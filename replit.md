@@ -88,6 +88,8 @@ After seeding the database:
   - Selective match export — choose which matches to include in QR codes
   - QR import via camera scanner (html5-qrcode dynamic import) with chunk collection and preview
   - Pit Display tab for drive team — large team branding, stats overview, robot leaderboard
+  - Blue Alliance API integration — live win/loss record, event schedule, upcoming matches on Pit Display
+  - TBA event key field on scout events links to thebluealliance.com data
   - Event creation restricted to Coach and TeamCaptain roles
   - Database: scout_events, pit_scouts, match_scouts tables
   - 14 REST API endpoints including bulk import/export

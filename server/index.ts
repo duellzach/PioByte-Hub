@@ -725,6 +725,57 @@ app.post("/api/scout-events/:eventId/import", async (req, res) => {
   }
 });
 
+const TBA_BASE = "https://www.thebluealliance.com/api/v3";
+const TBA_KEY = process.env.TBA_API_KEY || "";
+
+async function tbaFetch(path: string) {
+  const resp = await fetch(`${TBA_BASE}${path}`, {
+    headers: { "X-TBA-Auth-Key": TBA_KEY },
+  });
+  if (!resp.ok) throw new Error(`TBA API error: ${resp.status}`);
+  return resp.json();
+}
+
+app.get("/api/tba/event/:eventKey/matches", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/event/${req.params.eventKey}/matches`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA event matches error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA event matches" });
+  }
+});
+
+app.get("/api/tba/event/:eventKey/rankings", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/event/${req.params.eventKey}/rankings`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA rankings error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA rankings" });
+  }
+});
+
+app.get("/api/tba/team/:teamKey/event/:eventKey/matches", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/team/${req.params.teamKey}/event/${req.params.eventKey}/matches`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA team matches error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA team matches" });
+  }
+});
+
+app.get("/api/tba/team/:teamKey/event/:eventKey/status", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/team/${req.params.teamKey}/event/${req.params.eventKey}/status`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA team status error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA team status" });
+  }
+});
+
 app.get("/api/scout-events/:eventId/export", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);

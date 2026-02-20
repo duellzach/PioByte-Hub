@@ -113,7 +113,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [selectedRobot, setSelectedRobot] = useState<any | null>(null);
   const [eventCounts, setEventCounts] = useState<Record<number, { pits: number; matches: number }>>({});
 
-  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '' });
+  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '' });
+  const [tbaMatches, setTbaMatches] = useState<any[]>([]);
+  const [tbaRecord, setTbaRecord] = useState<{ wins: number; losses: number; ties: number } | null>(null);
+  const [tbaLoading, setTbaLoading] = useState(false);
 
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
@@ -180,10 +183,45 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setLoading(false);
   }, []);
 
+  const fetchTbaData = useCallback(async (tbaEventKey: string) => {
+    if (!tbaEventKey) return;
+    setTbaLoading(true);
+    try {
+      const [allMatches, teamMatches] = await Promise.all([
+        api.tba.getEventMatches(tbaEventKey),
+        api.tba.getTeamMatches('frc10991', tbaEventKey),
+      ]);
+      setTbaMatches(allMatches || []);
+      if (teamMatches && teamMatches.length > 0) {
+        let wins = 0, losses = 0, ties = 0;
+        for (const m of teamMatches) {
+          if (m.winning_alliance === undefined || m.winning_alliance === null) continue;
+          if (m.alliances?.red?.score === -1 && m.alliances?.blue?.score === -1) continue;
+          const isRed = m.alliances?.red?.team_keys?.includes('frc10991');
+          const isBlue = m.alliances?.blue?.team_keys?.includes('frc10991');
+          const ourAlliance = isRed ? 'red' : isBlue ? 'blue' : null;
+          if (!ourAlliance) continue;
+          if (m.winning_alliance === '') { ties++; }
+          else if (m.winning_alliance === ourAlliance) { wins++; }
+          else { losses++; }
+        }
+        setTbaRecord({ wins, losses, ties });
+      } else {
+        setTbaRecord(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch TBA data:', err);
+      setTbaMatches([]);
+      setTbaRecord(null);
+    }
+    setTbaLoading(false);
+  }, []);
+
   const enterEvent = (event: any) => {
     setActiveEvent(event);
     setActiveTab('robots');
     fetchEventData(event.id);
+    if (event.tbaEventKey) fetchTbaData(event.tbaEventKey);
   };
 
   const handleCreateEvent = async () => {
@@ -194,7 +232,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         createdBy: parseInt(currentUser.id),
       });
       setShowEventForm(false);
-      setEventForm({ name: '', location: '', startDate: '', endDate: '' });
+      setEventForm({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '' });
       fetchEvents();
     } catch (err) {
       console.error('Failed to create event:', err);
@@ -878,6 +916,28 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               <div className="inline-block mt-4 px-6 py-2 bg-white/20 backdrop-blur-sm rounded-full">
                 <span className="text-sm md:text-base font-black text-white uppercase tracking-widest">Rebuilt 2025–2026</span>
               </div>
+              {tbaRecord && (
+                <div className="flex items-center justify-center gap-6 mt-6">
+                  <div className="text-center">
+                    <p className="text-4xl md:text-5xl font-black text-green-300">{tbaRecord.wins}</p>
+                    <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Wins</p>
+                  </div>
+                  <div className="text-4xl md:text-5xl font-black text-white/30">–</div>
+                  <div className="text-center">
+                    <p className="text-4xl md:text-5xl font-black text-red-300">{tbaRecord.losses}</p>
+                    <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Losses</p>
+                  </div>
+                  {tbaRecord.ties > 0 && (
+                    <>
+                      <div className="text-4xl md:text-5xl font-black text-white/30">–</div>
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-black text-yellow-300">{tbaRecord.ties}</p>
+                        <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Ties</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
@@ -907,6 +967,160 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             </div>
 
+            {activeEvent?.tbaEventKey && (
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight">Event Schedule</h3>
+                  <button onClick={() => fetchTbaData(activeEvent.tbaEventKey)} className="px-4 py-2 bg-slate-100 text-slate-600 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                    Refresh
+                  </button>
+                </div>
+
+                {tbaLoading ? (
+                  <div className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-sm">Loading schedule...</div>
+                ) : (() => {
+                  const teamMatches = tbaMatches
+                    .filter((m: any) =>
+                      m.alliances?.red?.team_keys?.includes('frc10991') ||
+                      m.alliances?.blue?.team_keys?.includes('frc10991')
+                    )
+                    .sort((a: any, b: any) => {
+                      if (a.predicted_time && b.predicted_time) return a.predicted_time - b.predicted_time;
+                      if (a.time && b.time) return a.time - b.time;
+                      return (a.match_number || 0) - (b.match_number || 0);
+                    });
+
+                  const now = Date.now() / 1000;
+                  const isPlayed = (m: any) => {
+                    if (m.actual_time) return true;
+                    const redScore = m.alliances?.red?.score;
+                    const blueScore = m.alliances?.blue?.score;
+                    return redScore !== null && redScore !== undefined && redScore >= 0 &&
+                           blueScore !== null && blueScore !== undefined && blueScore >= 0;
+                  };
+                  const playedMatches = teamMatches.filter(isPlayed);
+                  const upcomingMatches = teamMatches.filter((m: any) => !isPlayed(m));
+
+                  const getMatchLabel = (m: any) => {
+                    const compLevel = m.comp_level || 'qm';
+                    const num = m.match_number || 0;
+                    const set = m.set_number || 0;
+                    if (compLevel === 'qm') return `Qual ${num}`;
+                    if (compLevel === 'qf') return `QF ${set}-${num}`;
+                    if (compLevel === 'sf') return `SF ${set}-${num}`;
+                    if (compLevel === 'f') return `Final ${num}`;
+                    return `Match ${num}`;
+                  };
+
+                  const getOurAlliance = (m: any) => {
+                    if (m.alliances?.red?.team_keys?.includes('frc10991')) return 'red';
+                    return 'blue';
+                  };
+
+                  return (
+                    <div className="space-y-6">
+                      {upcomingMatches.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-black text-red-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                            Up Next
+                          </h4>
+                          <div className="space-y-2">
+                            {upcomingMatches.slice(0, 5).map((m: any) => {
+                              const ourAlliance = getOurAlliance(m);
+                              const partners = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== 'frc10991').map((t: string) => t.replace('frc', ''));
+                              const opponents = (m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.team_keys || []).map((t: string) => t.replace('frc', ''));
+                              const time = m.predicted_time || m.time;
+                              return (
+                                <div key={m.key} className={`p-4 rounded-xl border-2 ${ourAlliance === 'red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                                        ourAlliance === 'red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                                      }`}>
+                                        {getMatchLabel(m)}
+                                      </span>
+                                      <div>
+                                        <p className="text-sm font-black text-slate-900">
+                                          w/ {partners.join(', ') || '—'}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 font-bold">
+                                          vs {opponents.join(', ') || '—'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {time && (
+                                      <span className="text-xs font-bold text-slate-500">
+                                        {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {playedMatches.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Completed Matches</h4>
+                          <div className="space-y-2">
+                            {playedMatches.map((m: any) => {
+                              const ourAlliance = getOurAlliance(m);
+                              const didWin = m.winning_alliance === ourAlliance;
+                              const didTie = m.winning_alliance === '';
+                              const ourScore = m.alliances?.[ourAlliance]?.score ?? '—';
+                              const theirScore = m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.score ?? '—';
+                              return (
+                                <div key={m.key} className={`p-4 rounded-xl border-2 ${
+                                  didWin ? 'border-green-200 bg-green-50/50' : didTie ? 'border-yellow-200 bg-yellow-50/50' : 'border-slate-200 bg-slate-50/50'
+                                }`}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                                        ourAlliance === 'red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                                      }`}>
+                                        {getMatchLabel(m)}
+                                      </span>
+                                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                                        didWin ? 'bg-green-100 text-green-700' : didTie ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                      }`}>
+                                        {didWin ? 'WIN' : didTie ? 'TIE' : 'LOSS'}
+                                      </span>
+                                    </div>
+                                    <span className="text-lg font-black text-slate-900">
+                                      {ourScore} – {theirScore}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {teamMatches.length === 0 && (
+                        <div className="py-12 text-center">
+                          <Calendar size={40} className="text-slate-200 mx-auto mb-3" />
+                          <p className="text-sm font-black text-slate-300 uppercase tracking-tight">No schedule available yet</p>
+                          <p className="text-xs text-slate-400 mt-1">Match schedule will appear once posted on The Blue Alliance</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {!activeEvent?.tbaEventKey && (
+              <div className="bg-yellow-50 rounded-2xl md:rounded-[32px] border-2 border-yellow-200 p-6 md:p-8 text-center">
+                <Calendar size={32} className="text-yellow-500 mx-auto mb-3" />
+                <p className="text-sm font-black text-yellow-800 uppercase tracking-tight">No TBA Event Linked</p>
+                <p className="text-xs text-yellow-600 mt-1">Edit this event and add a Blue Alliance event key to see live schedule and win/loss record</p>
+              </div>
+            )}
+
             {pitScouts.length > 0 && (
               <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
                 <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Scouted Robot Leaderboard</h3>
@@ -932,14 +1146,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {pitScouts.length === 0 && (
-              <div className="py-16 text-center">
-                <Bot size={56} className="text-slate-200 mx-auto mb-4" />
-                <p className="text-xl font-black text-slate-300 uppercase tracking-tight">No Robots Scouted Yet</p>
-                <p className="text-slate-400 text-sm mt-1">Scout robots to populate the pit display</p>
               </div>
             )}
           </div>
@@ -1329,6 +1535,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">TBA Event Key</label>
+                <input
+                  value={eventForm.tbaEventKey}
+                  onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value })}
+                  placeholder="e.g. 2026azgl"
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                />
+                <p className="text-[9px] text-slate-400 font-medium ml-2">Find your event key on thebluealliance.com (optional)</p>
               </div>
 
               <button

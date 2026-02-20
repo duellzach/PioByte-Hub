@@ -145,6 +145,7 @@ export const scoutEvents = pgTable("scout_events", {
   location: text("location").notNull().default(""),
   startDate: text("start_date"),
   endDate: text("end_date"),
+  tbaEventKey: text("tba_event_key"),
   createdBy: integer("created_by").notNull().references(() => users.id),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
