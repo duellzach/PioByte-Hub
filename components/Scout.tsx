@@ -1234,7 +1234,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     </div>
                                     {time && (
                                       <span className="text-xs font-bold text-slate-500">
-                                        {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                        {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                                       </span>
                                     )}
                                   </div>

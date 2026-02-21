@@ -541,7 +541,7 @@ const TaskCard: React.FC<{
                         )}
                     </div>
                     <span className="text-[6px] md:text-[7px] font-bold text-slate-400">
-                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                     </span>
                 </div>
                 <button 

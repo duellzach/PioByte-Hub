@@ -72,22 +72,23 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
 
   const formatTime = (date: Date | number | string) => {
     const d = new Date(date);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
   };
 
   const formatDate = (date: Date | number | string) => {
     const d = new Date(date);
-    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
   };
 
   const toLocalDateTimeString = (date: Date | number | string) => {
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
   };
 
   const openTimeEditModal = (entry: TimeEntry) => {
@@ -772,7 +773,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
                       <span className="text-[9px] text-slate-400 font-bold">
-                        {new Date(log.createdAt).toLocaleString()}
+                        {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-600">By: {getUserName(log.actorId)}</p>

@@ -10,12 +10,12 @@ interface TimeTrackingProps {
 
 const formatTime = (date: Date | number | string) => {
   const d = new Date(date);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
 };
 
 const formatDate = (date: Date | number | string) => {
   const d = new Date(date);
-  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
 };
 
 const formatDuration = (minutes: number) => {
@@ -753,7 +753,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
                     <span className="text-[9px] text-slate-400 font-bold">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
                     </span>
                   </div>
                   <p className="text-xs font-bold text-slate-600">By: {getUserName(log.actorId)}</p>

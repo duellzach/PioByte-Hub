@@ -218,7 +218,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   className="text-3xl font-black text-slate-900 bg-transparent border-none outline-none focus:ring-4 focus:ring-red-600/10 rounded-xl px-2 w-full uppercase tracking-tighter"
                 />
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
-                   <Clock size={10} /> POSTED {new Date(editedTask.createdAt).toLocaleDateString()} {new Date(editedTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                   <Clock size={10} /> POSTED {new Date(editedTask.createdAt).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })} {new Date(editedTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                 </p>
             </div>
           </div>
@@ -365,7 +365,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{user?.name || 'Unknown'}</span>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
                                       {isCoach && (
                                         <button 
                                           onClick={() => deleteComment(c.id)}
@@ -420,7 +420,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                 <div className={`w-1 rounded-full ${isSOS && !isResolved ? 'bg-red-600' : isResolved ? 'bg-green-500' : 'bg-red-600/20'}`} />
                                 <div>
                                     <p className={`font-black uppercase tracking-tight text-[10px] ${isSOS && !isResolved ? 'text-red-600' : isResolved ? 'text-green-600' : 'text-slate-800'}`}>{h.action}</p>
-                                    <p className="text-slate-400 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {new Date(h.timestamp).toLocaleString()}</p>
+                                    <p className="text-slate-400 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {new Date(h.timestamp).toLocaleString([], { timeZone: 'America/Los_Angeles' })}</p>
                                 </div>
                             </div>
                           );

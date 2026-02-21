@@ -400,7 +400,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   <p className="text-white text-xs font-bold leading-relaxed line-clamp-3 mb-4 italic">"{ann.text}"</p>
                   <div className="flex justify-between items-center border-t border-white/5 pt-3">
                      <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">@{author?.username}</span>
-                     <span className="text-[8px] font-bold text-slate-500 uppercase">{new Date(ann.timestamp).toLocaleDateString()}</span>
+                     <span className="text-[8px] font-bold text-slate-500 uppercase">{new Date(ann.timestamp).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })}</span>
                   </div>
                 </div>
               );
@@ -448,8 +448,8 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   <div className="flex items-end justify-between">
                     <div>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                        {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        {evt.endDate && ` – ${new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                        {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                        {evt.endDate && ` – ${new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}`}
                       </p>
                     </div>
                     {!isDone && (
@@ -496,7 +496,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     </span>
                   </div>
                   <span className="text-[10px] font-black text-slate-400 group-hover:text-red-600 transition-colors">
-                    DUE {new Date(task.dueDate).toLocaleDateString()}
+                    DUE {new Date(task.dueDate).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })}
                   </span>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 mb-2 group-hover:text-red-600 transition-colors">
@@ -552,7 +552,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     <p className="text-sm font-black text-slate-900 uppercase">
                       {isBroadcast ? 'Briefing Mention' : 'Mission Mention'}
                     </p>
-                    <span className="text-[10px] font-bold text-slate-400">{new Date(n.timestamp).toLocaleTimeString()}</span>
+                    <span className="text-[10px] font-bold text-slate-400">{new Date(n.timestamp).toLocaleTimeString([], { timeZone: 'America/Los_Angeles' })}</span>
                   </div>
                   <p className="text-slate-500 text-sm mb-4 leading-relaxed italic">
                     <span className="font-bold text-slate-900 not-italic">@{state.users.find(u => String(u.id) === String(n.fromUserId))?.username || 'System'}</span>: "{displayMessage.length > 80 ? displayMessage.substring(0, 80) + '...' : displayMessage}"
@@ -651,7 +651,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                                <div className="flex justify-between items-center mb-2">
                                   <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{author?.name}</span>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
                                     {isCoach && (
                                       <button 
                                         onClick={() => deleteAnnouncementComment(c.id)}
