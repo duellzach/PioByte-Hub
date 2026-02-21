@@ -13,6 +13,10 @@ app.use(express.json());
 
 const isProduction = process.env.NODE_ENV === "production";
 if (isProduction) {
+  app.use('/sw.js', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    next();
+  });
   app.use(express.static(path.join(__dirname, "../dist")));
 }
 

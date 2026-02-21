@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
+import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
 
 interface ScoutProps {
   currentUser: any;
@@ -141,6 +142,40 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [importPreview, setImportPreview] = useState<any | null>(null);
   const scannerRef = useRef<any>(null);
   const scannerContainerRef = useRef<HTMLDivElement>(null);
+
+  const [offlineQueue, setOfflineQueue] = useState<OfflineMatchEntry[]>(getOfflineQueue());
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const goOnline = () => {
+      setIsOnline(true);
+      handleSync();
+    };
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  const handleSync = async () => {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+    try {
+      const result = await syncOfflineQueue(async (eventId, data) => {
+        await api.scout.createMatchScout(eventId, data);
+      });
+      setOfflineQueue(getOfflineQueue());
+      if (result.synced > 0) {
+        setSyncMessage(`Synced ${result.synced} offline match${result.synced !== 1 ? 'es' : ''}`);
+        setTimeout(() => setSyncMessage(null), 4000);
+        if (activeEvent) fetchEventData(activeEvent.id);
+      }
+    } catch {}
+  };
 
   const isCoachOrCaptain = currentUser?.roles?.some((r: string) =>
     r === 'Coach' || r === 'Team Captain'
@@ -360,19 +395,31 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const handleSaveMatchScout = async () => {
     if (!matchForm.teamNumber || !activeEvent) return;
-    try {
-      const data = { ...matchForm, scoutedBy: parseInt(currentUser.id) };
-      if (editingMatch) {
+    const data = { ...matchForm, scoutedBy: parseInt(currentUser.id) };
+    if (editingMatch) {
+      try {
         await api.scout.updateMatchScout(editingMatch.id, data);
-      } else {
-        await api.scout.createMatchScout(activeEvent.id, data);
+        setShowMatchForm(false);
+        setEditingMatch(null);
+        resetMatchForm();
+        fetchEventData(activeEvent.id);
+      } catch (err) {
+        console.error('Failed to update match scout:', err);
       }
+      return;
+    }
+    try {
+      await api.scout.createMatchScout(activeEvent.id, data);
       setShowMatchForm(false);
-      setEditingMatch(null);
       resetMatchForm();
       fetchEventData(activeEvent.id);
     } catch (err) {
-      console.error('Failed to save match scout:', err);
+      addToOfflineQueue({ eventId: activeEvent.id, data });
+      setOfflineQueue(getOfflineQueue());
+      setSyncMessage('Saved offline — will sync when connected');
+      setTimeout(() => setSyncMessage(null), 4000);
+      setShowMatchForm(false);
+      resetMatchForm();
     }
   };
 
@@ -872,8 +919,28 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               <span className="font-black text-slate-800">{matchScoutsData.length}</span>
               <span className="text-slate-400 font-bold">matches</span>
             </div>
+            {offlineQueue.length > 0 && (
+              <button
+                onClick={handleSync}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all"
+              >
+                <WifiOff size={14} className="text-amber-600" />
+                <span className="font-black text-amber-700">{offlineQueue.length}</span>
+                <span className="text-amber-500 font-bold">pending</span>
+              </button>
+            )}
+            <div className={`flex items-center gap-1.5 px-2 py-2 rounded-xl ${isOnline ? 'text-green-600' : 'text-red-500'}`}>
+              {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+            </div>
           </div>
         </div>
+
+        {syncMessage && (
+          <div className="bg-green-50 border-2 border-green-200 rounded-xl p-3 flex items-center gap-3 animate-in fade-in duration-300">
+            <Wifi size={16} className="text-green-600 shrink-0" />
+            <p className="text-xs font-black text-green-700 uppercase tracking-widest">{syncMessage}</p>
+          </div>
+        )}
 
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
           {(['robots', 'matches', 'qr', 'display'] as const).map(tab => (
