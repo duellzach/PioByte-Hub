@@ -87,7 +87,8 @@ After seeding the database:
   - QR code data sharing for offline environments (pako compression, chunked QR codes for large datasets)
   - Selective match export — choose which matches to include in QR codes
   - QR import via camera scanner (html5-qrcode dynamic import) with chunk collection and preview
-  - Pit Display tab for drive team — large team branding, stats overview, robot leaderboard
+  - Pit Display tab — compact W/L record, event schedule with clickable team links, robot leaderboard
+  - Robot detail view includes performance analysis (fuel accuracy, climb rate, defense stats, etc.)
   - Blue Alliance API integration — live win/loss record, event schedule, upcoming matches on Pit Display
   - TBA event key field on scout events links to thebluealliance.com data
   - Auto-import teams from TBA — pulls team names, numbers, and locations into pit scout entries for editing

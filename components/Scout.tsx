@@ -274,6 +274,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setTbaImporting(false);
   };
 
+  const openRobotByNumber = (teamNumber: number) => {
+    const robot = pitScouts.find((ps: any) => ps.teamNumber === teamNumber);
+    if (robot) {
+      setSelectedRobot(robot);
+    }
+  };
+
   const enterEvent = (event: any) => {
     setActiveEvent(event);
     setActiveTab('robots');
@@ -380,6 +387,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const openEditPit = (pit: any) => {
+    setSelectedRobot(null);
     setEditingPit(pit);
     setPitForm({
       teamNumber: pit.teamNumber, teamName: pit.teamName, robotName: pit.robotName,
@@ -625,28 +633,111 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         )}
 
-        {robotMatches.length > 0 && (
-          <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Match History</h3>
-            <div className="space-y-3">
-              {robotMatches.sort((a, b) => a.matchNumber - b.matchNumber).map(m => (
-                <div key={m.id} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
-                        Match {m.matchNumber}
-                      </span>
-                      <span className="text-sm font-bold text-slate-700">
-                        Fuel: {m.coralScored} scored, {m.algaeScored} missed
-                      </span>
-                    </div>
-                    <span className="text-lg font-black text-slate-900">{m.coralScored - m.penalties}</span>
+        {robotMatches.length > 0 && (() => {
+          const totalFuelScored = robotMatches.reduce((s, m) => s + (m.coralScored || 0), 0);
+          const totalFuelMissed = robotMatches.reduce((s, m) => s + (m.algaeScored || 0), 0);
+          const totalFuelAttempted = totalFuelScored + totalFuelMissed;
+          const fuelAccuracy = totalFuelAttempted > 0 ? ((totalFuelScored / totalFuelAttempted) * 100).toFixed(1) : '—';
+          const avgFuelPerMatch = (totalFuelScored / robotMatches.length).toFixed(1);
+          const avgFuelCapacity = ((totalFuelScored + totalFuelMissed) / robotMatches.length).toFixed(1);
+          const climbMatches = robotMatches.filter(m => m.endClimbLevel > 0).length;
+          const climbRate = ((climbMatches / robotMatches.length) * 100).toFixed(0);
+          const maxClimbLevel = Math.max(...robotMatches.map(m => m.endClimbLevel || 0));
+          const autoClimbCount = robotMatches.filter(m => m.autoClimb).length;
+          const avgDefenseRating = (robotMatches.reduce((s, m) => s + (m.defenseRating || 0), 0) / robotMatches.length).toFixed(1);
+          const totalPenalties = robotMatches.reduce((s, m) => s + (m.penalties || 0), 0);
+          const avgPenalties = (totalPenalties / robotMatches.length).toFixed(1);
+          const bestMatch = robotMatches.reduce((best, m) => (m.coralScored || 0) > (best.coralScored || 0) ? m : best, robotMatches[0]);
+          const avgScore = ((totalFuelScored - totalPenalties) / robotMatches.length).toFixed(1);
+
+          return (
+            <>
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Performance Analysis ({robotMatches.length} matches)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                  <div className="bg-orange-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-orange-600">{fuelAccuracy}%</p>
+                    <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mt-1">Fuel Accuracy</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-red-600">{avgFuelPerMatch}</p>
+                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Fuel/Match</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-blue-600">{avgFuelCapacity}</p>
+                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Avg Attempts</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-green-600">{avgScore}</p>
+                    <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mt-1">Avg Net Score</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-4">
+                  <div className="bg-purple-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-purple-600">{climbRate}%</p>
+                    <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest mt-1">Climb Rate</p>
+                  </div>
+                  <div className="bg-indigo-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-indigo-600">L{maxClimbLevel}</p>
+                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1">Max Climb</p>
+                  </div>
+                  <div className="bg-teal-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-teal-600">{avgDefenseRating}</p>
+                    <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mt-1">Avg Defense</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-amber-600">{avgPenalties}</p>
+                    <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Avg Penalties</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Best Match</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">Match {bestMatch.matchNumber} — {bestMatch.coralScored} fuel scored</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auto Climb</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">{autoClimbCount}/{robotMatches.length} matches ({((autoClimbCount / robotMatches.length) * 100).toFixed(0)}%)</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Fuel Scored</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">{totalFuelScored} of {totalFuelAttempted} attempted</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Match History</h3>
+                <div className="space-y-3">
+                  {robotMatches.sort((a, b) => a.matchNumber - b.matchNumber).map(m => (
+                    <div key={m.id} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
+                            Match {m.matchNumber}
+                          </span>
+                          <span className="text-sm font-bold text-slate-700">
+                            Fuel: {m.coralScored} scored, {m.algaeScored} missed
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {m.endClimbLevel > 0 && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-[9px] font-black">
+                              Climb L{m.endClimbLevel}
+                            </span>
+                          )}
+                          <span className="text-lg font-black text-slate-900">{m.coralScored - m.penalties}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
     );
   }
@@ -976,62 +1067,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
-            <div className="bg-gradient-to-br from-red-600 to-red-800 rounded-2xl md:rounded-[32px] p-8 md:p-12 text-center shadow-2xl">
-              <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tight">Team 10991</h1>
-              <p className="text-2xl md:text-3xl font-black text-red-200 uppercase tracking-widest mt-2">Pio-Bytes</p>
-              <div className="inline-block mt-4 px-6 py-2 bg-white/20 backdrop-blur-sm rounded-full">
-                <span className="text-sm md:text-base font-black text-white uppercase tracking-widest">Rebuilt 2025–2026</span>
-              </div>
-              {tbaRecord && (
-                <div className="flex items-center justify-center gap-6 mt-6">
-                  <div className="text-center">
-                    <p className="text-4xl md:text-5xl font-black text-green-300">{tbaRecord.wins}</p>
-                    <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Wins</p>
+            {tbaRecord && (
+              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-4 md:p-6">
+                <div className="flex items-center justify-center gap-6">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Team 10991 Record</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg font-black text-green-600">{tbaRecord.wins}W</span>
+                    <span className="text-lg font-black text-slate-300">–</span>
+                    <span className="text-lg font-black text-red-600">{tbaRecord.losses}L</span>
+                    {tbaRecord.ties > 0 && (
+                      <>
+                        <span className="text-lg font-black text-slate-300">–</span>
+                        <span className="text-lg font-black text-yellow-600">{tbaRecord.ties}T</span>
+                      </>
+                    )}
                   </div>
-                  <div className="text-4xl md:text-5xl font-black text-white/30">–</div>
-                  <div className="text-center">
-                    <p className="text-4xl md:text-5xl font-black text-red-300">{tbaRecord.losses}</p>
-                    <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Losses</p>
-                  </div>
-                  {tbaRecord.ties > 0 && (
-                    <>
-                      <div className="text-4xl md:text-5xl font-black text-white/30">–</div>
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-black text-yellow-300">{tbaRecord.ties}</p>
-                        <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Ties</p>
-                      </div>
-                    </>
-                  )}
                 </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
-                <Bot size={32} className="text-red-600 mx-auto mb-3" />
-                <p className="text-3xl md:text-4xl font-black text-slate-900">{pitScouts.length}</p>
-                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Robots Scouted</p>
               </div>
-              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
-                <Swords size={32} className="text-red-600 mx-auto mb-3" />
-                <p className="text-3xl md:text-4xl font-black text-slate-900">{matchScoutsData.length}</p>
-                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Matches Recorded</p>
-              </div>
-              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
-                <Flame size={32} className="text-orange-500 mx-auto mb-3" />
-                <p className="text-3xl md:text-4xl font-black text-slate-900">
-                  {pitScouts.length > 0 ? (pitScouts.reduce((s: number, p: any) => s + (p.offenseRating || 0), 0) / pitScouts.length).toFixed(1) : '—'}
-                </p>
-                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Avg Offense</p>
-              </div>
-              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 text-center">
-                <Monitor size={32} className="text-blue-600 mx-auto mb-3" />
-                <p className="text-3xl md:text-4xl font-black text-slate-900">
-                  {pitScouts.length > 0 ? (pitScouts.reduce((s: number, p: any) => s + (p.defenseRating || 0), 0) / pitScouts.length).toFixed(1) : '—'}
-                </p>
-                <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Avg Defense</p>
-              </div>
-            </div>
+            )}
 
             {activeEvent?.tbaEventKey && (
               <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
@@ -1094,9 +1147,22 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <div className="space-y-2">
                             {upcomingMatches.slice(0, 5).map((m: any) => {
                               const ourAlliance = getOurAlliance(m);
-                              const partners = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== 'frc10991').map((t: string) => t.replace('frc', ''));
-                              const opponents = (m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.team_keys || []).map((t: string) => t.replace('frc', ''));
+                              const partnerKeys = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== 'frc10991');
+                              const opponentKeys = (m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.team_keys || []);
                               const time = m.predicted_time || m.time;
+                              const renderTeamLink = (teamKey: string) => {
+                                const num = parseInt(teamKey.replace('frc', ''));
+                                const hasScouted = pitScouts.some((ps: any) => ps.teamNumber === num);
+                                return (
+                                  <span
+                                    key={teamKey}
+                                    onClick={(e) => { e.stopPropagation(); if (hasScouted) openRobotByNumber(num); }}
+                                    className={`${hasScouted ? 'text-red-600 underline cursor-pointer hover:text-red-800' : 'text-slate-700'} font-black`}
+                                  >
+                                    {num}
+                                  </span>
+                                );
+                              };
                               return (
                                 <div key={m.key} className={`p-4 rounded-xl border-2 ${ourAlliance === 'red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
                                   <div className="flex items-center justify-between">
@@ -1107,11 +1173,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         {getMatchLabel(m)}
                                       </span>
                                       <div>
-                                        <p className="text-sm font-black text-slate-900">
-                                          w/ {partners.join(', ') || '—'}
+                                        <p className="text-sm text-slate-900 flex items-center gap-1">
+                                          <span className="text-slate-400 text-xs">w/</span> {partnerKeys.length > 0 ? partnerKeys.map((t: string, i: number) => (
+                                            <span key={t}>{i > 0 && <span className="text-slate-300">, </span>}{renderTeamLink(t)}</span>
+                                          )) : '—'}
                                         </p>
-                                        <p className="text-[10px] text-slate-400 font-bold">
-                                          vs {opponents.join(', ') || '—'}
+                                        <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                                          <span className="text-slate-400">vs</span> {opponentKeys.length > 0 ? opponentKeys.map((t: string, i: number) => (
+                                            <span key={t}>{i > 0 && <span className="text-slate-300">, </span>}{renderTeamLink(t)}</span>
+                                          )) : '—'}
                                         </p>
                                       </div>
                                     </div>
@@ -1192,7 +1262,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Scouted Robot Leaderboard</h3>
                 <div className="space-y-3">
                   {[...pitScouts].sort((a: any, b: any) => (b.overallRating || 0) - (a.overallRating || 0)).map((ps: any, idx: number) => (
-                    <div key={ps.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div
+                      key={ps.id}
+                      onClick={() => setSelectedRobot(ps)}
+                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all"
+                    >
                       <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${
                         idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
                       }`}>
