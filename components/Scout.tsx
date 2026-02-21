@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
 import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor } from 'lucide-react';
 import pako from 'pako';
@@ -118,6 +118,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [tbaRecord, setTbaRecord] = useState<{ wins: number; losses: number; ties: number } | null>(null);
   const [tbaLoading, setTbaLoading] = useState(false);
   const [tbaImporting, setTbaImporting] = useState(false);
+  const [tbaRankings, setTbaRankings] = useState<Map<number, { rank: number; rp: number; record: string }>>(new Map());
 
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
@@ -188,11 +189,26 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (!tbaEventKey) return;
     setTbaLoading(true);
     try {
-      const [allMatches, teamMatches] = await Promise.all([
+      const [allMatches, teamMatches, rankingsData] = await Promise.all([
         api.tba.getEventMatches(tbaEventKey),
         api.tba.getTeamMatches('frc10991', tbaEventKey),
+        api.tba.getEventRankings(tbaEventKey).catch(() => null),
       ]);
       setTbaMatches(allMatches || []);
+      if (rankingsData?.rankings) {
+        const map = new Map<number, { rank: number; rp: number; record: string }>();
+        for (const r of rankingsData.rankings) {
+          const teamNum = parseInt(r.team_key?.replace('frc', '') || '0');
+          if (teamNum) {
+            map.set(teamNum, {
+              rank: r.rank,
+              rp: r.sort_orders?.[0] || 0,
+              record: `${r.record?.wins || 0}-${r.record?.losses || 0}-${r.record?.ties || 0}`,
+            });
+          }
+        }
+        setTbaRankings(map);
+      }
       if (teamMatches && teamMatches.length > 0) {
         let wins = 0, losses = 0, ties = 0;
         for (const m of teamMatches) {
@@ -530,9 +546,35 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const sortedMatches = [...matchScoutsData].sort((a, b) => a.matchNumber - b.matchNumber);
 
-  const robotMatches = selectedRobot
-    ? matchScoutsData.filter(m => m.teamNumber === selectedRobot.teamNumber)
-    : [];
+  const robotMatches = useMemo(() => {
+    if (!selectedRobot) return [];
+    const raw = matchScoutsData.filter(m => m.teamNumber === selectedRobot.teamNumber);
+    const grouped = new Map<number, any[]>();
+    for (const m of raw) {
+      const arr = grouped.get(m.matchNumber) || [];
+      arr.push(m);
+      grouped.set(m.matchNumber, arr);
+    }
+    return Array.from(grouped.entries()).map(([matchNumber, entries]) => {
+      if (entries.length === 1) return entries[0];
+      const avg = (field: string) => {
+        const sum = entries.reduce((s, e) => s + (e[field] || 0), 0);
+        return Math.round(sum / entries.length);
+      };
+      return {
+        ...entries[0],
+        matchNumber,
+        coralScored: avg('coralScored'),
+        algaeScored: avg('algaeScored'),
+        penalties: avg('penalties'),
+        endClimbLevel: avg('endClimbLevel'),
+        defenseRating: avg('defenseRating'),
+        autoClimb: entries.some(e => e.autoClimb),
+        humanPlayerScore: avg('humanPlayerScore'),
+        _scoutCount: entries.length,
+      };
+    });
+  }, [selectedRobot, matchScoutsData]);
 
   if (selectedRobot && activeEvent) {
     return (
@@ -721,6 +763,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <span className="text-sm font-bold text-slate-700">
                             Fuel: {m.coralScored} scored, {m.algaeScored} missed
                           </span>
+                          {m._scoutCount > 1 && (
+                            <span className="px-2 py-0.5 bg-slate-200 text-slate-500 rounded-lg text-[8px] font-black">
+                              AVG of {m._scoutCount}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           {m.endClimbLevel > 0 && (
@@ -1257,37 +1304,64 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             )}
 
-            {pitScouts.length > 0 && (
-              <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
-                <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Scouted Robot Leaderboard</h3>
-                <div className="space-y-3">
-                  {[...pitScouts].sort((a: any, b: any) => (b.overallRating || 0) - (a.overallRating || 0)).map((ps: any, idx: number) => (
-                    <div
-                      key={ps.id}
-                      onClick={() => setSelectedRobot(ps)}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all"
-                    >
-                      <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${
-                        idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
-                      }`}>
-                        {idx + 1}
+            {pitScouts.length > 0 && (() => {
+              const hasRankings = tbaRankings.size > 0;
+              const sorted = [...pitScouts].sort((a: any, b: any) => {
+                if (hasRankings) {
+                  const aRank = tbaRankings.get(a.teamNumber);
+                  const bRank = tbaRankings.get(b.teamNumber);
+                  if (aRank && bRank) return aRank.rank - bRank.rank;
+                  if (aRank) return -1;
+                  if (bRank) return 1;
+                }
+                return (b.overallRating || 0) - (a.overallRating || 0);
+              });
+              return (
+                <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight">
+                      {hasRankings ? 'Event Rankings' : 'Scouted Robot Leaderboard'}
+                    </h3>
+                    {hasRankings && (
+                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1.5 rounded-lg">
+                        TBA Ranking Points
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base md:text-lg font-black text-slate-900 truncate">
-                          Team {ps.teamNumber} {ps.teamName ? `— ${ps.teamName}` : ''}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-bold truncate">{ps.robotName || 'Unnamed'} • {ps.drivetrain || '—'}</p>
-                      </div>
-                      <div className="flex gap-2 md:gap-3 flex-shrink-0">
-                        <span className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-black">OFF {ps.offenseRating}</span>
-                        <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">DEF {ps.defenseRating}</span>
-                        <span className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-black">OVR {ps.overallRating}</span>
-                      </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {sorted.map((ps: any, idx: number) => {
+                      const ranking = tbaRankings.get(ps.teamNumber);
+                      return (
+                        <div
+                          key={ps.id}
+                          onClick={() => setSelectedRobot(ps)}
+                          className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all"
+                        >
+                          <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${
+                            idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {ranking ? `#${ranking.rank}` : idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base md:text-lg font-black text-slate-900 truncate">
+                              Team {ps.teamNumber} {ps.teamName ? `— ${ps.teamName}` : ''}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold truncate">
+                              {ranking ? `${ranking.record} • ${ranking.rp.toFixed(2)} RP` : `${ps.robotName || 'Unnamed'} • ${ps.drivetrain || '—'}`}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 md:gap-3 flex-shrink-0">
+                            <span className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-black">OFF {ps.offenseRating}</span>
+                            <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">DEF {ps.defenseRating}</span>
+                            <span className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-black">OVR {ps.overallRating}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         ) : null}
 

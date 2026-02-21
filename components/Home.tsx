@@ -1,7 +1,8 @@
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, Task, Notification, TaskStatus, Role, Announcement, Department, Comment } from '../types';
-import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp, Trash2, Calendar } from 'lucide-react';
+import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -130,6 +131,55 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         return acc;
     }, 0);
   }, [state.tasks]);
+
+  const [scoutEvents, setScoutEvents] = useState<any[]>([]);
+  const [countdown, setCountdown] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    api.scout.getEvents().then(events => {
+      const upcoming = events
+        .filter((e: any) => {
+          const start = new Date(e.startDate);
+          return start.getTime() > Date.now() - 86400000;
+        })
+        .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      setScoutEvents(upcoming);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (scoutEvents.length === 0) return;
+    const updateCountdowns = () => {
+      const now = Date.now();
+      const countdowns: Record<number, string> = {};
+      for (const evt of scoutEvents) {
+        const start = new Date(evt.startDate).getTime();
+        const diff = start - now;
+        if (diff <= 0) {
+          const end = evt.endDate ? new Date(evt.endDate).getTime() : start + 86400000 * 3;
+          if (now < end) {
+            countdowns[evt.id] = 'HAPPENING NOW';
+          } else {
+            countdowns[evt.id] = 'COMPLETED';
+          }
+        } else {
+          const days = Math.floor(diff / 86400000);
+          const hours = Math.floor((diff % 86400000) / 3600000);
+          const mins = Math.floor((diff % 3600000) / 60000);
+          const secs = Math.floor((diff % 60000) / 1000);
+          if (days > 0) {
+            countdowns[evt.id] = `${days}d ${hours}h ${mins}m`;
+          } else {
+            countdowns[evt.id] = `${hours}h ${mins}m ${secs}s`;
+          }
+        }
+      }
+      setCountdown(countdowns);
+    };
+    updateCountdowns();
+    const interval = setInterval(updateCountdowns, 1000);
+    return () => clearInterval(interval);
+  }, [scoutEvents]);
 
   const handleSendBroadcast = () => {
     if (!broadcastText.trim() || isMuted) return;
@@ -364,6 +414,59 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           </div>
         </section>
       </div>
+
+      {scoutEvents.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-xs font-black text-red-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+            <Calendar size={14} /> Upcoming Events
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {scoutEvents.slice(0, 3).map(evt => {
+              const countdownText = countdown[evt.id] || '';
+              const isNow = countdownText === 'HAPPENING NOW';
+              const isDone = countdownText === 'COMPLETED';
+              return (
+                <div
+                  key={evt.id}
+                  className={`relative overflow-hidden rounded-2xl border-2 p-6 ${
+                    isNow ? 'border-green-300 bg-green-50' : isDone ? 'border-slate-200 bg-slate-50' : 'border-red-200 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate">{evt.name}</h3>
+                      {evt.location && (
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate">{evt.location}</p>
+                      )}
+                    </div>
+                    {isNow && (
+                      <span className="flex-shrink-0 ml-2 px-2.5 py-1 bg-green-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg animate-pulse">
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                        {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {evt.endDate && ` – ${new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      </p>
+                    </div>
+                    {!isDone && (
+                      <p className={`text-lg font-black tabular-nums ${isNow ? 'text-green-600' : 'text-red-600'}`}>
+                        {countdownText}
+                      </p>
+                    )}
+                    {isDone && (
+                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Done</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
         <section className="space-y-8">

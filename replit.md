@@ -97,6 +97,19 @@ After seeding the database:
   - 14 REST API endpoints including bulk import/export
   - Self-contained component with internal state management (no routing for sub-views)
 
+## Recent Changes (February 2026)
+- **Home Page Event Countdown**:
+  - Upcoming scout events displayed on Home page with live countdown timers
+  - Shows "HAPPENING NOW" with green pulse for active events
+  - Real-time countdown updates every second
+- **Match Scout Averaging**:
+  - When multiple people scout the same robot in the same match, statistics are averaged
+  - "AVG of N" badge shown in match history for averaged entries
+- **TBA Rankings Leaderboard**:
+  - Pit Display leaderboard now uses TBA ranking points for sort order when available
+  - Shows official rank, W-L-T record, and RP values
+  - Falls back to scout overall rating when no TBA data available
+
 ## Recent Changes (February 2025)
 - **Backlog Status**:
   - New "Backlog" status added before "Not Started" for long-term brainstorming tasks
