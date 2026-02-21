@@ -429,11 +429,27 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const generateQR = async () => {
     if (!activeEvent) return;
     try {
-      const exportData = await api.scout.exportEvent(activeEvent.id);
+      const allMatches = matchScoutsData;
       const filteredMatches = selectedMatchIds.size > 0
-        ? exportData.matchScouts.filter((m: any) => selectedMatchIds.has(m.id))
-        : exportData.matchScouts;
-      const payload = { pitScouts: exportData.pitScouts, matchScouts: filteredMatches };
+        ? allMatches.filter((m: any) => selectedMatchIds.has(m.id))
+        : allMatches;
+      const slimMatches = filteredMatches.map((m: any) => ({
+        mn: m.matchNumber,
+        tn: m.teamNumber,
+        al: m.alliance === 'Red' ? 'R' : 'B',
+        as: m.autoScore,
+        ts: m.teleopScore,
+        es: m.endgameScore,
+        p: m.penalties,
+        ac: m.autoClimb ? 1 : 0,
+        ec: m.endClimbLevel,
+        cs: m.coralScored,
+        ag: m.algaeScored,
+        hp: m.humanPlayerScore,
+        dr: m.defenseRating,
+        n: m.notes || '',
+      }));
+      const payload = { v: 2, m: slimMatches };
       const jsonStr = JSON.stringify(payload);
       const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
       const base64 = btoa(String.fromCharCode(...compressed));
@@ -460,37 +476,59 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setScannedChunks(new Map());
     setImportPreview(null);
     setTimeout(async () => {
-      if (scannerContainerRef.current) {
+      const container = document.getElementById('qr-scanner-container');
+      if (container) {
         try {
           const { Html5Qrcode } = await import('html5-qrcode');
+          if (scannerRef.current) {
+            try { await scannerRef.current.stop(); } catch {}
+            scannerRef.current = null;
+          }
           const scanner = new Html5Qrcode("qr-scanner-container");
           scannerRef.current = scanner;
-          scanner.start(
+          await scanner.start(
             { facingMode: "environment" },
             { fps: 10, qrbox: { width: 250, height: 250 } },
             (decodedText: string) => {
               handleQRScanned(decodedText);
             },
             () => {}
-          ).catch((err: any) => {
-            console.error('Scanner error:', err);
-            setScanning(false);
-          });
-        } catch (err) {
-          console.error('Scanner init error:', err);
+          );
+        } catch (err: any) {
+          console.error('Scanner error:', err);
+          if (err?.toString?.().includes('NotAllowedError') || err?.toString?.().includes('NotFoundError')) {
+            alert('Camera access denied or no camera found. Please allow camera permissions and try again.');
+          }
           setScanning(false);
         }
       }
-    }, 100);
+    }, 300);
   };
 
-  const stopScanner = () => {
+  const stopScanner = async () => {
     if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {});
+      try { await scannerRef.current.stop(); } catch {}
       scannerRef.current = null;
     }
     setScanning(false);
   };
+
+  const expandSlimMatch = (m: any) => ({
+    matchNumber: m.mn,
+    teamNumber: m.tn,
+    alliance: m.al === 'R' ? 'Red' : 'Blue',
+    autoScore: m.as || 0,
+    teleopScore: m.ts || 0,
+    endgameScore: m.es || 0,
+    penalties: m.p || 0,
+    autoClimb: !!m.ac,
+    endClimbLevel: m.ec || 0,
+    coralScored: m.cs || 0,
+    algaeScored: m.ag || 0,
+    humanPlayerScore: m.hp || 0,
+    defenseRating: m.dr || 3,
+    notes: m.n || '',
+  });
 
   const handleQRScanned = (text: string) => {
     const pipeIndex = text.indexOf('|');
@@ -515,7 +553,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           const decompressed = pako.inflate(bytes);
           const jsonStr = new TextDecoder().decode(decompressed);
           const parsed = JSON.parse(jsonStr);
-          setImportPreview(parsed);
+          let matchScouts: any[];
+          if (parsed.v === 2 && Array.isArray(parsed.m)) {
+            matchScouts = parsed.m.map(expandSlimMatch);
+          } else if (Array.isArray(parsed)) {
+            matchScouts = parsed.map(expandSlimMatch);
+          } else if (parsed.matchScouts) {
+            matchScouts = parsed.matchScouts;
+          } else {
+            matchScouts = [];
+          }
+          setImportPreview({ matchScouts });
           stopScanner();
         } catch (err) {
           console.error('Failed to decode QR data:', err);
@@ -528,7 +576,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const confirmImport = async () => {
     if (!importPreview || !activeEvent) return;
     try {
-      await api.scout.importEvent(activeEvent.id, importPreview);
+      const matchesWithScout = (importPreview.matchScouts || []).map((m: any) => ({
+        ...m,
+        scoutedBy: m.scoutedBy || parseInt(currentUser.id),
+      }));
+      await api.scout.importEvent(activeEvent.id, { matchScouts: matchesWithScout });
       setImportPreview(null);
       setScannedChunks(new Map());
       fetchEventData(activeEvent.id);
@@ -1045,7 +1097,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   )}
                   <p className="text-[10px] text-slate-400 font-bold text-center">
-                    {pitScouts.length} robots, {selectedMatchIds.size > 0 ? `${selectedMatchIds.size} of ${matchScoutsData.length}` : matchScoutsData.length} matches encoded
+                    {selectedMatchIds.size > 0 ? `${selectedMatchIds.size} of ${matchScoutsData.length}` : matchScoutsData.length} match records encoded
                   </p>
                 </div>
               )}
@@ -1091,7 +1143,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                     <p className="text-sm font-black text-green-800 mb-2">Data Ready to Import</p>
                     <p className="text-xs text-green-700 font-bold">
-                      {importPreview.pitScouts?.length || 0} robots, {importPreview.matchScouts?.length || 0} matches
+                      {importPreview.matchScouts?.length || 0} match records found
                     </p>
                   </div>
                   <div className="flex gap-3">
