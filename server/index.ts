@@ -702,20 +702,24 @@ app.delete("/api/match-scouts/:id", async (req, res) => {
 app.post("/api/scout-events/:eventId/import", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
-    const { pitScouts: pitData, matchScouts: matchData } = req.body;
-    const results: any = { pitScouts: [], matchScouts: [] };
-    if (pitData && Array.isArray(pitData)) {
-      for (const ps of pitData) {
-        const { id, createdAt, updatedAt, eventId: _eid, ...cleanPs } = ps;
-        const scout = await storage.createPitScout({ ...cleanPs, eventId });
-        results.pitScouts.push(scout);
-      }
-    }
+    const { matchScouts: matchData } = req.body;
+    const results: any = { matchScouts: [], skipped: 0, imported: 0 };
     if (matchData && Array.isArray(matchData)) {
+      const existing = await storage.getMatchScouts(eventId);
+      const existingSet = new Set(
+        existing.map(e => `${e.matchNumber}-${e.teamNumber}-${e.scoutedBy}`)
+      );
       for (const ms of matchData) {
         const { id, createdAt, eventId: _eid, ...cleanMs } = ms;
+        const key = `${cleanMs.matchNumber}-${cleanMs.teamNumber}-${cleanMs.scoutedBy}`;
+        if (existingSet.has(key)) {
+          results.skipped++;
+          continue;
+        }
         const scout = await storage.createMatchScout({ ...cleanMs, eventId });
         results.matchScouts.push(scout);
+        results.imported++;
+        existingSet.add(key);
       }
     }
     res.status(201).json(results);

@@ -573,6 +573,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
   };
 
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+
   const confirmImport = async () => {
     if (!importPreview || !activeEvent) return;
     try {
@@ -580,7 +582,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ...m,
         scoutedBy: m.scoutedBy || parseInt(currentUser.id),
       }));
-      await api.scout.importEvent(activeEvent.id, { matchScouts: matchesWithScout });
+      const result = await api.scout.importEvent(activeEvent.id, { matchScouts: matchesWithScout });
+      setImportResult({ imported: result.imported || 0, skipped: result.skipped || 0 });
       setImportPreview(null);
       setScannedChunks(new Map());
       fetchEventData(activeEvent.id);
@@ -1160,6 +1163,28 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       Confirm Import
                     </button>
                   </div>
+                </div>
+              )}
+
+              {importResult && (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                    <p className="text-sm font-black text-green-800 mb-2">Import Complete</p>
+                    <p className="text-xs text-green-700 font-bold">
+                      {importResult.imported} match{importResult.imported !== 1 ? 'es' : ''} imported
+                    </p>
+                    {importResult.skipped > 0 && (
+                      <p className="text-xs text-amber-600 font-bold mt-1">
+                        {importResult.skipped} duplicate{importResult.skipped !== 1 ? 's' : ''} skipped (already in database)
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setImportResult(null)}
+                    className="w-full py-3 bg-slate-100 text-slate-600 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               )}
             </div>
