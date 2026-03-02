@@ -97,6 +97,35 @@ After seeding the database:
   - 14 REST API endpoints including bulk import/export
   - Self-contained component with internal state management (no routing for sub-views)
 
+## Recent Changes (March 2026)
+- **Dark Mode**:
+  - Toggle in sidebar (Moon/Sun icon) switches between light and dark themes
+  - Preference saved to localStorage and persists across reloads
+  - Tailwind `class` strategy dark mode with global CSS overrides in index.css
+- **Robot QR Export**:
+  - "Select Robots" section added to QR Export alongside matches
+  - QR payload v3 includes `r` array with abbreviated robot fields
+  - Import side parses v3 robot data with duplicate detection by teamNumber
+  - Backward compatible with v2 match-only imports
+- **Robot Sorting**:
+  - Toggle button in robots tab sorts by team number (#) or name (A-Z)
+  - Match history in robot detail sorted by match number
+- **Match Roster View**:
+  - List/Roster toggle in matches tab
+  - Roster groups matches by match number with Red vs Blue alliance columns
+  - Clicking a robot in roster opens their detail view
+- **Robot Photo Capture**:
+  - Camera/file input in pit scout form captures robot photos
+  - Images compressed client-side (max 800px, JPEG 0.7 quality)
+  - Photos stored as base64 data URL in photoUrl field
+  - Photos displayed on robot cards (thumbnail) and detail view (header)
+  - Express JSON body limit increased to 10mb for photo uploads
+- **PWA Support**:
+  - Service worker caches app shell for offline access
+  - Web manifest with floppy disc team logo icons (192/512px)
+  - "Add to Home Screen" support for mobile/Chromebook
+  - Offline match scouting via localStorage queue with auto-sync
+
 ## Recent Changes (February 2026)
 - **Home Page Event Countdown**:
   - Upcoming scout events displayed on Home page with live countdown timers

@@ -43,6 +43,16 @@ const App: React.FC = () => {
   const [activeTaskModal, setActiveTaskModal] = useState<Task | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('piobyte_dark_mode') === 'true');
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('piobyte_dark_mode', String(darkMode));
+  }, [darkMode]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -299,7 +309,7 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced} stats={layoutStats}>
+      <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced} stats={layoutStats} darkMode={darkMode} onToggleDarkMode={() => setDarkMode(!darkMode)}>
         <Routes>
           <Route path="/" element={
             <Home 

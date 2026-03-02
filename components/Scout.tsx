@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
@@ -124,7 +124,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
     capabilities: [] as string[], deficiencies: [] as string[], autonomousRoutine: 'None',
-    notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5
+    notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
   });
 
   const [matchForm, setMatchForm] = useState({
@@ -134,6 +134,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   });
 
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<number>>(new Set());
+  const [selectedRobotIds, setSelectedRobotIds] = useState<Set<number>>(new Set());
+  const [robotSort, setRobotSort] = useState<'number' | 'name'>('number');
+  const [matchViewMode, setMatchViewMode] = useState<'list' | 'roster'>('list');
 
   const [qrData, setQrData] = useState<string[]>([]);
   const [qrChunkIndex, setQrChunkIndex] = useState(0);
@@ -437,7 +440,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setPitForm({
       teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
       capabilities: [], deficiencies: [], autonomousRoutine: 'None',
-      notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5
+      notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
     });
   };
 
@@ -457,9 +460,37 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       drivetrain: pit.drivetrain, weight: pit.weight || 0, speed: pit.speed || 0, height: pit.height || 0,
       capabilities: pit.capabilities || [], deficiencies: pit.deficiencies || [],
       autonomousRoutine: pit.autonomousRoutine || 'None', notes: pit.notes || '',
-      offenseRating: pit.offenseRating, defenseRating: pit.defenseRating, overallRating: pit.overallRating
+      offenseRating: pit.offenseRating, defenseRating: pit.defenseRating, overallRating: pit.overallRating,
+      photoUrl: pit.photoUrl || ''
     });
     setShowPitForm(true);
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = (h / w) * maxDim; w = maxDim; }
+            else { w = (w / h) * maxDim; h = maxDim; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const openEditMatch = (match: any) => {
@@ -496,7 +527,27 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         dr: m.defenseRating,
         n: m.notes || '',
       }));
-      const payload = { v: 2, m: slimMatches };
+      const filteredRobots = selectedRobotIds.size > 0
+        ? pitScouts.filter((r: any) => selectedRobotIds.has(r.id))
+        : [];
+      const slimRobots = filteredRobots.map((r: any) => ({
+        tn: r.teamNumber,
+        tna: r.teamName || '',
+        rn: r.robotName || '',
+        dt: r.drivetrain || '',
+        w: r.weight || 0,
+        sp: r.speed || 0,
+        h: r.height || 0,
+        cap: r.capabilities || [],
+        def: r.deficiencies || [],
+        ar: r.autonomousRoutine || '',
+        n: r.notes || '',
+        or: r.offenseRating || 5,
+        dr: r.defenseRating || 5,
+        ovr: r.overallRating || 5,
+      }));
+      const payload: any = { v: 3, m: slimMatches };
+      if (slimRobots.length > 0) payload.r = slimRobots;
       const jsonStr = JSON.stringify(payload);
       const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
       const base64 = btoa(String.fromCharCode(...compressed));
@@ -577,6 +628,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     notes: m.n || '',
   });
 
+  const expandSlimRobot = (r: any) => ({
+    teamNumber: r.tn,
+    teamName: r.tna || '',
+    robotName: r.rn || '',
+    drivetrain: r.dt || '',
+    weight: r.w || 0,
+    speed: r.sp || 0,
+    height: r.h || 0,
+    capabilities: r.cap || [],
+    deficiencies: r.def || [],
+    autonomousRoutine: r.ar || '',
+    notes: r.n || '',
+    offenseRating: r.or || 5,
+    defenseRating: r.dr || 5,
+    overallRating: r.ovr || 5,
+  });
+
   const handleQRScanned = (text: string) => {
     const pipeIndex = text.indexOf('|');
     if (pipeIndex === -1) return;
@@ -601,8 +669,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           const jsonStr = new TextDecoder().decode(decompressed);
           const parsed = JSON.parse(jsonStr);
           let matchScouts: any[];
-          if (parsed.v === 2 && Array.isArray(parsed.m)) {
+          let pitScoutsImport: any[] = [];
+          if ((parsed.v === 2 || parsed.v === 3) && Array.isArray(parsed.m)) {
             matchScouts = parsed.m.map(expandSlimMatch);
+            if (parsed.v === 3 && Array.isArray(parsed.r)) {
+              pitScoutsImport = parsed.r.map(expandSlimRobot);
+            }
           } else if (Array.isArray(parsed)) {
             matchScouts = parsed.map(expandSlimMatch);
           } else if (parsed.matchScouts) {
@@ -610,7 +682,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           } else {
             matchScouts = [];
           }
-          setImportPreview({ matchScouts });
+          setImportPreview({ matchScouts, pitScouts: pitScoutsImport });
           stopScanner();
         } catch (err) {
           console.error('Failed to decode QR data:', err);
@@ -620,7 +692,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
   };
 
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; robotsImported?: number; robotsSkipped?: number } | null>(null);
 
   const confirmImport = async () => {
     if (!importPreview || !activeEvent) return;
@@ -629,8 +701,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ...m,
         scoutedBy: m.scoutedBy || parseInt(currentUser.id),
       }));
-      const result = await api.scout.importEvent(activeEvent.id, { matchScouts: matchesWithScout });
-      setImportResult({ imported: result.imported || 0, skipped: result.skipped || 0 });
+      const robotsData = (importPreview.pitScouts || []).map((r: any) => ({
+        ...r,
+        scoutedBy: parseInt(currentUser.id),
+      }));
+      const result = await api.scout.importEvent(activeEvent.id, { matchScouts: matchesWithScout, pitScouts: robotsData });
+      setImportResult({
+        imported: result.imported || 0,
+        skipped: result.skipped || 0,
+        robotsImported: result.robotsImported || 0,
+        robotsSkipped: result.robotsSkipped || 0,
+      });
       setImportPreview(null);
       setScannedChunks(new Map());
       fetchEventData(activeEvent.id);
@@ -644,9 +725,30 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     ps.teamNumber.toString().includes(searchTerm) ||
     ps.teamName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ps.robotName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => {
+    if (robotSort === 'name') {
+      return (a.teamName || '').localeCompare(b.teamName || '');
+    }
+    return a.teamNumber - b.teamNumber;
+  });
 
   const sortedMatches = [...matchScoutsData].sort((a, b) => a.matchNumber - b.matchNumber);
+
+  const matchRosters = useMemo(() => {
+    const grouped = new Map<number, any[]>();
+    for (const m of matchScoutsData) {
+      const arr = grouped.get(m.matchNumber) || [];
+      arr.push(m);
+      grouped.set(m.matchNumber, arr);
+    }
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([matchNumber, entries]) => ({
+        matchNumber,
+        red: entries.filter(e => e.alliance === 'Red'),
+        blue: entries.filter(e => e.alliance === 'Blue'),
+      }));
+  }, [matchScoutsData]);
 
   const robotMatches = useMemo(() => {
     if (!selectedRobot) return [];
@@ -685,10 +787,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           <button onClick={() => setSelectedRobot(null)} className="p-2 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">
             <ArrowLeft size={20} className="text-slate-600" />
           </button>
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Team {selectedRobot.teamNumber}</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedRobot.teamName || 'Unknown Team'} • {selectedRobot.robotName || 'Unnamed Robot'}</p>
           </div>
+          {selectedRobot.photoUrl && (
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-slate-200 flex-shrink-0">
+              <img src={selectedRobot.photoUrl} alt={`Team ${selectedRobot.teamNumber}`} className="w-full h-full object-cover" />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
@@ -970,6 +1077,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
                 />
               </div>
+              <button
+                onClick={() => setRobotSort(robotSort === 'number' ? 'name' : 'number')}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
+                title={`Sort by ${robotSort === 'number' ? 'name' : 'number'}`}
+              >
+                <ArrowUpDown size={14} /> {robotSort === 'number' ? '#' : 'A-Z'}
+              </button>
               {activeEvent?.tbaEventKey && (
                 <button
                   onClick={importTeamsFromTba}
@@ -994,6 +1108,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   onClick={() => setSelectedRobot(ps)}
                   className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-5 md:p-6 hover:border-red-600/30 transition-all cursor-pointer"
                 >
+                  {ps.photoUrl && (
+                    <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-slate-100">
+                      <img src={ps.photoUrl} alt={`Team ${ps.teamNumber}`} className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center font-black text-sm">
@@ -1024,7 +1143,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'matches' ? (
           <div className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMatchViewMode('list')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${matchViewMode === 'list' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  <List size={14} /> List
+                </button>
+                <button
+                  onClick={() => setMatchViewMode('roster')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${matchViewMode === 'roster' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  <Grid3X3 size={14} /> Roster
+                </button>
+              </div>
               <button
                 onClick={() => { resetMatchForm(); setEditingMatch(null); setShowMatchForm(true); }}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"
@@ -1033,40 +1166,85 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </button>
             </div>
 
-            <div className="space-y-3">
-              {sortedMatches.map(m => (
-                <div
-                  key={m.id}
-                  className={`bg-white rounded-2xl border-2 p-4 md:p-5 ${m.alliance === 'Red' ? 'border-red-200' : 'border-blue-200'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
-                        m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-                      }`}>
-                        M{m.matchNumber}
-                      </span>
-                      <div>
-                        <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                        <p className="text-[10px] text-slate-400 font-bold">
-                          Fuel: {m.coralScored} scored, {m.algaeScored} missed | Pen: -{m.penalties}
-                        </p>
+            {matchViewMode === 'list' ? (
+              <div className="space-y-3">
+                {sortedMatches.map(m => (
+                  <div
+                    key={m.id}
+                    className={`bg-white rounded-2xl border-2 p-4 md:p-5 ${m.alliance === 'Red' ? 'border-red-200' : 'border-blue-200'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 md:gap-4">
+                        <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                          m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                        }`}>
+                          M{m.matchNumber}
+                        </span>
+                        <div>
+                          <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">
+                            Fuel: {m.coralScored} scored, {m.algaeScored} missed | Pen: -{m.penalties}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-black text-slate-900">{m.coralScored - m.penalties}</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
+                          <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl font-black text-slate-900">{m.coralScored - m.penalties}</span>
-                      <div className="flex gap-1">
-                        <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
-                        <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
-                          <Trash2 size={14} />
-                        </button>
+                    {m.notes && <p className="text-[10px] text-slate-500 mt-2 pl-12 font-medium">{m.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {matchRosters.map(roster => (
+                  <div key={roster.matchNumber} className="bg-white rounded-2xl border-2 border-slate-100 p-4 md:p-6">
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                      <Swords size={16} className="text-red-600" />
+                      Match {roster.matchNumber}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">Red Alliance</span>
+                        {roster.red.length > 0 ? roster.red.map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => openRobotByNumber(m.teamNumber)}
+                            className="p-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all"
+                          >
+                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">Fuel: {m.coralScored} | Pen: -{m.penalties}</p>
+                          </div>
+                        )) : (
+                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Blue Alliance</span>
+                        {roster.blue.length > 0 ? roster.blue.map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => openRobotByNumber(m.teamNumber)}
+                            className="p-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
+                          >
+                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">Fuel: {m.coralScored} | Pen: -{m.penalties}</p>
+                          </div>
+                        )) : (
+                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
+                        )}
                       </div>
                     </div>
                   </div>
-                  {m.notes && <p className="text-[10px] text-slate-500 mt-2 pl-12 font-medium">{m.notes}</p>}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {sortedMatches.length === 0 && (
               <div className="py-16 text-center">
@@ -1133,6 +1311,47 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               )}
 
+              {pitScouts.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select Robots to Export</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRobotIds(new Set(pitScouts.map((r: any) => r.id)))}
+                        className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black hover:bg-slate-200 transition-all"
+                      >Select All</button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRobotIds(new Set())}
+                        className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black hover:bg-slate-200 transition-all"
+                      >Deselect All</button>
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 rounded-xl p-2">
+                    {[...pitScouts].sort((a, b) => a.teamNumber - b.teamNumber).map((r: any) => (
+                      <label key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-all">
+                        <input
+                          type="checkbox"
+                          checked={selectedRobotIds.has(r.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedRobotIds);
+                            if (e.target.checked) next.add(r.id); else next.delete(r.id);
+                            setSelectedRobotIds(next);
+                          }}
+                          className="w-4 h-4 accent-red-600"
+                        />
+                        <span className="text-xs font-black text-slate-700">{r.teamNumber}</span>
+                        <span className="text-xs font-bold text-slate-500">{r.teamName || 'Unknown'}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-bold">
+                    {selectedRobotIds.size === 0 ? 'No robots selected for export' : `${selectedRobotIds.size} robot${selectedRobotIds.size !== 1 ? 's' : ''} selected`}
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={generateQR}
                 className="w-full py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 shadow-lg transition-all flex items-center justify-center gap-2"
@@ -1167,7 +1386,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   )}
                   <p className="text-[10px] text-slate-400 font-bold text-center">
-                    {selectedMatchIds.size > 0 ? `${selectedMatchIds.size} of ${matchScoutsData.length}` : matchScoutsData.length} match records encoded
+                    {selectedMatchIds.size > 0 ? `${selectedMatchIds.size} of ${matchScoutsData.length}` : matchScoutsData.length} match records
+                    {selectedRobotIds.size > 0 ? ` + ${selectedRobotIds.size} robots` : ''} encoded
                   </p>
                 </div>
               )}
@@ -1215,6 +1435,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-xs text-green-700 font-bold">
                       {importPreview.matchScouts?.length || 0} match records found
                     </p>
+                    {importPreview.pitScouts?.length > 0 && (
+                      <p className="text-xs text-green-700 font-bold mt-1">
+                        {importPreview.pitScouts.length} robot records found
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -1240,9 +1465,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-xs text-green-700 font-bold">
                       {importResult.imported} match{importResult.imported !== 1 ? 'es' : ''} imported
                     </p>
+                    {(importResult.robotsImported || 0) > 0 && (
+                      <p className="text-xs text-green-700 font-bold mt-1">
+                        {importResult.robotsImported} robot{importResult.robotsImported !== 1 ? 's' : ''} imported
+                      </p>
+                    )}
                     {importResult.skipped > 0 && (
                       <p className="text-xs text-amber-600 font-bold mt-1">
-                        {importResult.skipped} duplicate{importResult.skipped !== 1 ? 's' : ''} skipped (already in database)
+                        {importResult.skipped} match duplicate{importResult.skipped !== 1 ? 's' : ''} skipped
+                      </p>
+                    )}
+                    {(importResult.robotsSkipped || 0) > 0 && (
+                      <p className="text-xs text-amber-600 font-bold mt-1">
+                        {importResult.robotsSkipped} robot duplicate{importResult.robotsSkipped !== 1 ? 's' : ''} skipped
                       </p>
                     )}
                   </div>
@@ -1640,6 +1875,45 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     className="w-full h-24 p-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-medium text-sm resize-none"
                     placeholder="Additional observations..."
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Robot Photo</span>
+                  {pitForm.photoUrl && (
+                    <div className="relative w-full h-48 rounded-xl overflow-hidden bg-slate-100 mb-2">
+                      <img src={pitForm.photoUrl} alt="Robot" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPitForm({ ...pitForm, photoUrl: '' })}
+                        className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-600 hover:bg-red-50/30 transition-all">
+                    <Camera size={16} className="text-slate-400" />
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      {pitForm.photoUrl ? 'Change Photo' : 'Take / Upload Photo'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const dataUrl = await compressImage(file);
+                            setPitForm({ ...pitForm, photoUrl: dataUrl });
+                          } catch (err) {
+                            console.error('Failed to process image:', err);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
                 </div>
 
                 <div className="space-y-4">

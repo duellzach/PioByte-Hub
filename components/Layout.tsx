@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,6 +8,8 @@ interface LayoutProps {
   notificationsCount: number;
   onLogout: () => void;
   isSynced?: boolean;
+  darkMode?: boolean;
+  onToggleDarkMode?: () => void;
   stats?: {
     weeklyEffort: number;
     activeCount: number;
@@ -31,12 +33,12 @@ const TeamLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
       <div 
         className={`md:hidden fixed inset-0 bg-black/60 z-40 transition-opacity ${
           mobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -84,6 +86,17 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/time" icon={<Clock size={18} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/scout" icon={<Crosshair size={18} />} label="SCOUT" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          
+          <div className="pt-2 border-t border-white/10 mt-2">
+            <button
+              onClick={onToggleDarkMode}
+              title={collapsed ? (darkMode ? "LIGHT MODE" : "DARK MODE") : ""}
+              className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3 xl:gap-4 px-3 xl:px-5'} py-3 xl:py-4 rounded-xl transition-all font-black text-[10px] xl:text-xs tracking-widest text-slate-500 hover:text-white hover:bg-white/5`}
+            >
+              <div className="flex-shrink-0">{darkMode ? <Sun size={18} /> : <Moon size={18} />}</div>
+              {!collapsed && <span>{darkMode ? 'LIGHT MODE' : 'DARK MODE'}</span>}
+            </button>
+          </div>
         </nav>
 
         <div className={`${collapsed ? 'p-2' : 'p-4 xl:p-6'} border-t border-white/10 bg-black/40`}>
@@ -114,8 +127,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden bg-white">
-        <header className="h-14 md:h-16 xl:h-20 bg-white border-b border-slate-200 flex items-center px-4 md:px-8 xl:px-12 justify-between gap-3">
+      <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+        <header className="h-14 md:h-16 xl:h-20 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 md:px-8 xl:px-12 justify-between gap-3">
           <div className="flex items-center gap-3">
             <button 
               className="md:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl"
@@ -127,7 +140,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <div className="md:hidden text-red-600">
                 <TeamLogo className="w-7 h-7" />
               </div>
-              <h2 className="text-sm md:text-lg xl:text-2xl font-black text-slate-900 tracking-tight uppercase">
+              <h2 className="text-sm md:text-lg xl:text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
                 <span className="hidden sm:inline">PIO-BYTES </span>HUB
               </h2>
             </div>
@@ -163,7 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-slate-50/50">
+        <div className="flex-1 overflow-auto bg-slate-50/50 dark:bg-slate-900">
           <div className="w-full h-full p-2 md:p-4 lg:p-6 xl:p-8 transition-all duration-300">
             {children}
           </div>

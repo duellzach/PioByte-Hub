@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const isProduction = process.env.NODE_ENV === "production";
 if (isProduction) {
@@ -706,8 +706,8 @@ app.delete("/api/match-scouts/:id", async (req, res) => {
 app.post("/api/scout-events/:eventId/import", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
-    const { matchScouts: matchData } = req.body;
-    const results: any = { matchScouts: [], skipped: 0, imported: 0 };
+    const { matchScouts: matchData, pitScouts: pitData } = req.body;
+    const results: any = { matchScouts: [], skipped: 0, imported: 0, robotsImported: 0, robotsSkipped: 0 };
     if (matchData && Array.isArray(matchData)) {
       const existing = await storage.getMatchScouts(eventId);
       const existingSet = new Set(
@@ -724,6 +724,20 @@ app.post("/api/scout-events/:eventId/import", async (req, res) => {
         results.matchScouts.push(scout);
         results.imported++;
         existingSet.add(key);
+      }
+    }
+    if (pitData && Array.isArray(pitData)) {
+      const existingPits = await storage.getPitScouts(eventId);
+      const existingTeams = new Set(existingPits.map(p => p.teamNumber));
+      for (const ps of pitData) {
+        const { id, createdAt, updatedAt, eventId: _eid, ...cleanPs } = ps;
+        if (existingTeams.has(cleanPs.teamNumber)) {
+          results.robotsSkipped++;
+          continue;
+        }
+        await storage.createPitScout({ ...cleanPs, eventId });
+        results.robotsImported++;
+        existingTeams.add(cleanPs.teamNumber);
       }
     }
     res.status(201).json(results);
