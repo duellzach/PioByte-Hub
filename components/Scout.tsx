@@ -2059,13 +2059,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <div className="space-y-3">
                     {sorted.map((ps: any, idx: number) => {
                       const ranking = tbaRankings.get(ps.teamNumber);
+                      const teamMatches = matchScoutsData.filter((m: any) => m.teamNumber === ps.teamNumber);
+                      const avgAutoFuel = teamMatches.length > 0
+                        ? (teamMatches.reduce((s: number, m: any) => s + (m.autoFuelTotal || 0), 0) / teamMatches.length).toFixed(1)
+                        : null;
+                      const avgTeleopFuel = teamMatches.length > 0
+                        ? (teamMatches.reduce((s: number, m: any) => s + (m.teleopFuelTotal || 0), 0) / teamMatches.length).toFixed(1)
+                        : null;
+                      const avgDriving = teamMatches.filter((m: any) => m.drivingSkillRating > 0).length > 0
+                        ? (teamMatches.reduce((s: number, m: any) => s + (m.drivingSkillRating || 0), 0) / teamMatches.filter((m: any) => m.drivingSkillRating > 0).length).toFixed(1)
+                        : null;
                       return (
                         <div
                           key={ps.id}
                           onClick={() => setSelectedRobot(ps)}
                           className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all"
                         >
-                          <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${
+                          <span className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg ${
                             idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
                           }`}>
                             {ranking ? `#${ranking.rank}` : idx + 1}
@@ -2079,9 +2089,27 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             </p>
                           </div>
                           <div className="flex gap-2 md:gap-3 flex-shrink-0">
-                            <span className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-black">OFF {ps.offenseRating}</span>
-                            <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">DEF {ps.defenseRating}</span>
-                            <span className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-black">OVR {ps.overallRating}</span>
+                            {avgDriving !== null && (
+                              <div className="text-center">
+                                <p className="text-sm font-black text-slate-900">{'★'.repeat(Math.round(parseFloat(avgDriving)))}</p>
+                                <p className="text-[8px] font-black text-slate-400 uppercase">Drive</p>
+                              </div>
+                            )}
+                            {avgAutoFuel !== null && (
+                              <div className="px-2.5 py-1.5 bg-green-50 text-center rounded-lg">
+                                <p className="text-sm font-black text-green-700">{avgAutoFuel}</p>
+                                <p className="text-[8px] font-black text-green-400 uppercase">Auto</p>
+                              </div>
+                            )}
+                            {avgTeleopFuel !== null && (
+                              <div className="px-2.5 py-1.5 bg-blue-50 text-center rounded-lg">
+                                <p className="text-sm font-black text-blue-700">{avgTeleopFuel}</p>
+                                <p className="text-[8px] font-black text-blue-400 uppercase">Teleop</p>
+                              </div>
+                            )}
+                            {avgAutoFuel === null && avgDriving === null && (
+                              <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">No match data</span>
+                            )}
                           </div>
                         </div>
                       );
@@ -2412,10 +2440,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-3">Auto Period Fuel</p>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: Math.max(0, matchForm.autoFuelTotal - 1) })}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">−</button>
-                      <span className="w-12 text-center font-black text-xl text-slate-900">{matchForm.autoFuelTotal}</span>
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">−</button>
+                      <input
+                        type="number"
+                        value={matchForm.autoFuelTotal || ''}
+                        onChange={(e) => setMatchForm({ ...matchForm, autoFuelTotal: Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-16 text-center font-black text-xl text-slate-900 bg-white border-2 border-green-200 rounded-xl py-2 outline-none focus:border-green-500 transition-all"
+                        placeholder="0"
+                        min={0}
+                      />
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 1 })}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">+</button>
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">+</button>
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 5 })}
                         className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-green-200 text-green-800 hover:bg-green-300 transition-all active:scale-95">+5</button>
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 10 })}
@@ -2427,10 +2462,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3">Tele-Op Period Fuel</p>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: Math.max(0, matchForm.teleopFuelTotal - 1) })}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">−</button>
-                      <span className="w-12 text-center font-black text-xl text-slate-900">{matchForm.teleopFuelTotal}</span>
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">−</button>
+                      <input
+                        type="number"
+                        value={matchForm.teleopFuelTotal || ''}
+                        onChange={(e) => setMatchForm({ ...matchForm, teleopFuelTotal: Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-16 text-center font-black text-xl text-slate-900 bg-white border-2 border-blue-200 rounded-xl py-2 outline-none focus:border-blue-500 transition-all"
+                        placeholder="0"
+                        min={0}
+                      />
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 1 })}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">+</button>
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">+</button>
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 5 })}
                         className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-blue-200 text-blue-800 hover:bg-blue-300 transition-all active:scale-95">+5</button>
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 10 })}
