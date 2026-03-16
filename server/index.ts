@@ -658,6 +658,20 @@ app.delete("/api/pit-scouts/:id", async (req, res) => {
   }
 });
 
+app.get("/api/scout/team/:teamNumber/all-matches", async (req, res) => {
+  try {
+    const teamNumber = parseInt(req.params.teamNumber);
+    const matches = await storage.getMatchScoutsByTeam(teamNumber);
+    const allUsers = await storage.getUsers();
+    const userMap = new Map(allUsers.map((u: any) => [u.id, u.displayName || u.username]));
+    const enriched = matches.map(m => ({ ...m, scoutedByName: userMap.get(m.scoutedBy) || `User ${m.scoutedBy}` }));
+    res.json(enriched);
+  } catch (error) {
+    console.error("Error fetching team match scouts:", error);
+    res.status(500).json({ error: "Failed to fetch team match scouts" });
+  }
+});
+
 app.get("/api/scout-events/:eventId/match-scouts", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);

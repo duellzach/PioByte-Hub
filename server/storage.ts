@@ -108,6 +108,7 @@ export interface IStorage {
   deletePitScout(id: number): Promise<void>;
 
   getMatchScouts(eventId: number): Promise<MatchScout[]>;
+  getMatchScoutsByTeam(teamNumber: number): Promise<any[]>;
   getMatchScout(id: number): Promise<MatchScout | undefined>;
   createMatchScout(scout: InsertMatchScout): Promise<MatchScout>;
   updateMatchScout(id: number, scout: Partial<InsertMatchScout>): Promise<MatchScout | undefined>;
@@ -348,6 +349,19 @@ export class DatabaseStorage implements IStorage {
 
   async getMatchScouts(eventId: number): Promise<MatchScout[]> {
     return db.select().from(matchScouts).where(eq(matchScouts.eventId, eventId)).orderBy(desc(matchScouts.createdAt));
+  }
+
+  async getMatchScoutsByTeam(teamNumber: number): Promise<any[]> {
+    const rows = await db
+      .select({
+        matchScout: matchScouts,
+        eventName: scoutEvents.name,
+      })
+      .from(matchScouts)
+      .innerJoin(scoutEvents, eq(matchScouts.eventId, scoutEvents.id))
+      .where(eq(matchScouts.teamNumber, teamNumber))
+      .orderBy(desc(matchScouts.createdAt));
+    return rows.map(r => ({ ...r.matchScout, eventName: r.eventName }));
   }
 
   async getMatchScout(id: number): Promise<MatchScout | undefined> {

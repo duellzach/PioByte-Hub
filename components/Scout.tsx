@@ -151,6 +151,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [tbaYearEvents, setTbaYearEvents] = useState<any[]>([]);
   const [tbaYearStatuses, setTbaYearStatuses] = useState<Record<string, any>>({});
   const [tbaYearLoading, setTbaYearLoading] = useState(false);
+  const [crossEventMatches, setCrossEventMatches] = useState<any[]>([]);
 
   const [qrData, setQrData] = useState<string[]>([]);
   const [qrChunkIndex, setQrChunkIndex] = useState(0);
@@ -586,6 +587,73 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setGeminiModal({ open: true, text: report, matchLabel: label });
   };
 
+  const generateRobotAIReport = () => {
+    if (!selectedRobot) return;
+    const r = selectedRobot;
+    let report = `# Team ${r.teamNumber} — ${r.teamName || 'Unknown Team'}\n`;
+    report += `Robot: ${r.robotName || '—'}\n\n`;
+
+    report += `## Pit Scout Data\n`;
+    report += `Drivetrain: ${r.drivetrain || '—'}\n`;
+    report += `Weight: ${r.weight ? `${r.weight} lbs` : '—'} | Speed: ${r.speed ? `${r.speed} ft/s` : '—'} | Height: ${r.height ? `${r.height}"` : '—'}\n`;
+    if (r.shooterType) report += `Shooter Type: ${r.shooterType}\n`;
+    if (r.fuelCapacity > 0) report += `Fuel Capacity: ${r.fuelCapacity} cells\n`;
+    if (r.traversalAbility) report += `Field Traversal: ${r.traversalAbility}\n`;
+    if (r.autoOptions?.length > 0) report += `Auto Routines: ${r.autoOptions.join(', ')}\n`;
+    report += `Ratings: Offense ${r.offenseRating}/10, Defense ${r.defenseRating}/10, Overall ${r.overallRating}/10\n`;
+    if (r.capabilities?.length > 0) report += `Capabilities: ${r.capabilities.join(', ')}\n`;
+    if (r.deficiencies?.length > 0) report += `Weaknesses: ${r.deficiencies.join(', ')}\n`;
+    if (r.notes) report += `Notes: ${r.notes}\n`;
+    report += '\n';
+
+    const currentEventName = activeEvent?.name || 'Current Event';
+    const currentMatches = robotMatches;
+    const otherEventMatches = crossEventMatches.filter((m: any) => m.eventId !== activeEvent?.id);
+    const otherGrouped = new Map<string, any[]>();
+    for (const m of otherEventMatches) {
+      const key = m.eventName || `Event ${m.eventId}`;
+      if (!otherGrouped.has(key)) otherGrouped.set(key, []);
+      otherGrouped.get(key)!.push(m);
+    }
+
+    const formatMatchBlock = (matches: any[], eventLabel: string) => {
+      let block = `## Match History — ${eventLabel} (${matches.length} matches)\n`;
+      if (matches.length > 0) {
+        const avg = (field: string) => (matches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / matches.length).toFixed(1);
+        block += `Averages: Auto Fuel: ${avg('autoFuelTotal')}, Teleop Fuel: ${avg('teleopFuelTotal')}, Accuracy: ${avg('coralScored')}/5, Climb Rate: ${((matches.filter((m: any) => m.endClimbLevel > 0).length / matches.length) * 100).toFixed(0)}%\n`;
+        block += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5, Avg Penalties: ${avg('penalties')}\n`;
+        for (const m of [...matches].sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
+          const typeTag = m.matchType && m.matchType !== 'qualification' ? ` [${m.matchType}]` : '';
+          block += `  M${m.matchNumber}${typeTag} (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel || 0}, Drive: ${m.drivingSkillRating || '?'}/5${m.autoUsed ? `, Auto Used: "${m.autoUsed}"` : ''}${m.notes ? `, Notes: "${m.notes}"` : ''}\n`;
+        }
+      }
+      return block + '\n';
+    };
+
+    report += formatMatchBlock(currentMatches, currentEventName);
+
+    for (const [eventName, matches] of otherGrouped) {
+      report += formatMatchBlock(matches, eventName);
+    }
+
+    if (tbaYearEvents.length > 0) {
+      report += `## TBA Season Events (${new Date().getFullYear()})\n`;
+      for (const evt of tbaYearEvents.filter((e: any) => e.event_type_string !== 'Offseason').sort((a: any, b: any) => (a.start_date || '').localeCompare(b.start_date || ''))) {
+        const status = tbaYearStatuses[`frc${r.teamNumber}`] || tbaYearStatuses[evt.key];
+        const rank = status?.qual?.ranking?.rank;
+        const record = status?.qual?.ranking?.record;
+        report += `  ${evt.name} (${evt.start_date || '?'})`;
+        if (rank) report += ` — Rank #${rank}`;
+        if (record) report += `, ${record.wins}-${record.losses}-${record.ties}`;
+        report += '\n';
+      }
+      report += '\n';
+    }
+
+    report += `---\nPlease analyze this team's scouting data and provide strategic insights: strengths, weaknesses, ideal match roles, and how to best compete against or alongside them.`;
+    setGeminiModal({ open: true, text: report, matchLabel: `Team ${r.teamNumber} Scouting Report` });
+  };
+
   const generateQR = async () => {
     if (!activeEvent) return;
     try {
@@ -863,16 +931,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   }, [selectedRobot, matchScoutsData]);
 
   useEffect(() => {
-    if (!selectedRobot) { setTbaYearEvents([]); setTbaYearStatuses({}); return; }
+    if (!selectedRobot) { setTbaYearEvents([]); setTbaYearStatuses({}); setCrossEventMatches([]); return; }
     const year = new Date().getFullYear();
     const teamKey = `frc${selectedRobot.teamNumber}`;
     setTbaYearLoading(true);
     Promise.all([
       api.tba.getTeamYearEvents(teamKey, year).catch(() => []),
       api.tba.getTeamYearStatuses(teamKey, year).catch(() => ({})),
-    ]).then(([evts, statuses]) => {
+      api.scout.getTeamAllMatches(selectedRobot.teamNumber).catch(() => []),
+    ]).then(([evts, statuses, allMatches]) => {
       setTbaYearEvents(evts || []);
       setTbaYearStatuses(statuses || {});
+      setCrossEventMatches(allMatches || []);
       setTbaYearLoading(false);
     });
   }, [selectedRobot]);
@@ -888,6 +958,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Team {selectedRobot.teamNumber}</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedRobot.teamName || 'Unknown Team'} • {selectedRobot.robotName || 'Unnamed Robot'}</p>
           </div>
+          <button
+            onClick={generateRobotAIReport}
+            className="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-700 shadow-lg shadow-purple-600/20 transition-all flex items-center gap-2 flex-shrink-0"
+          >
+            <Copy size={14} /> Copy for AI
+          </button>
           {selectedRobot.photoUrl && (
             <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-slate-200 flex-shrink-0">
               <img src={selectedRobot.photoUrl} alt={`Team ${selectedRobot.teamNumber}`} className="w-full h-full object-cover" />
@@ -1176,6 +1252,50 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               </div>
             </>
+          );
+        })()}
+
+        {(() => {
+          const otherMatches = crossEventMatches.filter((m: any) => m.eventId !== activeEvent?.id);
+          if (otherMatches.length === 0) return null;
+          const grouped = new Map<string, any[]>();
+          for (const m of otherMatches) {
+            const key = m.eventName || `Event ${m.eventId}`;
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key)!.push(m);
+          }
+          return (
+            <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-indigo-100 p-6 md:p-8">
+              <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Calendar size={14} />
+                Previous Event Data ({otherMatches.length} matches from {grouped.size} event{grouped.size !== 1 ? 's' : ''})
+              </h3>
+              <div className="space-y-5">
+                {Array.from(grouped.entries()).map(([eventName, matches]) => {
+                  const avg = (field: string) => (matches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / matches.length).toFixed(1);
+                  return (
+                    <div key={eventName} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-black text-slate-800">{eventName}</p>
+                        <p className="text-[9px] font-bold text-slate-400">{matches.length} matches • Avg Fuel: {avg('autoFuelTotal')} auto / {avg('teleopFuelTotal')} teleop</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        {matches.sort((a: any, b: any) => a.matchNumber - b.matchNumber).map((m: any) => (
+                          <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl border ${m.alliance === 'Red' ? 'border-red-200 bg-red-50/30' : 'border-blue-200 bg-blue-50/30'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>M{m.matchNumber}</span>
+                              <span className="text-xs font-bold text-slate-600">Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0}</span>
+                              {m.drivingSkillRating > 0 && <span className="text-yellow-500 text-xs">{'★'.repeat(m.drivingSkillRating)}</span>}
+                            </div>
+                            <span className="text-sm font-black text-slate-900">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           );
         })()}
       </div>

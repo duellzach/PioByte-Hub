@@ -103,6 +103,7 @@ export const api = {
     createMatchScout: (eventId: number, scout: any) => apiRequest<any>(`/scout-events/${eventId}/match-scouts`, { method: 'POST', body: JSON.stringify(scout) }),
     updateMatchScout: (id: number, scout: any) => apiRequest<any>(`/match-scouts/${id}`, { method: 'PUT', body: JSON.stringify(scout) }),
     deleteMatchScout: (id: number) => apiRequest<void>(`/match-scouts/${id}`, { method: 'DELETE' }),
+    getTeamAllMatches: (teamNumber: number) => apiRequest<any[]>(`/scout/team/${teamNumber}/all-matches`),
     exportEvent: (eventId: number) => apiRequest<any>(`/scout-events/${eventId}/export`),
     importEvent: (eventId: number, data: any) => apiRequest<any>(`/scout-events/${eventId}/import`, { method: 'POST', body: JSON.stringify(data) }),
   },
