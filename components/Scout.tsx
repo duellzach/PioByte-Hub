@@ -1625,7 +1625,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       TBA {isPast && '▶'}
                                     </a>
                                     <button
-                                      onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1 })); setShowMatchForm(true); }}
+                                      onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1, matchType: m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination' })); setShowMatchForm(true); }}
                                       className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
                                     >Record</button>
                                   </div>
