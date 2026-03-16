@@ -1541,8 +1541,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 <button
                                   onClick={() => {
                                     resetMatchForm();
-                                    const scoutedTeam = pitScouts.find((p: any) => allTeams.includes(p.teamNumber));
-                                    setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1, matchType: m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination' }));
+                                    const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                                    const matchNum = isElim && m.set_number > 0
+                                      ? m.set_number * 10 + (m.match_number || 1)
+                                      : (m.match_number || 1);
+                                    const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                                    setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
                                     setShowMatchForm(true);
                                   }}
                                   className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
@@ -1625,7 +1629,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       TBA {isPast && '▶'}
                                     </a>
                                     <button
-                                      onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1, matchType: m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination' })); setShowMatchForm(true); }}
+                                      onClick={() => {
+                                        resetMatchForm();
+                                        const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                                        const matchNum = isElim && m.set_number > 0
+                                          ? m.set_number * 10 + (m.match_number || 1)
+                                          : (m.match_number || 1);
+                                        const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                                        setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
+                                        setShowMatchForm(true);
+                                      }}
                                       className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
                                     >Record</button>
                                   </div>
