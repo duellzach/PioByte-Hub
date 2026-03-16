@@ -1010,7 +1010,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               )}
             </div>
             {selectedRobot.autoOptions?.length > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl p-4">
                 <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-2">Auto Routines Available</p>
                 <div className="flex flex-wrap gap-2">
                   {selectedRobot.autoOptions.map((a: string, i: number) => (
@@ -1041,7 +1041,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               <button onClick={() => openEditPit(selectedRobot)} className="flex-1 py-3 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 transition-all">
                 Edit
               </button>
-              <button onClick={() => handleDeletePitScout(selectedRobot.id)} className="px-4 py-3 bg-slate-100 text-red-600 font-black rounded-xl hover:bg-red-50 transition-all">
+              <button onClick={() => handleDeletePitScout(selectedRobot.id)} className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-red-600 font-black rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -1065,7 +1065,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Deficiencies</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedRobot.deficiencies.map((d: string, i: number) => (
-                    <span key={i} className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">{d}</span>
+                    <span key={i} className="px-3 py-1.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-full text-xs font-bold">{d}</span>
                   ))}
                 </div>
               </div>
@@ -1103,7 +1103,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   const record = status?.qual?.ranking?.record;
                   const isCurrentEvent = activeEvent?.tbaEventKey === event.key;
                   return (
-                    <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-red-200 bg-red-50/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10' : 'border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30'}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-black text-slate-900 leading-tight">{event.name}</p>
@@ -1164,15 +1164,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6">Performance Analysis ({robotMatches.length} matches)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                  <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-green-600">{avgAutoFuel}</p>
                     <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mt-1">Avg Auto Fuel</p>
                   </div>
-                  <div className="bg-blue-50 rounded-xl p-4 text-center">
+                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-blue-600">{avgTeleopFuel}</p>
                     <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Avg Teleop Fuel</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-4 text-center">
+                  <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-red-600">{avgTotalFuel}</p>
                     <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Total Fuel</p>
                   </div>
@@ -1195,7 +1195,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-2xl font-black text-teal-600">{avgDriving}<span className="text-sm">/5</span></p>
                     <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mt-1">Avg Driving</p>
                   </div>
-                  <div className="bg-amber-50 rounded-xl p-4 text-center">
+                  <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-amber-600">{avgPenalties}</p>
                     <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Avg Penalties</p>
                   </div>
@@ -1221,7 +1221,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Match History</h3>
                 <div className="space-y-3">
                   {robotMatches.sort((a, b) => a.matchNumber - b.matchNumber).map(m => (
-                    <div key={m.id} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
+                    <div key={m.id} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' : 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20'}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
@@ -1280,7 +1280,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       </div>
                       <div className="space-y-1.5">
                         {matches.sort((a: any, b: any) => a.matchNumber - b.matchNumber).map((m: any) => (
-                          <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl border ${m.alliance === 'Red' ? 'border-red-200 bg-red-50/30' : 'border-blue-200 bg-blue-50/30'}`}>
+                          <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl border ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10' : 'border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10'}`}>
                             <div className="flex items-center gap-2">
                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>M{m.matchNumber}</span>
                               <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0}</span>
@@ -1390,7 +1390,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             {offlineQueue.length > 0 && (
               <button
                 onClick={handleSync}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 rounded-xl border border-amber-200 dark:border-amber-700 hover:bg-amber-100 transition-all"
               >
                 <WifiOff size={14} className="text-amber-600" />
                 <span className="font-black text-amber-700">{offlineQueue.length}</span>
@@ -1404,7 +1404,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         </div>
 
         {syncMessage && (
-          <div className="bg-green-50 border-2 border-green-200 rounded-xl p-3 flex items-center gap-3 animate-in fade-in duration-300">
+          <div className="bg-green-50 dark:bg-green-900/30 border-2 border-green-200 dark:border-green-700 rounded-xl p-3 flex items-center gap-3 animate-in fade-in duration-300">
             <Wifi size={16} className="text-green-600 shrink-0" />
             <p className="text-xs font-black text-green-700 uppercase tracking-widest">{syncMessage}</p>
           </div>
@@ -1470,7 +1470,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-5 md:p-6 hover:border-red-600/30 transition-all cursor-pointer"
                 >
                   {ps.photoUrl && (
-                    <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-slate-100">
+                    <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-slate-100 dark:bg-slate-700">
                       <img src={ps.photoUrl} alt={`Team ${ps.teamNumber}`} className="w-full h-full object-cover" />
                     </div>
                   )}
@@ -1486,9 +1486,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <span className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-[9px] font-black">OFF {ps.offenseRating}</span>
-                    <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black">DEF {ps.defenseRating}</span>
-                    <span className="px-2 py-1 bg-green-50 text-green-600 rounded-lg text-[9px] font-black">OVR {ps.overallRating}</span>
+                    <span className="px-2 py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded-lg text-[9px] font-black">OFF {ps.offenseRating}</span>
+                    <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-lg text-[9px] font-black">DEF {ps.defenseRating}</span>
+                    <span className="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-lg text-[9px] font-black">OVR {ps.overallRating}</span>
                   </div>
                 </div>
               ))}
@@ -1569,15 +1569,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   {(unscoutedRobots.length > 0 || unscoutedMatches.length > 0) && (
                     <div className="space-y-4">
                       {unscoutedRobots.length > 0 && (
-                        <div className="bg-rose-50 rounded-2xl border-2 border-rose-200 p-5">
-                          <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            <AlertCircle size={14} className="text-rose-600" />
+                        <div className="bg-rose-50 dark:bg-rose-900/30 rounded-2xl border-2 border-rose-200 dark:border-rose-700 p-5">
+                          <h4 className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            <AlertCircle size={14} className="text-rose-600 dark:text-rose-400" />
                             Unscouted Robots ({unscoutedRobots.length})
                           </h4>
-                          <p className="text-[10px] text-rose-700 font-medium mb-3">These teams are on the event schedule but have no pit scout data. Visit their pit before they compete.</p>
+                          <p className="text-[10px] text-rose-700 dark:text-rose-300 font-medium mb-3">These teams are on the event schedule but have no pit scout data. Visit their pit before they compete.</p>
                           <div className="flex flex-wrap gap-2">
                             {unscoutedRobots.map(n => (
-                              <div key={n} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 rounded-xl">
+                              <div key={n} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-700 rounded-xl">
                                 <span className="text-[10px] font-black text-rose-700">#{n}</span>
                                 <a
                                   href={`https://www.thebluealliance.com/team/${n}`}
@@ -1596,12 +1596,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       )}
 
                       {unscoutedMatches.length > 0 && (
-                        <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-5">
-                          <h4 className="text-xs font-black text-amber-900 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            <AlertCircle size={14} className="text-amber-600" />
+                        <div className="bg-amber-50 dark:bg-amber-900/30 rounded-2xl border-2 border-amber-200 dark:border-amber-700 p-5">
+                          <h4 className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            <AlertCircle size={14} className="text-amber-600 dark:text-amber-400" />
                             Unscouted Matches ({unscoutedMatches.length})
                           </h4>
-                          <p className="text-[10px] text-amber-700 font-medium mb-3">Every match listed has at least one team with no match scout entry. TBA links open the match page where video replays are available.</p>
+                          <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium mb-3">Every match listed has at least one team with no match scout entry. TBA links open the match page where video replays are available.</p>
                           <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                             {unscoutedMatches.map((m: any) => {
                               const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
@@ -1611,7 +1611,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               const youtubeLink = m.videos?.find((v: any) => v.type === 'youtube');
                               const isPast = (m.actual_time || m.time) && (m.actual_time || m.time) < Math.floor(Date.now() / 1000);
                               return (
-                                <div key={m.key} className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200">
+                                <div key={m.key} className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700">
                                   <div className="flex items-center gap-3 min-w-0">
                                     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                                       <span className="px-2 py-1 bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase">{getMatchLabel(m)}</span>
@@ -1672,7 +1672,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
                           const time = m.predicted_time || m.time;
                           return (
-                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 bg-green-50' : claim ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white hover:border-red-200 hover:bg-red-50/30'} transition-all`}>
+                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : claim ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700' : 'border-slate-100 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-red-200 hover:bg-red-50/30 dark:hover:border-red-700 dark:hover:bg-red-900/20'} transition-all`}>
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
                                 <div className="min-w-0">
@@ -1699,7 +1699,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   <button onClick={() => claimMatch(m.key)}
                                     className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all">Claim</button>
                                 ) : (
-                                  <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">Taken</span>
+                                  <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 rounded-lg text-[9px] font-black">Taken</span>
                                 )}
                                 <button
                                   onClick={() => {
@@ -1742,7 +1742,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           </span>
                           {m.matchType && m.matchType !== 'qualification' && (
                             <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                              m.matchType === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'
+                              m.matchType === 'practice' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' : 'bg-purple-100 text-purple-700'
                             }`}>{m.matchType}</span>
                           )}
                         </div>
@@ -1793,7 +1793,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <div
                             key={m.id}
                             onClick={() => openRobotByNumber(m.teamNumber)}
-                            className="p-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all"
+                            className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/50 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900 dark:text-white">Team {m.teamNumber}</p>
                             <p className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
@@ -1808,7 +1808,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <div
                             key={m.id}
                             onClick={() => openRobotByNumber(m.teamNumber)}
-                            className="p-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
+                            className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900 dark:text-white">Team {m.teamNumber}</p>
                             <p className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
@@ -1999,7 +1999,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </p>
                   <button
                     onClick={stopScanner}
-                    className="w-full py-3 bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-300 transition-all"
+                    className="w-full py-3 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-300 transition-all"
                   >
                     Cancel Scanning
                   </button>
@@ -2008,7 +2008,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
               {importPreview && (
                 <div className="space-y-4">
-                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                  <div className="bg-green-50 dark:bg-green-900/30 border-2 border-green-200 dark:border-green-700 rounded-xl p-4">
                     <p className="text-sm font-black text-green-800 mb-2">Data Ready to Import</p>
                     <p className="text-xs text-green-700 font-bold">
                       {importPreview.matchScouts?.length || 0} match records found
@@ -2038,7 +2038,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
               {importResult && (
                 <div className="space-y-4">
-                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                  <div className="bg-green-50 dark:bg-green-900/30 border-2 border-green-200 dark:border-green-700 rounded-xl p-4">
                     <p className="text-sm font-black text-green-800 mb-2">Import Complete</p>
                     <p className="text-xs text-green-700 font-bold">
                       {importResult.imported} match{importResult.imported !== 1 ? 'es' : ''} imported
@@ -2161,14 +2161,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   <span
                                     key={teamKey}
                                     onClick={(e) => { e.stopPropagation(); if (hasScouted) openRobotByNumber(num); }}
-                                    className={`${hasScouted ? 'text-red-600 underline cursor-pointer hover:text-red-800' : 'text-slate-700'} font-black`}
+                                    className={`${hasScouted ? 'text-red-600 underline cursor-pointer hover:text-red-800' : 'text-slate-700 dark:text-slate-300'} font-black`}
                                   >
                                     {num}
                                   </span>
                                 );
                               };
                               return (
-                                <div key={m.key} className={`p-4 rounded-xl border-2 ${ourAlliance === 'red' ? 'border-red-200 bg-red-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
+                                <div key={m.key} className={`p-4 rounded-xl border-2 ${ourAlliance === 'red' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' : 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20'}`}>
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
@@ -2177,7 +2177,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         {getMatchLabel(m)}
                                       </span>
                                       <div>
-                                        <p className="text-sm text-slate-900 flex items-center gap-1">
+                                        <p className="text-sm text-slate-900 dark:text-white flex items-center gap-1">
                                           <span className="text-slate-400 dark:text-slate-500 text-xs">w/</span> {partnerKeys.length > 0 ? partnerKeys.map((t: string, i: number) => (
                                             <span key={t}>{i > 0 && <span className="text-slate-300">, </span>}{renderTeamLink(t)}</span>
                                           )) : '—'}
@@ -2223,7 +2223,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               const theirScore = m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.score ?? '—';
                               return (
                                 <div key={m.key} className={`p-4 rounded-xl border-2 ${
-                                  didWin ? 'border-green-200 bg-green-50/50' : didTie ? 'border-yellow-200 bg-yellow-50/50' : 'border-slate-200 bg-slate-50/50'
+                                  didWin ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20' : didTie ? 'border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30'
                                 }`}>
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -2233,7 +2233,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         {getMatchLabel(m)}
                                       </span>
                                       <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
-                                        didWin ? 'bg-green-100 text-green-700' : didTie ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                        didWin ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : didTie ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
                                       }`}>
                                         {didWin ? 'WIN' : didTie ? 'TIE' : 'LOSS'}
                                       </span>
@@ -2263,7 +2263,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             )}
 
             {!activeEvent?.tbaEventKey && (
-              <div className="bg-yellow-50 rounded-2xl md:rounded-[32px] border-2 border-yellow-200 p-6 md:p-8 text-center">
+              <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-2xl md:rounded-[32px] border-2 border-yellow-200 dark:border-yellow-700 p-6 md:p-8 text-center">
                 <Calendar size={32} className="text-yellow-500 mx-auto mb-3" />
                 <p className="text-sm font-black text-yellow-800 uppercase tracking-tight">No TBA Event Linked</p>
                 <p className="text-xs text-yellow-600 mt-1">Edit this event and add a Blue Alliance event key to see live schedule and win/loss record</p>
@@ -2289,7 +2289,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       {hasRankings ? 'Event Rankings' : 'Scouted Robot Leaderboard'}
                     </h3>
                     {hasRankings && (
-                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1.5 rounded-lg">
+                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg">
                         TBA Ranking Points
                       </span>
                     )}
@@ -2314,7 +2314,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all"
                         >
                           <span className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg ${
-                            idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
+                            idx === 0 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' : idx === 1 ? 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300' : idx === 2 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' : 'bg-slate-100 text-slate-400'
                           }`}>
                             {ranking ? `#${ranking.rank}` : idx + 1}
                           </span>
@@ -2334,19 +2334,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               </div>
                             )}
                             {avgAutoFuel !== null && (
-                              <div className="px-2.5 py-1.5 bg-green-50 text-center rounded-lg">
+                              <div className="px-2.5 py-1.5 bg-green-50 dark:bg-green-900/30 text-center rounded-lg">
                                 <p className="text-sm font-black text-green-700">{avgAutoFuel}</p>
                                 <p className="text-[8px] font-black text-green-400 uppercase">Auto</p>
                               </div>
                             )}
                             {avgTeleopFuel !== null && (
-                              <div className="px-2.5 py-1.5 bg-blue-50 text-center rounded-lg">
+                              <div className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-center rounded-lg">
                                 <p className="text-sm font-black text-blue-700">{avgTeleopFuel}</p>
                                 <p className="text-[8px] font-black text-blue-400 uppercase">Teleop</p>
                               </div>
                             )}
                             {avgAutoFuel === null && avgDriving === null && (
-                              <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">No match data</span>
+                              <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 rounded-lg text-[9px] font-black">No match data</span>
                             )}
                           </div>
                         </div>
@@ -2369,7 +2369,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </h2>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Pit scouting form</p>
                 </div>
-                <button onClick={() => { setShowPitForm(false); setEditingPit(null); }} className="p-2 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
+                <button onClick={() => { setShowPitForm(false); setEditingPit(null); }} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -2528,7 +2528,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div className="space-y-2">
                   <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Robot Photo</span>
                   {pitForm.photoUrl && (
-                    <div className="relative w-full h-48 rounded-xl overflow-hidden bg-slate-100 mb-2">
+                    <div className="relative w-full h-48 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 mb-2">
                       <img src={pitForm.photoUrl} alt="Robot" className="w-full h-full object-cover" />
                       <button
                         type="button"
@@ -2539,7 +2539,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       </button>
                     </div>
                   )}
-                  <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-600 hover:bg-red-50/30 transition-all">
+                  <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-red-600 hover:bg-red-50/30 dark:bg-slate-700 transition-all">
                     <Camera size={16} className="text-slate-400 dark:text-slate-500" />
                     <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                       {pitForm.photoUrl ? 'Change Photo' : 'Take / Upload Photo'}
@@ -2592,7 +2592,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </h2>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Match scouting form</p>
                 </div>
-                <button onClick={() => { setShowMatchForm(false); setEditingMatch(null); }} className="p-2 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
+                <button onClick={() => { setShowMatchForm(false); setEditingMatch(null); }} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -2605,7 +2605,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <button key={t} type="button"
                         onClick={() => setMatchForm({ ...matchForm, matchType: t })}
                         className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                          matchForm.matchType === t ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          matchForm.matchType === t ? 'bg-slate-900 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'
                         }`}
                       >{t}</button>
                     ))}
@@ -2674,7 +2674,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 })()}
 
                 <div className="space-y-3">
-                  <div className="border-2 border-green-100 bg-green-50/50 rounded-xl p-4">
+                  <div className="border-2 border-green-100 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20 rounded-xl p-4">
                     <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-3">Auto Period Fuel</p>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: Math.max(0, matchForm.autoFuelTotal - 1) })}
@@ -2683,7 +2683,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         type="number"
                         value={matchForm.autoFuelTotal || ''}
                         onChange={(e) => setMatchForm({ ...matchForm, autoFuelTotal: Math.max(0, parseInt(e.target.value) || 0) })}
-                        className="w-16 text-center font-black text-xl text-slate-900 bg-white border-2 border-green-200 rounded-xl py-2 outline-none focus:border-green-500 transition-all"
+                        className="w-16 text-center font-black text-xl text-slate-900 dark:text-white bg-white dark:bg-slate-700 border-2 border-green-200 dark:border-green-700 rounded-xl py-2 outline-none focus:border-green-500 transition-all"
                         placeholder="0"
                         min={0}
                       />
@@ -2696,7 +2696,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   </div>
 
-                  <div className="border-2 border-blue-100 bg-blue-50/50 rounded-xl p-4">
+                  <div className="border-2 border-blue-100 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl p-4">
                     <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3">Tele-Op Period Fuel</p>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: Math.max(0, matchForm.teleopFuelTotal - 1) })}
@@ -2705,7 +2705,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         type="number"
                         value={matchForm.teleopFuelTotal || ''}
                         onChange={(e) => setMatchForm({ ...matchForm, teleopFuelTotal: Math.max(0, parseInt(e.target.value) || 0) })}
-                        className="w-16 text-center font-black text-xl text-slate-900 bg-white border-2 border-blue-200 rounded-xl py-2 outline-none focus:border-blue-500 transition-all"
+                        className="w-16 text-center font-black text-xl text-slate-900 dark:text-white bg-white dark:bg-slate-700 border-2 border-blue-200 dark:border-blue-700 rounded-xl py-2 outline-none focus:border-blue-500 transition-all"
                         placeholder="0"
                         min={0}
                       />
@@ -2839,7 +2839,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">New Event</h2>
                 <p className="text-[10px] md:text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Create a tournament event</p>
               </div>
-              <button onClick={() => setShowEventForm(false)} className="p-2 md:p-3 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
+              <button onClick={() => setShowEventForm(false)} className="p-2 md:p-3 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
                 <X size={20} />
               </button>
             </div>
