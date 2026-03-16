@@ -1480,7 +1480,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         {ps.teamNumber}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-900 truncate">{ps.teamName || `Team ${ps.teamNumber}`}</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-white truncate">{ps.teamName || `Team ${ps.teamNumber}`}</p>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold truncate">{ps.robotName || 'Unnamed'} • {ps.drivetrain || '—'}</p>
                       </div>
                     </div>
@@ -2319,7 +2319,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             {ranking ? `#${ranking.rank}` : idx + 1}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-base md:text-lg font-black text-slate-900 truncate">
+                            <p className="text-base md:text-lg font-black text-slate-900 dark:text-white truncate">
                               Team {ps.teamNumber} {ps.teamName ? `— ${ps.teamName}` : ''}
                             </p>
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold truncate">
