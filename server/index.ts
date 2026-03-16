@@ -662,7 +662,10 @@ app.get("/api/scout-events/:eventId/match-scouts", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
     const scouts = await storage.getMatchScouts(eventId);
-    res.json(scouts);
+    const allUsers = await storage.getUsers();
+    const userMap = new Map(allUsers.map((u: any) => [u.id, u.displayName || u.username]));
+    const enriched = scouts.map(s => ({ ...s, scoutedByName: userMap.get(s.scoutedBy) || `User ${s.scoutedBy}` }));
+    res.json(enriched);
   } catch (error) {
     console.error("Error fetching match scouts:", error);
     res.status(500).json({ error: "Failed to fetch match scouts" });

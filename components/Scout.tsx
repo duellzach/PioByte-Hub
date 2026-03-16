@@ -1377,6 +1377,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Accuracy: {'★'.repeat(m.coralScored || 0)} | Pen: -{m.penalties}
                           </p>
                           {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
+                          {(currentUser.role === 'Coach' || currentUser.role === 'TeamCaptain') && m.scoutedByName && (
+                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Scouted by <span className="text-slate-600">{m.scoutedByName}</span></p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1468,12 +1471,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   ...(m.alliances?.blue?.team_keys || []),
                 ].map((k: string) => parseInt(k.replace('frc', '')));
                 const scoutedTeamNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
-                const pitScoutedTeams = new Set(pitScouts.map((p: any) => p.teamNumber));
-                const relevantTeams = allTeamNums.filter(n => pitScoutedTeams.has(n) || allTeamNums.length > 0);
                 const unscoutedCount = allTeamNums.filter(n => !scoutedTeamNums.has(n)).length;
-                const t = m.predicted_time || m.time;
-                return unscoutedCount > 0 && (!t || t > now - 7200);
-              }).slice(0, 10);
+                return unscoutedCount > 0;
+              }).sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
+
+              const allTBATeamNums = new Set(
+                tbaMatches.flatMap((m: any) => [
+                  ...(m.alliances?.red?.team_keys || []),
+                  ...(m.alliances?.blue?.team_keys || []),
+                ]).map((k: string) => parseInt(k.replace('frc', '')))
+              );
+              const pitScoutedNums = new Set(pitScouts.map((p: any) => p.teamNumber));
+              const unscoutedRobots = [...allTBATeamNums].filter(n => !pitScoutedNums.has(n)).sort((a, b) => a - b);
 
               const getMatchLabel = (m: any) => {
                 const c = m.comp_level || 'qm', n = m.match_number || 0, s = m.set_number || 0;
@@ -1546,48 +1555,86 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   )}
 
-                  {unscoutedMatches.length > 0 && (
-                    <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-5">
-                      <h4 className="text-xs font-black text-amber-900 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <AlertCircle size={14} className="text-amber-600" />
-                        Unscouted Matches
-                      </h4>
-                      <p className="text-[10px] text-amber-700 font-medium mb-3">These matches have teams that haven't been scouted yet. Use TBA video links to scout from footage.</p>
-                      <div className="space-y-2">
-                        {unscoutedMatches.map((m: any) => {
-                          const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
-                          const scoutedNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
-                          const unscoutedTeams = allTeamNums.filter(n => !scoutedNums.has(n));
-                          const tbaMatchUrl = `https://www.thebluealliance.com/match/${m.key}`;
-                          const youtubeLink = m.videos?.find((v: any) => v.type === 'youtube');
-                          return (
-                            <div key={m.key} className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="px-2 py-1 bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
-                                <div className="min-w-0">
-                                  <p className="text-[10px] font-bold text-slate-700">Teams not scouted: <span className="text-amber-700 font-black">{unscoutedTeams.join(', ')}</span></p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {youtubeLink && (
-                                  <a href={`https://www.youtube.com/watch?v=${youtubeLink.key}`} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all">
-                                    <Video size={10} /> Watch
-                                  </a>
-                                )}
-                                <a href={tbaMatchUrl} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1 px-2 py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black hover:bg-blue-700 transition-all">
-                                  TBA
-                                </a>
+                  {(unscoutedMatches.length > 0 || unscoutedRobots.length > 0) && (
+                    <div className="space-y-4">
+                      {unscoutedRobots.length > 0 && (
+                        <div className="bg-rose-50 rounded-2xl border-2 border-rose-200 p-5">
+                          <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            <AlertCircle size={14} className="text-rose-600" />
+                            Unscouted Robots ({unscoutedRobots.length})
+                          </h4>
+                          <p className="text-[10px] text-rose-700 font-medium mb-3">These teams are on the event schedule but have no pit scout data. Visit their pit before they compete.</p>
+                          <div className="flex flex-wrap gap-2">
+                            {unscoutedRobots.map(n => (
+                              <div key={n} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 rounded-xl">
+                                <span className="text-[10px] font-black text-rose-700">#{n}</span>
+                                <a
+                                  href={`https://www.thebluealliance.com/team/${n}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[8px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-wide"
+                                >TBA</a>
                                 <button
-                                  onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1 })); setShowMatchForm(true); }}
-                                  className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
-                                >Record</button>
+                                  onClick={() => { setPitForm((f: any) => ({ ...f, teamNumber: n })); setShowPitForm(true); }}
+                                  className="text-[8px] font-black text-rose-600 hover:text-rose-800 uppercase tracking-wide"
+                                >+ Scout</button>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {unscoutedMatches.length > 0 && (
+                        <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-5">
+                          <h4 className="text-xs font-black text-amber-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            <AlertCircle size={14} className="text-amber-600" />
+                            Unscouted Matches ({unscoutedMatches.length})
+                          </h4>
+                          <p className="text-[10px] text-amber-700 font-medium mb-3">Every match listed has at least one team with no match scout entry. TBA links open the match page where video replays are available.</p>
+                          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                            {unscoutedMatches.map((m: any) => {
+                              const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                              const scoutedNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
+                              const unscoutedTeams = allTeamNums.filter(n => !scoutedNums.has(n));
+                              const tbaMatchUrl = `https://www.thebluealliance.com/match/${m.key}`;
+                              const youtubeLink = m.videos?.find((v: any) => v.type === 'youtube');
+                              const isPast = (m.actual_time || m.time) && (m.actual_time || m.time) < Math.floor(Date.now() / 1000);
+                              return (
+                                <div key={m.key} className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                                      <span className="px-2 py-1 bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase">{getMatchLabel(m)}</span>
+                                      {isPast && <span className="text-[7px] font-black text-slate-400 uppercase">Played</span>}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-bold text-slate-700 truncate">Missing: <span className="text-amber-700 font-black">{unscoutedTeams.join(', ')}</span></p>
+                                      <p className="text-[9px] text-slate-400 font-medium hidden sm:block">
+                                        🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(' ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(' ')}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    {youtubeLink && (
+                                      <a href={`https://www.youtube.com/watch?v=${youtubeLink.key}`} target="_blank" rel="noopener noreferrer"
+                                        className="flex items-center gap-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all">
+                                        <Video size={10} /> Watch
+                                      </a>
+                                    )}
+                                    <a href={tbaMatchUrl} target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center gap-1 px-2 py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black hover:bg-blue-700 transition-all">
+                                      TBA {isPast && '▶'}
+                                    </a>
+                                    <button
+                                      onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1 })); setShowMatchForm(true); }}
+                                      className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
+                                    >Record</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
