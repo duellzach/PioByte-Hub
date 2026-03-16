@@ -596,14 +596,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     report += `## Pit Scout Data\n`;
     report += `Drivetrain: ${r.drivetrain || '—'}\n`;
     report += `Weight: ${r.weight ? `${r.weight} lbs` : '—'} | Speed: ${r.speed ? `${r.speed} ft/s` : '—'} | Height: ${r.height ? `${r.height}"` : '—'}\n`;
-    if (r.shooterType) report += `Shooter Type: ${r.shooterType}\n`;
-    if (r.fuelCapacity > 0) report += `Fuel Capacity: ${r.fuelCapacity} cells\n`;
-    if (r.traversalAbility) report += `Field Traversal: ${r.traversalAbility}\n`;
-    if (r.autoOptions?.length > 0) report += `Auto Routines: ${r.autoOptions.join(', ')}\n`;
+    report += `Shooter Type: ${r.shooterType || '—'}\n`;
+    report += `Fuel Capacity: ${r.fuelCapacity > 0 ? `${r.fuelCapacity} cells` : '—'}\n`;
+    report += `Field Traversal: ${r.traversalAbility || '—'}\n`;
+    report += `Auto Routines: ${r.autoOptions?.length > 0 ? r.autoOptions.join(', ') : 'None'}\n`;
     report += `Ratings: Offense ${r.offenseRating}/10, Defense ${r.defenseRating}/10, Overall ${r.overallRating}/10\n`;
-    if (r.capabilities?.length > 0) report += `Capabilities: ${r.capabilities.join(', ')}\n`;
-    if (r.deficiencies?.length > 0) report += `Weaknesses: ${r.deficiencies.join(', ')}\n`;
-    if (r.notes) report += `Notes: ${r.notes}\n`;
+    report += `Capabilities: ${r.capabilities?.length > 0 ? r.capabilities.join(', ') : 'None'}\n`;
+    report += `Weaknesses: ${r.deficiencies?.length > 0 ? r.deficiencies.join(', ') : 'None'}\n`;
+    report += `Notes: ${r.notes || '—'}\n`;
     report += '\n';
 
     const currentEventName = activeEvent?.name || 'Current Event';
@@ -2860,7 +2860,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <Brain size={20} className="text-white" />
                 </div>
                 <div>
-                  <p className="font-black text-slate-900 text-sm">AI Match Analysis</p>
+                  <p className="font-black text-slate-900 text-sm">{geminiModal.matchLabel.startsWith('Team') ? 'Team Scouting Report' : 'AI Match Analysis'}</p>
                   <p className="text-[10px] text-slate-400 font-bold">{geminiModal.matchLabel}</p>
                 </div>
               </div>

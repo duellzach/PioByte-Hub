@@ -661,6 +661,9 @@ app.delete("/api/pit-scouts/:id", async (req, res) => {
 app.get("/api/scout/team/:teamNumber/all-matches", async (req, res) => {
   try {
     const teamNumber = parseInt(req.params.teamNumber);
+    if (isNaN(teamNumber) || teamNumber <= 0) {
+      return res.status(400).json({ error: "Invalid team number" });
+    }
     const matches = await storage.getMatchScoutsByTeam(teamNumber);
     const allUsers = await storage.getUsers();
     const userMap = new Map(allUsers.map((u: any) => [u.id, u.displayName || u.username]));
