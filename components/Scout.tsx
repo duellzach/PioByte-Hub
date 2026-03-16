@@ -2697,6 +2697,64 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             </div>
           </div>
         )}
+
+        {geminiModal.open && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-blue-600 rounded-xl flex items-center justify-center">
+                    <Brain size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-900 text-sm">{geminiModal.matchLabel.startsWith('Team') ? 'Team Scouting Report' : 'AI Match Analysis'}</p>
+                    <p className="text-[10px] text-slate-400 font-bold">{geminiModal.matchLabel}</p>
+                  </div>
+                </div>
+                <button onClick={() => setGeminiModal({ open: false, text: '', matchLabel: '' })} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <pre className="text-xs text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">{geminiModal.text}</pre>
+                </div>
+              </div>
+              <div className="p-6 border-t border-slate-100 space-y-3">
+                <p className="text-[10px] text-slate-400 font-bold text-center">Copy this prompt and paste it into Google Gemini or ChatGPT for analysis</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(geminiModal.text).then(() => {
+                        setCopiedGemini(true);
+                        setTimeout(() => setCopiedGemini(false), 2000);
+                      });
+                    }}
+                    className={`flex-1 py-3 font-black rounded-xl uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all ${
+                      copiedGemini ? 'bg-green-600 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'
+                    }`}
+                  >
+                    {copiedGemini ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy to Clipboard</>}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([geminiModal.text], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${geminiModal.matchLabel.replace(/\s+/g, '_')}_scout_report.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-3 bg-slate-100 text-slate-700 font-black rounded-xl hover:bg-slate-200 transition-all"
+                  >
+                    <Download size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
