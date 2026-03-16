@@ -65,62 +65,62 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-300">
-      <div className="bg-white rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl border-t-8 border-slate-900">
-        <div className="sticky top-0 bg-white p-6 md:p-8 border-b border-slate-100 flex justify-between items-start">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl border-t-8 border-slate-900">
+        <div className="sticky top-0 bg-white dark:bg-slate-800 p-6 md:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center">
               <Settings size={24} />
             </div>
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter uppercase">Board Settings</h2>
-              <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Configure board options</p>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Board Settings</h2>
+              <p className="text-[10px] md:text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Configure board options</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 md:p-3 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-all">
+          <button onClick={onClose} className="p-2 md:p-3 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 md:p-8 space-y-6">
           <div className="space-y-2">
-            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Board Name</label>
+            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Board Name</label>
             <input 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 transition-all font-black text-lg uppercase tracking-tight"
+              className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-black text-lg uppercase tracking-tight dark:text-white"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Description</label>
+            <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Description</label>
             <textarea 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full h-24 p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 transition-all font-medium text-slate-700 resize-none"
+              className="w-full h-24 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-medium text-slate-700 dark:text-slate-300 resize-none"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+              <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">
                 <Building2 size={14} />
                 Department Access
               </label>
               <select 
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-slate-700"
+                className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-slate-700 dark:text-white"
               >
-                <option value="">All Departments (Open)</option>
+                <option value="" className="dark:bg-slate-700">All Departments (Open)</option>
                 {DEPARTMENTS.map(d => (
-                  <option key={d} value={d}>{d} Only</option>
+                  <option key={d} value={d} className="dark:bg-slate-700">{d} Only</option>
                 ))}
               </select>
-              <p className="text-[9px] text-slate-400 ml-2">Restrict board visibility to specific department members</p>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 ml-2">Restrict board visibility to specific department members</p>
             </div>
 
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+              <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">
                 {showInWarRoom ? <Eye size={14} /> : <EyeOff size={14} />}
                 War Room Visibility
               </label>
@@ -128,19 +128,19 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
                 onClick={() => setShowInWarRoom(!showInWarRoom)}
                 className={`w-full p-4 border-2 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
                   showInWarRoom 
-                    ? 'bg-green-50 border-green-200 text-green-700' 
-                    : 'bg-slate-50 border-slate-100 text-slate-500'
+                    ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400' 
+                    : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-500 dark:text-slate-400'
                 }`}
               >
                 {showInWarRoom ? <Eye size={18} /> : <EyeOff size={18} />}
                 {showInWarRoom ? 'Visible in War Room' : 'Hidden from War Room'}
               </button>
-              <p className="text-[9px] text-slate-400 ml-2">Toggle whether this board shows on the War Room dashboard</p>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 ml-2">Toggle whether this board shows on the War Room dashboard</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+            <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">
               {allowAllTaskCreation ? <UserCheck size={14} /> : <UserPlus size={14} />}
               Task Creation Permissions
             </label>
@@ -148,14 +148,14 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
               onClick={() => setAllowAllTaskCreation(!allowAllTaskCreation)}
               className={`w-full p-4 border-2 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
                 allowAllTaskCreation 
-                  ? 'bg-green-50 border-green-200 text-green-700' 
-                  : 'bg-slate-50 border-slate-100 text-slate-500'
+                  ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400' 
+                  : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-500 dark:text-slate-400'
               }`}
             >
               {allowAllTaskCreation ? <UserCheck size={18} /> : <UserPlus size={18} />}
               {allowAllTaskCreation ? 'All Members Can Create Tasks' : 'Leaders Only Can Create Tasks'}
             </button>
-            <p className="text-[9px] text-slate-400 ml-2">
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 ml-2">
               {allowAllTaskCreation 
                 ? 'Any team member can create tasks on this board' 
                 : 'Only Department Heads, Scrum Masters, Captains, and Coaches can create tasks'}
@@ -163,7 +163,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
           </div>
 
           <div className="space-y-3">
-            <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+            <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">
               <Users size={14} />
               Scrum Masters / Owners
             </label>
@@ -174,28 +174,28 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
                   onClick={() => handleScrumMasterToggle(user.id)}
                   className={`p-3 rounded-xl border-2 transition-all text-left ${
                     scrumMasters.includes(user.id)
-                      ? 'bg-red-50 border-red-300 text-red-700'
-                      : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-slate-200'
+                      ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-600 text-red-700 dark:text-red-400'
+                      : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-500'
                   }`}
                 >
                   <p className="font-black text-xs uppercase truncate">{user.name}</p>
-                  <p className="text-[8px] font-bold uppercase text-slate-400 truncate">{user.roles[0]}</p>
+                  <p className="text-[8px] font-bold uppercase text-slate-400 dark:text-slate-500 truncate">{user.roles[0]}</p>
                 </button>
               ))}
             </div>
             {eligibleScrumMasters.length === 0 && (
-              <p className="text-sm text-slate-400 italic">No eligible scrum masters found</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500 italic">No eligible scrum masters found</p>
             )}
           </div>
 
           {isCoachOrCaptain && (
-            <div className="pt-4 border-t border-slate-100">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
               <button
                 onClick={handleArchiveToggle}
                 className={`w-full p-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
                   project.archived
                     ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-slate-100 text-slate-500 hover:bg-red-600 hover:text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white'
                 }`}
               >
                 <Archive size={18} />
@@ -205,10 +205,10 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white p-6 md:p-8 border-t border-slate-100 flex gap-4">
+        <div className="sticky bottom-0 bg-white dark:bg-slate-800 p-6 md:p-8 border-t border-slate-100 dark:border-slate-700 flex gap-4">
           <button 
             onClick={onClose}
-            className="flex-1 py-4 text-slate-400 font-black hover:bg-slate-100 rounded-xl uppercase tracking-widest text-xs transition-all"
+            className="flex-1 py-4 text-slate-400 dark:text-slate-500 font-black hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl uppercase tracking-widest text-xs transition-all"
           >
             Cancel
           </button>

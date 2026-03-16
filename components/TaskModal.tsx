@@ -200,12 +200,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-[40px] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in duration-300">
-        <header className="p-8 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div className="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in duration-300">
+        <header className="p-8 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
           <div className="flex-1 flex items-center gap-6">
             <button 
                 onClick={toggleHelp}
-                className={`p-4 rounded-2xl transition-all shadow-lg ${editedTask.helpRequested ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-slate-300 border border-slate-200 hover:text-red-600'}`}
+                className={`p-4 rounded-2xl transition-all shadow-lg ${editedTask.helpRequested ? 'bg-red-600 text-white animate-pulse' : 'bg-white dark:bg-slate-800 text-slate-300 border border-slate-200 dark:border-slate-700 hover:text-red-600'}`}
                 title="Toggle SOS"
             >
                 <LifeBuoy size={24} />
@@ -215,9 +215,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   value={editedTask.title}
                   onChange={(e) => setEditedTask({...editedTask, title: e.target.value})}
                   placeholder="Task Title"
-                  className="text-3xl font-black text-slate-900 bg-transparent border-none outline-none focus:ring-4 focus:ring-red-600/10 rounded-xl px-2 w-full uppercase tracking-tighter"
+                  className="text-3xl font-black text-slate-900 dark:text-white bg-transparent border-none outline-none focus:ring-4 focus:ring-red-600/10 rounded-xl px-2 w-full uppercase tracking-tighter"
                 />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
                    <Clock size={10} /> POSTED {new Date(editedTask.createdAt).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })} {new Date(editedTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                 </p>
             </div>
@@ -228,48 +228,48 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     <Trash2 size={24} />
                 </button>
             )}
-            <button onClick={onClose} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
+            <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
               <X size={24} />
             </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-auto grid grid-cols-1 lg:grid-cols-3 gap-0">
-          <div className="lg:col-span-2 p-10 space-y-10 border-r border-slate-100">
+          <div className="lg:col-span-2 p-10 space-y-10 border-r border-slate-100 dark:border-slate-700">
             {editedTask.status === TaskStatus.Blocked && editedTask.blockedReason && (
-              <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[32px] flex items-start gap-6">
+              <div className="bg-red-50 dark:bg-red-900/30 border-2 border-red-100 dark:border-red-700 p-8 rounded-[32px] flex items-start gap-6">
                 <div className="p-3 bg-red-600 text-white rounded-2xl">
                     <AlertTriangle size={24} />
                 </div>
                 <div>
                     <h4 className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Block Report</h4>
-                    <p className="text-slate-700 font-bold text-lg leading-tight uppercase tracking-tight">{editedTask.blockedReason}</p>
+                    <p className="text-slate-700 dark:text-slate-300 font-bold text-lg leading-tight uppercase tracking-tight">{editedTask.blockedReason}</p>
                 </div>
               </div>
             )}
 
             <section>
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Mission Intel (Description)</h3>
+              <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 ml-1">Mission Intel (Description)</h3>
               <textarea 
                 value={editedTask.description}
                 onChange={(e) => setEditedTask({...editedTask, description: e.target.value})}
-                className="w-full h-40 p-8 bg-slate-50 border-2 border-slate-100 rounded-[32px] focus:ring-4 focus:ring-red-600/10 focus:border-red-600 focus:bg-white outline-none transition-all resize-none text-slate-700 leading-relaxed font-medium"
+                className="w-full h-40 p-8 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[32px] focus:ring-4 focus:ring-red-600/10 focus:border-red-600 focus:bg-white dark:focus:bg-slate-800 outline-none transition-all resize-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium"
                 placeholder="What needs to be done?"
               />
             </section>
 
             <section>
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Success Criteria</h3>
+                <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Success Criteria</h3>
                 {editedTask.successCriteria.length > 0 && (
-                  <span className="text-xs font-bold text-slate-400">
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
                     {editedTask.successCriteria.filter(c => c.completed).length}/{editedTask.successCriteria.length} completed
                   </span>
                 )}
               </div>
               <ul className="space-y-3">
                 {editedTask.successCriteria.map((criterion, idx) => (
-                  <li key={criterion.id} className={`flex items-start gap-4 p-5 rounded-[24px] border group transition-all ${criterion.completed ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <li key={criterion.id} className={`flex items-start gap-4 p-5 rounded-[24px] border group transition-all ${criterion.completed ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600'}`}>
                     <button
                       onClick={() => {
                         const updated = editedTask.successCriteria.map((c, i) => 
@@ -282,7 +282,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       {criterion.completed ? (
                         <CheckCircle size={20} className="text-green-500" />
                       ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-slate-300 hover:border-green-500 transition-colors" />
+                        <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-green-500 transition-colors" />
                       )}
                     </button>
                     <input
@@ -294,14 +294,14 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                         );
                         setEditedTask({ ...editedTask, successCriteria: updated });
                       }}
-                      className={`flex-1 bg-transparent outline-none font-bold uppercase text-xs tracking-tight ${criterion.completed ? 'text-green-700 line-through' : 'text-slate-700'}`}
+                      className={`flex-1 bg-transparent outline-none font-bold uppercase text-xs tracking-tight ${criterion.completed ? 'text-green-700 dark:text-green-400 line-through' : 'text-slate-700 dark:text-slate-300'}`}
                     />
                     <button 
                       onClick={() => setEditedTask({
                         ...editedTask, 
                         successCriteria: editedTask.successCriteria.filter((_, i) => i !== idx)
                       })}
-                      className="text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-slate-300 dark:text-slate-600 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -310,7 +310,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 <div className="flex items-center gap-3">
                     <input 
                         id="new-criterion"
-                        className="flex-1 text-sm p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold uppercase placeholder:font-normal" 
+                        className="flex-1 text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold uppercase placeholder:font-normal dark:text-white" 
                         placeholder="Add success criterion..."
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -331,26 +331,26 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               </ul>
             </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t border-slate-100">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t border-slate-100 dark:border-slate-700">
                 <section className="relative">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 ml-1">
+                    <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 ml-1">
                         <MessageSquare size={16} /> Comms
                     </h3>
                     
                     {mentionFilter !== null && filteredMentionUsers.length > 0 && (
-                      <div className="absolute bottom-[80px] left-0 w-full z-20 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                      <div className="absolute bottom-[80px] left-0 w-full z-20 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                         {filteredMentionUsers.map(u => (
                           <button 
                             key={u.id}
                             onClick={() => insertMention(u.username)}
-                            className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors border-b border-slate-100 last:border-0"
+                            className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-600 text-left transition-colors border-b border-slate-100 dark:border-slate-600 last:border-0"
                           >
                             <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-[10px]">
                               {u.name[0]}
                             </div>
                             <div>
-                              <p className="text-xs font-black text-slate-900 uppercase">@{u.username}</p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">{u.name}</p>
+                              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">@{u.username}</p>
+                              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{u.name}</p>
                             </div>
                           </button>
                         ))}
@@ -361,15 +361,15 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                         {editedTask.comments.map(c => {
                           const user = users.find(u => u.id === c.userId);
                           return (
-                            <div key={c.id} className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 group">
+                            <div key={c.id} className="bg-slate-50 dark:bg-slate-700 p-6 rounded-[24px] border border-slate-100 dark:border-slate-600 group">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{user?.name || 'Unknown'}</span>
+                                    <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{user?.name || 'Unknown'}</span>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
+                                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
                                       {isCoach && (
                                         <button 
                                           onClick={() => deleteComment(c.id)}
-                                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-all"
+                                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 transition-all"
                                           title="Delete comment"
                                         >
                                           <Trash2 size={12} />
@@ -377,7 +377,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                       )}
                                     </div>
                                 </div>
-                                <div className="text-sm text-slate-600 leading-relaxed font-medium">
+                                <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                                   {renderCommentText(c.text)}
                                 </div>
                             </div>
@@ -393,9 +393,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addComment())}
                               placeholder="Write a comment... Use @handle to mention someone. Press Enter to send, Shift+Enter for new line."
                               rows={4}
-                              className="w-full text-sm p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all pr-12 font-medium resize-none"
+                              className="w-full text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all pr-12 font-medium resize-none dark:text-white"
                           />
-                          <AtSign size={16} className="absolute right-5 top-5 text-slate-300" />
+                          <AtSign size={16} className="absolute right-5 top-5 text-slate-300 dark:text-slate-600" />
                         </div>
                         <button 
                           onClick={addComment} 
@@ -407,7 +407,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     </div>
                 </section>
                 <section>
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 ml-1">
+                    <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 ml-1">
                         <HistoryIcon size={16} /> Operations Log
                     </h3>
                     <div className="space-y-4 max-h-64 overflow-auto kanban-scroll pr-4">
@@ -417,10 +417,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                           const isResolved = h.action.includes('RESOLVED');
                           return (
                             <div key={h.id} className="flex gap-4 text-xs">
-                                <div className={`w-1 rounded-full ${isSOS && !isResolved ? 'bg-red-600' : isResolved ? 'bg-green-500' : 'bg-red-600/20'}`} />
+                                <div className={`w-1 rounded-full ${isSOS && !isResolved ? 'bg-red-600' : isResolved ? 'bg-green-500' : 'bg-red-600/20 dark:bg-red-600/40'}`} />
                                 <div>
-                                    <p className={`font-black uppercase tracking-tight text-[10px] ${isSOS && !isResolved ? 'text-red-600' : isResolved ? 'text-green-600' : 'text-slate-800'}`}>{h.action}</p>
-                                    <p className="text-slate-400 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {new Date(h.timestamp).toLocaleString([], { timeZone: 'America/Los_Angeles' })}</p>
+                                    <p className={`font-black uppercase tracking-tight text-[10px] ${isSOS && !isResolved ? 'text-red-600' : isResolved ? 'text-green-600' : 'text-slate-800 dark:text-slate-100'}`}>{h.action}</p>
+                                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {new Date(h.timestamp).toLocaleString([], { timeZone: 'America/Los_Angeles' })}</p>
                                 </div>
                             </div>
                           );
@@ -430,9 +430,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </div>
           </div>
 
-          <div className="bg-slate-50/50 p-10 space-y-8">
+          <div className="bg-slate-50/50 dark:bg-slate-900/50 p-10 space-y-8">
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Task Status</label>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Task Status</label>
               <select 
                 value={editedTask.status}
                 onChange={(e) => {
@@ -440,22 +440,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     setEditedTask({...editedTask, status: newStatus});
                     logActivity(`Status changed to ${newStatus.toUpperCase()}`);
                 }}
-                className={`w-full p-5 rounded-[24px] border-2 border-slate-100 text-[11px] font-black uppercase tracking-[0.2em] outline-none focus:border-red-600 transition-all ${STATUS_COLORS[editedTask.status]}`}
+                className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black uppercase tracking-[0.2em] outline-none focus:border-red-600 transition-all ${STATUS_COLORS[editedTask.status]} dark:bg-slate-800`}
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 pb-6 border-b border-slate-200">
+            <div className="grid grid-cols-2 gap-6 pb-6 border-b border-slate-200 dark:border-slate-700">
                <div className="space-y-3">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                     <Calendar size={12} /> Start Date
                   </label>
                   <input 
                     type="date"
                     value={editedTask.startDate}
                     onChange={(e) => setEditedTask({...editedTask, startDate: e.target.value})}
-                    className="w-full p-4 bg-white border-2 border-slate-100 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all"
+                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all dark:text-white"
                   />
                </div>
                <div className="space-y-3">
@@ -466,27 +466,27 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     type="date"
                     value={editedTask.dueDate}
                     onChange={(e) => setEditedTask({...editedTask, dueDate: e.target.value})}
-                    className="w-full p-4 bg-white border-2 border-slate-100 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all"
+                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all dark:text-white"
                   />
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Priority</label>
+                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Priority</label>
                 <select 
                   value={editedTask.priority}
                   onChange={(e) => {
                       setEditedTask({...editedTask, priority: e.target.value as Priority});
                       logActivity(`Priority changed to ${e.target.value.toUpperCase()}`);
                   }}
-                  className={`w-full p-5 rounded-[24px] border-2 border-slate-100 text-[10px] font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all ${PRIORITY_COLORS[editedTask.priority]}`}
+                  className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all ${PRIORITY_COLORS[editedTask.priority]} dark:bg-slate-800`}
                 >
                   {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1 flex items-center gap-1.5">
+                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1 flex items-center gap-1.5">
                     <BarChart3 size={12} /> Effort
                 </label>
                 <select 
@@ -495,7 +495,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       setEditedTask({...editedTask, effort: parseInt(e.target.value)});
                       logActivity(`Effort set to ${e.target.value} PTS`);
                   }}
-                  className="w-full p-5 rounded-[24px] border-2 border-slate-100 text-xs font-black uppercase tracking-widest bg-white outline-none focus:border-red-600 transition-all"
+                  className="w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-800 outline-none focus:border-red-600 transition-all dark:text-white"
                 >
                   {EFFORT_POINTS.map(pt => <option key={pt} value={pt}>{pt} points</option>)}
                 </select>
@@ -503,7 +503,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Assigned Sectors</label>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Assigned Sectors</label>
               <div className="flex flex-wrap gap-2">
                 {DEPARTMENTS.map(dept => (
                   <button
@@ -516,8 +516,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     }}
                     className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl border transition-all ${
                         editedTask.departments.includes(dept)
-                        ? 'bg-slate-950 text-white border-slate-800 shadow-lg scale-105'
-                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'
+                        ? 'bg-slate-950 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-600 shadow-lg scale-105'
+                        : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-slate-400'
                     }`}
                   >
                     {dept}
@@ -527,23 +527,23 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Authorized Units</label>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Authorized Units</label>
               <div className="relative mb-3">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input
                   type="text"
                   placeholder="Search by username..."
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-colors dark:text-white"
                 />
               </div>
               {editedTask.departments.length === 0 && (
-                <p className="text-[9px] text-amber-600 font-bold mb-2 ml-1">Select sectors above to filter available units</p>
+                <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold mb-2 ml-1">Select sectors above to filter available units</p>
               )}
               <div className="space-y-2 max-h-48 overflow-auto kanban-scroll pr-2">
                 {filteredUsersForAssignment.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs font-bold py-4">No matching users found</p>
+                  <p className="text-center text-slate-400 dark:text-slate-500 text-xs font-bold py-4">No matching users found</p>
                 ) : (
                   filteredUsersForAssignment.map(u => (
                     <button
@@ -556,11 +556,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       }}
                       className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
                           editedTask.assignees.includes(u.id)
-                          ? 'bg-red-50 border-red-600/20 text-red-600 shadow-sm'
-                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                          ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-950 text-white flex items-center justify-center text-[10px] font-black">
+                      <div className="w-8 h-8 rounded-lg bg-slate-950 dark:bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
                           {u.name[0]}
                       </div>
                       <div className="text-left">
@@ -573,7 +573,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               </div>
             </div>
 
-            <div className="pt-8 border-t border-slate-200">
+            <div className="pt-8 border-t border-slate-200 dark:border-slate-700">
                 <button 
                   onClick={() => {
                     onSave(editedTask);
