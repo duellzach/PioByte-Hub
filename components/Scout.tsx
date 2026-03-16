@@ -951,11 +951,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex items-center gap-4">
           <button onClick={() => setSelectedRobot(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
-            <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+            <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
           </button>
           <div className="flex-1">
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Team {selectedRobot.teamNumber}</h2>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{selectedRobot.teamName || 'Unknown Team'} • {selectedRobot.robotName || 'Unnamed Robot'}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{selectedRobot.teamName || 'Unknown Team'} • {selectedRobot.robotName || 'Unnamed Robot'}</p>
           </div>
           <button
             onClick={generateRobotAIReport}
@@ -1021,19 +1021,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             )}
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
             <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Ratings</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">Offense</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Offense</span>
                 <span className="text-lg font-black text-red-600">{selectedRobot.offenseRating}/10</span>
               </div>
               <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">Defense</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Defense</span>
                 <span className="text-lg font-black text-blue-600">{selectedRobot.defenseRating}/10</span>
               </div>
               <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">Overall</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Overall</span>
                 <span className="text-lg font-black text-green-600">{selectedRobot.overallRating}/10</span>
               </div>
             </div>
@@ -1051,7 +1051,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         {(selectedRobot.capabilities?.length > 0 || selectedRobot.deficiencies?.length > 0) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {selectedRobot.capabilities?.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Capabilities</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedRobot.capabilities.map((c: string, i: number) => (
@@ -1061,7 +1061,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             )}
             {selectedRobot.deficiencies?.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Deficiencies</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedRobot.deficiencies.map((d: string, i: number) => (
@@ -1074,7 +1074,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         )}
 
         {selectedRobot.notes && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
             <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Notes</h3>
             <p className="text-sm text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{selectedRobot.notes}</p>
           </div>
@@ -1086,7 +1086,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500">Loading TBA season data...</p>
           </div>
         ) : tbaYearEvents.length > 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
             <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
               <Trophy size={12} className="text-yellow-500" />
               {new Date().getFullYear()} Season Events (via TBA)
@@ -1106,20 +1106,20 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10' : 'border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30'}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-black text-slate-900 leading-tight">{event.name}</p>
+                          <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{event.name}</p>
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
                             {event.city && `${event.city}, ${event.state_prov} • `}
                             {event.start_date && new Date(event.start_date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}
                             {event.end_date !== event.start_date && ` – ${new Date(event.end_date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}`}
                           </p>
                           {overallStatus && (
-                            <p className="text-[10px] font-bold text-slate-600 mt-1">{overallStatus}</p>
+                            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{overallStatus}</p>
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           {isCurrentEvent && <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded-full">Current</span>}
                           {rank && <span className="text-xs font-black text-slate-700 dark:text-slate-300">#{rank}{numTeams ? ` / ${numTeams}` : ''}</span>}
-                          {record && <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">{record.wins}-{record.losses}-{record.ties}</span>}
+                          {record && <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{record.wins}-{record.losses}-{record.ties}</span>}
                         </div>
                       </div>
                       <a href={`https://www.thebluealliance.com/team/${selectedRobot.teamNumber}/${event.key}`} target="_blank" rel="noopener noreferrer"
@@ -1161,7 +1161,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
           return (
             <>
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6">Performance Analysis ({robotMatches.length} matches)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center">
@@ -1176,22 +1176,22 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-2xl font-black text-red-600">{avgTotalFuel}</p>
                     <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Total Fuel</p>
                   </div>
-                  <div className="bg-orange-50 rounded-xl p-4 text-center">
+                  <div className="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-orange-600">{avgAccuracy}<span className="text-sm">/5</span></p>
                     <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mt-1">Avg Accuracy</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-4">
-                  <div className="bg-purple-50 rounded-xl p-4 text-center">
+                  <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-purple-600">{climbRate}%</p>
                     <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest mt-1">Climb Rate</p>
                   </div>
-                  <div className="bg-indigo-50 rounded-xl p-4 text-center">
+                  <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-indigo-600">L{maxClimbLevel}</p>
                     <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1">Max Climb</p>
                   </div>
-                  <div className="bg-teal-50 rounded-xl p-4 text-center">
+                  <div className="bg-teal-50 dark:bg-teal-900/30 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-teal-600">{avgDriving}<span className="text-sm">/5</span></p>
                     <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mt-1">Avg Driving</p>
                   </div>
@@ -1217,7 +1217,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Match History</h3>
                 <div className="space-y-3">
                   {robotMatches.sort((a, b) => a.matchNumber - b.matchNumber).map(m => (
@@ -1283,7 +1283,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl border ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10' : 'border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10'}`}>
                             <div className="flex items-center gap-2">
                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>M{m.matchNumber}</span>
-                              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0}</span>
+                              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0}</span>
                               {m.drivingSkillRating > 0 && <span className="text-yellow-500 text-xs">{'★'.repeat(m.drivingSkillRating)}</span>}
                             </div>
                             <span className="text-sm font-black text-slate-900 dark:text-white">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</span>
@@ -1320,7 +1320,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <pre className="text-xs text-slate-700 dark:text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">{geminiModal.text}</pre>
                 </div>
               </div>
-              <div className="p-6 border-t border-slate-100 space-y-3">
+              <div className="p-6 border-t border-slate-100 dark:border-slate-700 space-y-3">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold text-center">Copy this prompt and paste it into Google Gemini or ChatGPT for analysis</p>
                 <div className="flex gap-3">
                   <button
@@ -1365,7 +1365,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 md:gap-4">
             <button onClick={() => { setActiveEvent(null); fetchEvents(); }} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all">
-              <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+              <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
             </button>
             <div>
               <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{activeEvent.name}</h2>
@@ -1440,7 +1440,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
               <button
                 onClick={() => setRobotSort(robotSort === 'number' ? 'name' : 'number')}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
                 title={`Sort by ${robotSort === 'number' ? 'name' : 'number'}`}
               >
                 <ArrowUpDown size={14} /> {robotSort === 'number' ? '#' : 'A-Z'}
@@ -1467,7 +1467,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div
                   key={ps.id}
                   onClick={() => setSelectedRobot(ps)}
-                  className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-5 md:p-6 hover:border-red-600/30 transition-all cursor-pointer"
+                  className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-5 md:p-6 hover:border-red-600/30 transition-all cursor-pointer"
                 >
                   {ps.photoUrl && (
                     <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-slate-100 dark:bg-slate-700">
@@ -1753,7 +1753,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           </p>
                           {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
                           {(currentUser.role === 'Coach' || currentUser.role === 'TeamCaptain') && m.scoutedByName && (
-                            <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">Scouted by <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{m.scoutedByName}</span></p>
+                            <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">Scouted by <span className="text-slate-600 dark:text-slate-400">{m.scoutedByName}</span></p>
                           )}
                         </div>
                       </div>
@@ -1767,7 +1767,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <p className="text-base font-black text-slate-900 dark:text-white">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</p>
                         </div>
                         <div className="flex gap-1">
-                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 transition-all text-slate-500 dark:text-slate-400 dark:text-slate-500 text-[10px] font-black">Edit</button>
+                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 transition-all text-slate-500 dark:text-slate-400 text-[10px] font-black">Edit</button>
                           <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-red-50 transition-all text-red-500">
                             <Trash2 size={14} />
                           </button>
@@ -1796,7 +1796,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/50 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900 dark:text-white">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
+                            <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
                           </div>
                         )) : (
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold p-3">No robots scouted</p>
@@ -1811,7 +1811,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900 dark:text-white">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
+                            <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
                           </div>
                         )) : (
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold p-3">No robots scouted</p>
@@ -1834,7 +1834,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'qr' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
                   <Download size={20} />
@@ -1862,7 +1862,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       >Deselect All</button>
                     </div>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 rounded-xl p-2">
+                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 dark:border-slate-700 rounded-xl p-2">
                     {[...matchScoutsData].sort((a, b) => a.matchNumber - b.matchNumber).map((m: any) => (
                       <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-all">
                         <input
@@ -1876,7 +1876,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           className="w-4 h-4 accent-red-600"
                         />
                         <span className="text-xs font-black text-slate-700 dark:text-slate-300">M{m.matchNumber}</span>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">Team {m.teamNumber}</span>
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Team {m.teamNumber}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
                           {m.alliance}
                         </span>
@@ -1906,7 +1906,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       >Deselect All</button>
                     </div>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 rounded-xl p-2">
+                  <div className="max-h-48 overflow-y-auto space-y-1 border-2 border-slate-100 dark:border-slate-700 rounded-xl p-2">
                     {[...pitScouts].sort((a, b) => a.teamNumber - b.teamNumber).map((r: any) => (
                       <label key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-all">
                         <input
@@ -1920,7 +1920,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           className="w-4 h-4 accent-red-600"
                         />
                         <span className="text-xs font-black text-slate-700 dark:text-slate-300">{r.teamNumber}</span>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">{r.teamName || 'Unknown'}</span>
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{r.teamName || 'Unknown'}</span>
                       </label>
                     ))}
                   </div>
@@ -1951,7 +1951,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       >
                         <ChevronLeft size={20} />
                       </button>
-                      <span className="text-sm font-black text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                      <span className="text-sm font-black text-slate-600 dark:text-slate-400">
                         {qrChunkIndex + 1} / {qrData.length}
                       </span>
                       <button
@@ -1971,7 +1971,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               )}
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
                   <Upload size={20} />
@@ -1999,7 +1999,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </p>
                   <button
                     onClick={stopScanner}
-                    className="w-full py-3 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-300 transition-all"
+                    className="w-full py-3 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-300 transition-all"
                   >
                     Cancel Scanning
                   </button>
@@ -2022,7 +2022,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <div className="flex gap-3">
                     <button
                       onClick={() => { setImportPreview(null); setScannedChunks(new Map()); }}
-                      className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl uppercase tracking-widest text-xs"
+                      className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl uppercase tracking-widest text-xs"
                     >
                       Cancel
                     </button>
@@ -2061,7 +2061,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                   <button
                     onClick={() => setImportResult(null)}
-                    className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                    className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
                   >
                     Dismiss
                   </button>
@@ -2072,7 +2072,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
             {tbaRecord && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-4 md:p-6">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-4 md:p-6">
                 <div className="flex items-center justify-center gap-6">
                   <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team 10991 Record</span>
                   <div className="flex items-center gap-4">
@@ -2091,10 +2091,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             )}
 
             {activeEvent?.tbaEventKey && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Event Schedule</h3>
-                  <button onClick={() => fetchTbaData(activeEvent.tbaEventKey)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                  <button onClick={() => fetchTbaData(activeEvent.tbaEventKey)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
                     Refresh
                   </button>
                 </div>
@@ -2191,7 +2191,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       {time && (
-                                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                                           {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                                         </span>
                                       )}
@@ -2283,7 +2283,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 return (b.overallRating || 0) - (a.overallRating || 0);
               });
               return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
                       {hasRankings ? 'Event Rankings' : 'Scouted Robot Leaderboard'}
@@ -2783,7 +2783,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           <div
             key={evt.id}
             onClick={() => enterEvent(evt)}
-            className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 hover:border-red-600/30 transition-all cursor-pointer group"
+            className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 hover:border-red-600/30 transition-all cursor-pointer group"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all">
@@ -2932,7 +2932,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <pre className="text-xs text-slate-700 dark:text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">{geminiModal.text}</pre>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-100 space-y-3">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-700 space-y-3">
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold text-center">Copy this prompt and paste it into Google Gemini or ChatGPT for analysis</p>
               <div className="flex gap-3">
                 <button
