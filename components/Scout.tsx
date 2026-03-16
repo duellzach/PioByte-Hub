@@ -461,8 +461,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const resetMatchForm = () => {
     setMatchForm({
-      matchNumber: 1, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
-      penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
+      matchNumber: 0, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
+      penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 3, algaeScored: 0,
       autoFuelTotal: 0, teleopFuelTotal: 0,
       defenseRating: 3, drivingSkillRating: 3, coreValuesRating: 3,
       autoUsed: '', notes: ''
@@ -572,10 +572,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       } else { report += `No pit scout data.\n`; }
       if (teamMatches.length > 0) {
         const avg = (field: string) => (teamMatches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / teamMatches.length).toFixed(1);
-        report += `Match Performance (${teamMatches.length} matches): Avg Auto Fuel: ${avg('autoFuelTotal')}, Avg Teleop Fuel: ${avg('teleopFuelTotal')}, Avg Total Scored: ${avg('coralScored')}, Climb Rate: ${((teamMatches.filter((m: any) => m.endClimbLevel > 0).length / teamMatches.length) * 100).toFixed(0)}%\n`;
+        report += `Match Performance (${teamMatches.length} matches): Avg Auto Fuel: ${avg('autoFuelTotal')}, Avg Teleop Fuel: ${avg('teleopFuelTotal')}, Avg Accuracy: ${avg('coralScored')}/5, Climb Rate: ${((teamMatches.filter((m: any) => m.endClimbLevel > 0).length / teamMatches.length) * 100).toFixed(0)}%\n`;
         report += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5\n`;
         for (const m of teamMatches.slice(-3).sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
-          report += `  M${m.matchNumber} (${m.alliance}): ${m.coralScored} total, Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Climb L${m.endClimbLevel}${m.notes ? `, "${m.notes}"` : ''}\n`;
+          report += `  M${m.matchNumber} (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel}${m.notes ? `, "${m.notes}"` : ''}\n`;
         }
       } else { report += `No match data.\n`; }
       const r = tbaRankings.get(teamNum);
@@ -1059,42 +1059,51 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ) : null}
 
         {robotMatches.length > 0 && (() => {
-          const totalFuelScored = robotMatches.reduce((s, m) => s + (m.coralScored || 0), 0);
-          const totalFuelMissed = robotMatches.reduce((s, m) => s + (m.algaeScored || 0), 0);
-          const totalFuelAttempted = totalFuelScored + totalFuelMissed;
-          const fuelAccuracy = totalFuelAttempted > 0 ? ((totalFuelScored / totalFuelAttempted) * 100).toFixed(1) : '—';
-          const avgFuelPerMatch = (totalFuelScored / robotMatches.length).toFixed(1);
-          const avgFuelCapacity = ((totalFuelScored + totalFuelMissed) / robotMatches.length).toFixed(1);
+          const totalAutoFuel = robotMatches.reduce((s, m) => s + (m.autoFuelTotal || 0), 0);
+          const totalTeleopFuel = robotMatches.reduce((s, m) => s + (m.teleopFuelTotal || 0), 0);
+          const avgAutoFuel = (totalAutoFuel / robotMatches.length).toFixed(1);
+          const avgTeleopFuel = (totalTeleopFuel / robotMatches.length).toFixed(1);
+          const avgTotalFuel = ((totalAutoFuel + totalTeleopFuel) / robotMatches.length).toFixed(1);
+          const avgAccuracy = robotMatches.filter(m => m.coralScored > 0).length > 0
+            ? (robotMatches.reduce((s, m) => s + (m.coralScored || 0), 0) / robotMatches.filter(m => m.coralScored > 0).length).toFixed(1)
+            : '—';
           const climbMatches = robotMatches.filter(m => m.endClimbLevel > 0).length;
           const climbRate = ((climbMatches / robotMatches.length) * 100).toFixed(0);
           const maxClimbLevel = Math.max(...robotMatches.map(m => m.endClimbLevel || 0));
-          const autoClimbCount = robotMatches.filter(m => m.autoClimb).length;
-          const avgDefenseRating = (robotMatches.reduce((s, m) => s + (m.defenseRating || 0), 0) / robotMatches.length).toFixed(1);
+          const avgDriving = robotMatches.filter(m => m.drivingSkillRating > 0).length > 0
+            ? (robotMatches.reduce((s, m) => s + (m.drivingSkillRating || 0), 0) / robotMatches.filter(m => m.drivingSkillRating > 0).length).toFixed(1)
+            : '—';
+          const avgCV = robotMatches.filter(m => m.coreValuesRating > 0).length > 0
+            ? (robotMatches.reduce((s, m) => s + (m.coreValuesRating || 0), 0) / robotMatches.filter(m => m.coreValuesRating > 0).length).toFixed(1)
+            : '—';
           const totalPenalties = robotMatches.reduce((s, m) => s + (m.penalties || 0), 0);
           const avgPenalties = (totalPenalties / robotMatches.length).toFixed(1);
-          const bestMatch = robotMatches.reduce((best, m) => (m.coralScored || 0) > (best.coralScored || 0) ? m : best, robotMatches[0]);
-          const avgScore = ((totalFuelScored - totalPenalties) / robotMatches.length).toFixed(1);
+          const bestMatch = robotMatches.reduce((best, m) => {
+            const mTotal = (m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0);
+            const bTotal = (best.autoFuelTotal || 0) + (best.teleopFuelTotal || 0);
+            return mTotal > bTotal ? m : best;
+          }, robotMatches[0]);
 
           return (
             <>
               <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Performance Analysis ({robotMatches.length} matches)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                  <div className="bg-orange-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black text-orange-600">{fuelAccuracy}%</p>
-                    <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mt-1">Fuel Accuracy</p>
-                  </div>
-                  <div className="bg-red-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black text-red-600">{avgFuelPerMatch}</p>
-                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Fuel/Match</p>
+                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-green-600">{avgAutoFuel}</p>
+                    <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mt-1">Avg Auto Fuel</p>
                   </div>
                   <div className="bg-blue-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black text-blue-600">{avgFuelCapacity}</p>
-                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Avg Attempts</p>
+                    <p className="text-2xl font-black text-blue-600">{avgTeleopFuel}</p>
+                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Avg Teleop Fuel</p>
                   </div>
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black text-green-600">{avgScore}</p>
-                    <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mt-1">Avg Net Score</p>
+                  <div className="bg-red-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-red-600">{avgTotalFuel}</p>
+                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Total Fuel</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-black text-orange-600">{avgAccuracy}<span className="text-sm">/5</span></p>
+                    <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mt-1">Avg Accuracy</p>
                   </div>
                 </div>
 
@@ -1108,8 +1117,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1">Max Climb</p>
                   </div>
                   <div className="bg-teal-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black text-teal-600">{avgDefenseRating}</p>
-                    <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mt-1">Avg Defense</p>
+                    <p className="text-2xl font-black text-teal-600">{avgDriving}<span className="text-sm">/5</span></p>
+                    <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mt-1">Avg Driving</p>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-4 text-center">
                     <p className="text-2xl font-black text-amber-600">{avgPenalties}</p>
@@ -1120,15 +1129,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Best Match</p>
-                    <p className="text-sm font-black text-slate-900 mt-1">Match {bestMatch.matchNumber} — {bestMatch.coralScored} fuel scored</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">Match {bestMatch.matchNumber} — {(bestMatch.autoFuelTotal || 0) + (bestMatch.teleopFuelTotal || 0)} total fuel</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auto Climb</p>
-                    <p className="text-sm font-black text-slate-900 mt-1">{autoClimbCount}/{robotMatches.length} matches ({((autoClimbCount / robotMatches.length) * 100).toFixed(0)}%)</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">FIRST Core Values</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">{avgCV}/5 avg rating</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Fuel Scored</p>
-                    <p className="text-sm font-black text-slate-900 mt-1">{totalFuelScored} of {totalFuelAttempted} attempted</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Fuel (All Matches)</p>
+                    <p className="text-sm font-black text-slate-900 mt-1">{totalAutoFuel + totalTeleopFuel} ({totalAutoFuel} auto + {totalTeleopFuel} teleop)</p>
                   </div>
                 </div>
               </div>
@@ -1144,7 +1153,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             Match {m.matchNumber}
                           </span>
                           <span className="text-sm font-bold text-slate-700">
-                            Fuel: {m.coralScored} scored, {m.algaeScored} missed
+                            {(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel
+                            {m.coralScored > 0 && <span className="text-yellow-500 ml-1">{'★'.repeat(m.coralScored)}</span>}
                           </span>
                           {m._scoutCount > 1 && (
                             <span className="px-2 py-0.5 bg-slate-200 text-slate-500 rounded-lg text-[8px] font-black">
@@ -1158,7 +1168,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               Climb L{m.endClimbLevel}
                             </span>
                           )}
-                          <span className="text-lg font-black text-slate-900">{m.coralScored - m.penalties}</span>
+                          <span className="text-base font-black text-slate-900">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</span>
                         </div>
                       </div>
                     </div>
@@ -1364,7 +1374,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         <div>
                           <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
                           <p className="text-[10px] text-slate-400 font-bold">
-                            Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Total: {m.coralScored} | Pen: -{m.penalties}
+                            Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Accuracy: {'★'.repeat(m.coralScored || 0)} | Pen: -{m.penalties}
                           </p>
                           {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
                         </div>
@@ -1374,7 +1384,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           {m.drivingSkillRating > 0 && <p className="text-[9px] text-slate-400 font-bold">Drive: {'★'.repeat(m.drivingSkillRating)}</p>}
                           {m.coreValuesRating > 0 && <p className="text-[9px] text-slate-400 font-bold">CV: {'★'.repeat(m.coreValuesRating)}</p>}
                         </div>
-                        <span className="text-xl font-black text-slate-900">{m.coralScored - m.penalties}</span>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-400 font-bold">Fuel</p>
+                          <p className="text-base font-black text-slate-900">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</p>
+                        </div>
                         <div className="flex gap-1">
                           <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
                           <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
@@ -1405,7 +1418,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             className="p-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 font-bold">Fuel: {m.coralScored} | Pen: -{m.penalties}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(m.coralScored) : ''}</p>
                           </div>
                         )) : (
                           <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
@@ -1420,7 +1433,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             className="p-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
                           >
                             <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 font-bold">Fuel: {m.coralScored} | Pen: -{m.penalties}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(m.coralScored) : ''}</p>
                           </div>
                         )) : (
                           <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
@@ -2338,9 +2351,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Match Number</span>
                     <input
                       type="number"
-                      value={matchForm.matchNumber}
-                      onChange={(e) => setMatchForm({ ...matchForm, matchNumber: parseInt(e.target.value) || 1 })}
+                      value={matchForm.matchNumber || ''}
+                      onChange={(e) => setMatchForm({ ...matchForm, matchNumber: parseInt(e.target.value) || 0 })}
                       className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
+                      placeholder="1"
                       min={1}
                     />
                   </div>
@@ -2425,23 +2439,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <Counter label="Total Fuel Scored" value={matchForm.coralScored} onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })} color="green" />
-                  <Counter label="Fuel Missed" value={matchForm.algaeScored} onChange={(v) => setMatchForm({ ...matchForm, algaeScored: v })} color="orange" />
+                <div className="space-y-2">
+                  <StarRating
+                    value={matchForm.coralScored}
+                    onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })}
+                    max={5}
+                    label="Fuel Accuracy  (1 = always misses → 5 = always hits)"
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auto Climb</span>
-                    <button type="button"
-                      onClick={() => setMatchForm({ ...matchForm, autoClimb: !matchForm.autoClimb })}
-                      className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
-                        matchForm.autoClimb ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-400'
-                      }`}
-                    >{matchForm.autoClimb ? 'Yes' : 'No'}</button>
-                  </div>
-                  <Counter label="Climb Level" value={matchForm.endClimbLevel} onChange={(v) => setMatchForm({ ...matchForm, endClimbLevel: v })} min={0} max={3} />
-                </div>
+                <Counter label="Climb Level (0 = no climb)" value={matchForm.endClimbLevel} onChange={(v) => setMatchForm({ ...matchForm, endClimbLevel: v })} min={0} max={3} />
 
                 <Counter label="Penalties" value={matchForm.penalties} onChange={(v) => setMatchForm({ ...matchForm, penalties: v })} />
 
