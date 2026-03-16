@@ -112,6 +112,9 @@ export const api = {
     getEventRankings: (eventKey: string) => apiRequest<any>(`/tba/event/${eventKey}/rankings`),
     getTeamMatches: (teamKey: string, eventKey: string) => apiRequest<any[]>(`/tba/team/${teamKey}/event/${eventKey}/matches`),
     getTeamStatus: (teamKey: string, eventKey: string) => apiRequest<any>(`/tba/team/${teamKey}/event/${eventKey}/status`),
+    getTeamYearEvents: (teamKey: string, year: number) => apiRequest<any[]>(`/tba/team/${teamKey}/events/${year}`),
+    getTeamYearStatuses: (teamKey: string, year: number) => apiRequest<any>(`/tba/team/${teamKey}/events/${year}/statuses`),
+    getMatchVideos: (matchKey: string) => apiRequest<any>(`/tba/match/${matchKey}`),
   },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),

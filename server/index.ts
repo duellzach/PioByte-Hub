@@ -808,6 +808,36 @@ app.get("/api/tba/team/:teamKey/event/:eventKey/status", async (req, res) => {
   }
 });
 
+app.get("/api/tba/team/:teamKey/events/:year", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/team/${req.params.teamKey}/events/${req.params.year}`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA team year events error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA team year events" });
+  }
+});
+
+app.get("/api/tba/team/:teamKey/events/:year/statuses", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/team/${req.params.teamKey}/events/${req.params.year}/statuses`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA team year statuses error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA team year statuses" });
+  }
+});
+
+app.get("/api/tba/match/:matchKey", async (req, res) => {
+  try {
+    const data = await tbaFetch(`/match/${req.params.matchKey}`);
+    res.json(data);
+  } catch (error) {
+    console.error("TBA match error:", error);
+    res.status(500).json({ error: "Failed to fetch TBA match" });
+  }
+});
+
 app.get("/api/scout-events/:eventId/export", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);

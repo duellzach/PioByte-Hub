@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
@@ -123,20 +123,34 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
-    capabilities: [] as string[], deficiencies: [] as string[], autonomousRoutine: 'None',
+    fuelCapacity: 0, traversalAbility: '', shooterType: '',
+    capabilities: [] as string[], deficiencies: [] as string[],
+    autonomousRoutine: 'None', autoOptions: [] as string[],
     notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
   });
 
   const [matchForm, setMatchForm] = useState({
-    matchNumber: 1, teamNumber: 0, alliance: 'Red',
+    matchNumber: 1, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
     penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
-    defenseRating: 3, notes: ''
+    autoFuelTotal: 0, teleopFuelTotal: 0,
+    defenseRating: 3, drivingSkillRating: 3, coreValuesRating: 3,
+    autoUsed: '', notes: ''
   });
+
+  const [matchClaims, setMatchClaims] = useState<Record<string, { userId: number; userName: string }>>(() => {
+    try { return JSON.parse(localStorage.getItem(`piobyte_claims`) || '{}'); } catch { return {}; }
+  });
+  const [geminiModal, setGeminiModal] = useState<{ open: boolean; text: string; matchLabel: string }>({ open: false, text: '', matchLabel: '' });
+  const [copiedGemini, setCopiedGemini] = useState(false);
 
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<number>>(new Set());
   const [selectedRobotIds, setSelectedRobotIds] = useState<Set<number>>(new Set());
   const [robotSort, setRobotSort] = useState<'number' | 'name'>('number');
   const [matchViewMode, setMatchViewMode] = useState<'list' | 'roster'>('list');
+
+  const [tbaYearEvents, setTbaYearEvents] = useState<any[]>([]);
+  const [tbaYearStatuses, setTbaYearStatuses] = useState<Record<string, any>>({});
+  const [tbaYearLoading, setTbaYearLoading] = useState(false);
 
   const [qrData, setQrData] = useState<string[]>([]);
   const [qrChunkIndex, setQrChunkIndex] = useState(0);
@@ -439,16 +453,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const resetPitForm = () => {
     setPitForm({
       teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
-      capabilities: [], deficiencies: [], autonomousRoutine: 'None',
+      fuelCapacity: 0, traversalAbility: '', shooterType: '',
+      capabilities: [], deficiencies: [], autonomousRoutine: 'None', autoOptions: [],
       notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
     });
   };
 
   const resetMatchForm = () => {
     setMatchForm({
-      matchNumber: 1, teamNumber: 0, alliance: 'Red',
+      matchNumber: 1, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
       penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
-      defenseRating: 3, notes: ''
+      autoFuelTotal: 0, teleopFuelTotal: 0,
+      defenseRating: 3, drivingSkillRating: 3, coreValuesRating: 3,
+      autoUsed: '', notes: ''
     });
   };
 
@@ -458,8 +475,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setPitForm({
       teamNumber: pit.teamNumber, teamName: pit.teamName, robotName: pit.robotName,
       drivetrain: pit.drivetrain, weight: pit.weight || 0, speed: pit.speed || 0, height: pit.height || 0,
+      fuelCapacity: pit.fuelCapacity || 0, traversalAbility: pit.traversalAbility || '',
+      shooterType: pit.shooterType || '',
       capabilities: pit.capabilities || [], deficiencies: pit.deficiencies || [],
-      autonomousRoutine: pit.autonomousRoutine || 'None', notes: pit.notes || '',
+      autonomousRoutine: pit.autonomousRoutine || 'None', autoOptions: pit.autoOptions || [],
+      notes: pit.notes || '',
       offenseRating: pit.offenseRating, defenseRating: pit.defenseRating, overallRating: pit.overallRating,
       photoUrl: pit.photoUrl || ''
     });
@@ -496,12 +516,74 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const openEditMatch = (match: any) => {
     setEditingMatch(match);
     setMatchForm({
-      matchNumber: match.matchNumber, teamNumber: match.teamNumber, alliance: match.alliance,
+      matchNumber: match.matchNumber, matchType: match.matchType || 'qualification',
+      teamNumber: match.teamNumber, alliance: match.alliance,
       penalties: match.penalties, autoClimb: match.autoClimb, endClimbLevel: match.endClimbLevel,
       coralScored: match.coralScored, algaeScored: match.algaeScored,
-      defenseRating: match.defenseRating, notes: match.notes
+      autoFuelTotal: match.autoFuelTotal || 0, teleopFuelTotal: match.teleopFuelTotal || 0,
+      defenseRating: match.defenseRating || 3, drivingSkillRating: match.drivingSkillRating || 3,
+      coreValuesRating: match.coreValuesRating || 3,
+      autoUsed: match.autoUsed || '', notes: match.notes
     });
     setShowMatchForm(true);
+  };
+
+  const claimMatch = (matchKey: string) => {
+    const updated = { ...matchClaims, [matchKey]: { userId: parseInt(currentUser.id), userName: currentUser.name || currentUser.username } };
+    setMatchClaims(updated);
+    localStorage.setItem('piobyte_claims', JSON.stringify(updated));
+  };
+
+  const unclaimMatch = (matchKey: string) => {
+    const updated = { ...matchClaims };
+    delete updated[matchKey];
+    setMatchClaims(updated);
+    localStorage.setItem('piobyte_claims', JSON.stringify(updated));
+  };
+
+  const generateGeminiReport = (tbaMatch: any) => {
+    const getLabel = (m: any) => {
+      const c = m.comp_level || 'qm', n = m.match_number || 0, s = m.set_number || 0;
+      if (c === 'qm') return `Qualification ${n}`;
+      if (c === 'qf') return `Quarterfinal ${s}-${n}`;
+      if (c === 'sf') return `Semifinal ${s}-${n}`;
+      if (c === 'f') return `Final ${n}`;
+      return `Match ${n}`;
+    };
+    const label = getLabel(tbaMatch);
+    const allTeamKeys = [...(tbaMatch.alliances?.red?.team_keys || []), ...(tbaMatch.alliances?.blue?.team_keys || [])];
+    let report = `# FRC Match Analysis Request: ${label}\nEvent: ${activeEvent?.name}\n\n`;
+    report += `**Red Alliance:** ${(tbaMatch.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}\n`;
+    report += `**Blue Alliance:** ${(tbaMatch.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}\n\n`;
+    report += `## Scouted Team Data\n\n`;
+    for (const teamKey of allTeamKeys) {
+      const teamNum = parseInt(teamKey.replace('frc', ''));
+      const isRed = tbaMatch.alliances?.red?.team_keys?.includes(teamKey);
+      const pit = pitScouts.find((p: any) => p.teamNumber === teamNum);
+      const teamMatches = matchScoutsData.filter((m: any) => m.teamNumber === teamNum);
+      report += `### Team ${teamNum}${pit ? ` — ${pit.teamName}` : ''} (${isRed ? 'RED' : 'BLUE'})\n`;
+      if (pit) {
+        report += `Robot: ${pit.robotName || '—'} | Drivetrain: ${pit.drivetrain || '—'} | Shooter: ${pit.shooterType || '—'} | Fuel Capacity: ${pit.fuelCapacity || '—'} | Traversal: ${pit.traversalAbility || '—'}\n`;
+        report += `Auto Options: ${pit.autoOptions?.length > 0 ? pit.autoOptions.join(', ') : 'None'}\n`;
+        report += `Ratings: Offense ${pit.offenseRating}/10, Defense ${pit.defenseRating}/10, Overall ${pit.overallRating}/10\n`;
+        if (pit.capabilities?.length > 0) report += `Capabilities: ${pit.capabilities.join(', ')}\n`;
+        if (pit.deficiencies?.length > 0) report += `Weaknesses: ${pit.deficiencies.join(', ')}\n`;
+        if (pit.notes) report += `Notes: ${pit.notes}\n`;
+      } else { report += `No pit scout data.\n`; }
+      if (teamMatches.length > 0) {
+        const avg = (field: string) => (teamMatches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / teamMatches.length).toFixed(1);
+        report += `Match Performance (${teamMatches.length} matches): Avg Auto Fuel: ${avg('autoFuelTotal')}, Avg Teleop Fuel: ${avg('teleopFuelTotal')}, Avg Total Scored: ${avg('coralScored')}, Climb Rate: ${((teamMatches.filter((m: any) => m.endClimbLevel > 0).length / teamMatches.length) * 100).toFixed(0)}%\n`;
+        report += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5\n`;
+        for (const m of teamMatches.slice(-3).sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
+          report += `  M${m.matchNumber} (${m.alliance}): ${m.coralScored} total, Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Climb L${m.endClimbLevel}${m.notes ? `, "${m.notes}"` : ''}\n`;
+        }
+      } else { report += `No match data.\n`; }
+      const r = tbaRankings.get(teamNum);
+      if (r) report += `TBA Rank: #${r.rank} | Record: ${r.record} | RP: ${r.rp.toFixed(2)}\n`;
+      report += '\n';
+    }
+    report += `---\nPlease analyze this match data and provide strategic recommendations for match strategy and alliance performance.`;
+    setGeminiModal({ open: true, text: report, matchLabel: label });
   };
 
   const generateQR = async () => {
@@ -780,6 +862,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
   }, [selectedRobot, matchScoutsData]);
 
+  useEffect(() => {
+    if (!selectedRobot) { setTbaYearEvents([]); setTbaYearStatuses({}); return; }
+    const year = new Date().getFullYear();
+    const teamKey = `frc${selectedRobot.teamNumber}`;
+    setTbaYearLoading(true);
+    Promise.all([
+      api.tba.getTeamYearEvents(teamKey, year).catch(() => []),
+      api.tba.getTeamYearStatuses(teamKey, year).catch(() => ({})),
+    ]).then(([evts, statuses]) => {
+      setTbaYearEvents(evts || []);
+      setTbaYearStatuses(statuses || {});
+      setTbaYearLoading(false);
+    });
+  }, [selectedRobot]);
+
   if (selectedRobot && activeEvent) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -801,7 +898,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Robot Specs</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-50 rounded-xl p-4">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Drivetrain</p>
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.drivetrain || '—'}</p>
@@ -818,11 +915,35 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Height</p>
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.height ? `${selectedRobot.height}"` : '—'}</p>
               </div>
+              {selectedRobot.shooterType && (
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shooter</p>
+                  <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.shooterType}</p>
+                </div>
+              )}
+              {selectedRobot.fuelCapacity > 0 && (
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fuel Capacity</p>
+                  <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.fuelCapacity} cells</p>
+                </div>
+              )}
+              {selectedRobot.traversalAbility && (
+                <div className="bg-slate-50 rounded-xl p-4 col-span-2">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Field Traversal</p>
+                  <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.traversalAbility}</p>
+                </div>
+              )}
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Autonomous</p>
-              <p className="text-sm font-black text-slate-900 mt-1">{selectedRobot.autonomousRoutine || '—'}</p>
-            </div>
+            {selectedRobot.autoOptions?.length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-2">Auto Routines Available</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedRobot.autoOptions.map((a: string, i: number) => (
+                    <span key={i} className="px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-bold">{a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8 space-y-6">
@@ -883,6 +1004,59 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap">{selectedRobot.notes}</p>
           </div>
         )}
+
+        {tbaYearLoading ? (
+          <div className="bg-white rounded-2xl border-2 border-slate-100 p-6 flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-bold text-slate-400">Loading TBA season data...</p>
+          </div>
+        ) : tbaYearEvents.length > 0 ? (
+          <div className="bg-white rounded-2xl md:rounded-[32px] border-2 border-slate-100 p-6 md:p-8">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Trophy size={12} className="text-yellow-500" />
+              {new Date().getFullYear()} Season Events (via TBA)
+            </h3>
+            <div className="space-y-3">
+              {tbaYearEvents
+                .filter((e: any) => e.event_type_string !== 'Offseason')
+                .sort((a: any, b: any) => (a.start_date || '').localeCompare(b.start_date || ''))
+                .map((event: any) => {
+                  const status = tbaYearStatuses[`frc${selectedRobot.teamNumber}`] || tbaYearStatuses[event.key];
+                  const overallStatus = status?.overall_status_str?.replace(/<[^>]*>/g, '') || null;
+                  const rank = status?.qual?.ranking?.rank;
+                  const numTeams = status?.qual?.num_teams;
+                  const record = status?.qual?.ranking?.record;
+                  const isCurrentEvent = activeEvent?.tbaEventKey === event.key;
+                  return (
+                    <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-red-200 bg-red-50/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-900 leading-tight">{event.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {event.city && `${event.city}, ${event.state_prov} • `}
+                            {event.start_date && new Date(event.start_date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            {event.end_date !== event.start_date && ` – ${new Date(event.end_date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}`}
+                          </p>
+                          {overallStatus && (
+                            <p className="text-[10px] font-bold text-slate-600 mt-1">{overallStatus}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {isCurrentEvent && <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded-full">Current</span>}
+                          {rank && <span className="text-xs font-black text-slate-700">#{rank}{numTeams ? ` / ${numTeams}` : ''}</span>}
+                          {record && <span className="text-[10px] font-bold text-slate-500">{record.wins}-{record.losses}-{record.ties}</span>}
+                        </div>
+                      </div>
+                      <a href={`https://www.thebluealliance.com/team/${selectedRobot.teamNumber}/${event.key}`} target="_blank" rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">
+                        View on TBA →
+                      </a>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        ) : null}
 
         {robotMatches.length > 0 && (() => {
           const totalFuelScored = robotMatches.reduce((s, m) => s + (m.coralScored || 0), 0);
@@ -1175,19 +1349,31 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 md:gap-4">
-                        <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
-                          m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-                        }`}>
-                          M{m.matchNumber}
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                            m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                          }`}>
+                            M{m.matchNumber}
+                          </span>
+                          {m.matchType && m.matchType !== 'qualification' && (
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                              m.matchType === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'
+                            }`}>{m.matchType}</span>
+                          )}
+                        </div>
                         <div>
                           <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
                           <p className="text-[10px] text-slate-400 font-bold">
-                            Fuel: {m.coralScored} scored, {m.algaeScored} missed | Pen: -{m.penalties}
+                            Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Total: {m.coralScored} | Pen: -{m.penalties}
                           </p>
+                          {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="text-right hidden sm:block">
+                          {m.drivingSkillRating > 0 && <p className="text-[9px] text-slate-400 font-bold">Drive: {'★'.repeat(m.drivingSkillRating)}</p>}
+                          {m.coreValuesRating > 0 && <p className="text-[9px] text-slate-400 font-bold">CV: {'★'.repeat(m.coreValuesRating)}</p>}
+                        </div>
                         <span className="text-xl font-black text-slate-900">{m.coralScored - m.penalties}</span>
                         <div className="flex gap-1">
                           <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
@@ -1247,12 +1433,153 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             )}
 
             {sortedMatches.length === 0 && (
-              <div className="py-16 text-center">
+              <div className="py-8 text-center">
                 <Swords size={48} className="text-slate-200 mx-auto mb-4" />
                 <p className="text-lg font-black text-slate-300 uppercase tracking-tight">No Matches Recorded</p>
                 <p className="text-slate-400 text-sm mt-1">Record match data to track performance</p>
               </div>
             )}
+
+            {activeEvent?.tbaEventKey && tbaMatches.length > 0 && (() => {
+              const now = Math.floor(Date.now() / 1000);
+              const upcoming = tbaMatches
+                .filter((m: any) => {
+                  const t = m.predicted_time || m.time;
+                  return t && t > now - 3600 && m.alliances?.red?.score === null;
+                })
+                .sort((a: any, b: any) => (a.predicted_time || a.time) - (b.predicted_time || b.time));
+
+              const unscoutedMatches = tbaMatches.filter((m: any) => {
+                const allTeamNums = [
+                  ...(m.alliances?.red?.team_keys || []),
+                  ...(m.alliances?.blue?.team_keys || []),
+                ].map((k: string) => parseInt(k.replace('frc', '')));
+                const scoutedTeamNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
+                const pitScoutedTeams = new Set(pitScouts.map((p: any) => p.teamNumber));
+                const relevantTeams = allTeamNums.filter(n => pitScoutedTeams.has(n) || allTeamNums.length > 0);
+                const unscoutedCount = allTeamNums.filter(n => !scoutedTeamNums.has(n)).length;
+                const t = m.predicted_time || m.time;
+                return unscoutedCount > 0 && (!t || t > now - 7200);
+              }).slice(0, 10);
+
+              const getMatchLabel = (m: any) => {
+                const c = m.comp_level || 'qm', n = m.match_number || 0, s = m.set_number || 0;
+                if (c === 'qm') return `Qual ${n}`;
+                if (c === 'qf') return `QF ${s}-${n}`;
+                if (c === 'sf') return `SF ${s}-${n}`;
+                if (c === 'f') return `Final ${n}`;
+                return `M${n}`;
+              };
+
+              return (
+                <div className="space-y-4 mt-6">
+                  {upcoming.length > 0 && (
+                    <div className="bg-white rounded-2xl border-2 border-slate-100 p-5">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <UserCheck size={14} className="text-green-600" />
+                        Claim a Match to Scout
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium mb-3">Tap a match to claim it for scouting so teammates know who's covering what.</p>
+                      <div className="space-y-2">
+                        {upcoming.slice(0, 8).map((m: any) => {
+                          const claim = matchClaims[m.key];
+                          const isMine = claim?.userId === parseInt(currentUser.id);
+                          const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                          const time = m.predicted_time || m.time;
+                          return (
+                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 bg-green-50' : claim ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white hover:border-red-200 hover:bg-red-50/30'} transition-all`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-600 truncate">
+                                    🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}
+                                  </p>
+                                  {claim && (
+                                    <p className={`text-[9px] font-black ${isMine ? 'text-green-600' : 'text-slate-400'}`}>
+                                      {isMine ? '✓ Claimed by you' : `Claimed by ${claim.userName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {time && (
+                                  <span className="text-[9px] text-slate-400 font-bold hidden sm:block">
+                                    {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                  </span>
+                                )}
+                                {isMine ? (
+                                  <button onClick={() => unclaimMatch(m.key)}
+                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black hover:bg-green-700 transition-all">Unclaim</button>
+                                ) : !claim ? (
+                                  <button onClick={() => claimMatch(m.key)}
+                                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all">Claim</button>
+                                ) : (
+                                  <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">Taken</span>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    resetMatchForm();
+                                    const scoutedTeam = pitScouts.find((p: any) => allTeams.includes(p.teamNumber));
+                                    setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1, matchType: m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination' }));
+                                    setShowMatchForm(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
+                                >Scout</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {unscoutedMatches.length > 0 && (
+                    <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-5">
+                      <h4 className="text-xs font-black text-amber-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <AlertCircle size={14} className="text-amber-600" />
+                        Unscouted Matches
+                      </h4>
+                      <p className="text-[10px] text-amber-700 font-medium mb-3">These matches have teams that haven't been scouted yet. Use TBA video links to scout from footage.</p>
+                      <div className="space-y-2">
+                        {unscoutedMatches.map((m: any) => {
+                          const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                          const scoutedNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
+                          const unscoutedTeams = allTeamNums.filter(n => !scoutedNums.has(n));
+                          const tbaMatchUrl = `https://www.thebluealliance.com/match/${m.key}`;
+                          const youtubeLink = m.videos?.find((v: any) => v.type === 'youtube');
+                          return (
+                            <div key={m.key} className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="px-2 py-1 bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-700">Teams not scouted: <span className="text-amber-700 font-black">{unscoutedTeams.join(', ')}</span></p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {youtubeLink && (
+                                  <a href={`https://www.youtube.com/watch?v=${youtubeLink.key}`} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all">
+                                    <Video size={10} /> Watch
+                                  </a>
+                                )}
+                                <a href={tbaMatchUrl} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-2 py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black hover:bg-blue-700 transition-all">
+                                  TBA
+                                </a>
+                                <button
+                                  onClick={() => { resetMatchForm(); setMatchForm(f => ({ ...f, matchNumber: m.match_number || 1 })); setShowMatchForm(true); }}
+                                  className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
+                                >Record</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : activeTab === 'qr' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
@@ -1611,11 +1938,20 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         </p>
                                       </div>
                                     </div>
-                                    {time && (
-                                      <span className="text-xs font-bold text-slate-500">
-                                        {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {time && (
+                                        <span className="text-xs font-bold text-slate-500">
+                                          {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                        </span>
+                                      )}
+                                      <button
+                                        onClick={() => generateGeminiReport(m)}
+                                        title="Generate AI match analysis"
+                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg text-[9px] font-black hover:from-violet-700 hover:to-blue-700 transition-all active:scale-95"
+                                      >
+                                        <Brain size={11} /> AI
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1838,20 +2174,53 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Autonomous Routine</span>
-                  <select
-                    value={pitForm.autonomousRoutine}
-                    onChange={(e) => setPitForm({ ...pitForm, autonomousRoutine: e.target.value })}
-                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
-                  >
-                    <option value="None">None</option>
-                    <option value="Basic">Basic</option>
-                    <option value="Motion Profiling">Motion Profiling</option>
-                    <option value="Vision">Vision</option>
-                    <option value="Custom">Custom</option>
-                  </select>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fuel Capacity</span>
+                    <input
+                      type="number"
+                      value={pitForm.fuelCapacity || ''}
+                      onChange={(e) => setPitForm({ ...pitForm, fuelCapacity: parseInt(e.target.value) || 0 })}
+                      className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                      placeholder="0"
+                      min={0}
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shooter Type</span>
+                    <div className="flex gap-2">
+                      {['Turret', 'Launcher', 'None'].map(t => (
+                        <button key={t} type="button"
+                          onClick={() => setPitForm({ ...pitForm, shooterType: pitForm.shooterType === t ? '' : t })}
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                            pitForm.shooterType === t ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          }`}
+                        >{t}</button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Field Traversal</span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {['Over Bump', 'Under Trench', 'Both', 'Neither'].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setPitForm({ ...pitForm, traversalAbility: pitForm.traversalAbility === t ? '' : t })}
+                        className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          pitForm.traversalAbility === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >{t}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <TagInput
+                  tags={pitForm.autoOptions}
+                  onChange={(tags) => setPitForm({ ...pitForm, autoOptions: tags })}
+                  label="Auto Options (list all autonomous routines available)"
+                  placeholder="e.g. 2-piece, center, far side... press Enter"
+                />
 
                 <TagInput
                   tags={pitForm.capabilities}
@@ -1950,6 +2319,20 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
 
               <div className="space-y-5">
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Match Type</span>
+                  <div className="flex gap-2">
+                    {(['practice', 'qualification', 'elimination'] as const).map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setMatchForm({ ...matchForm, matchType: t })}
+                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          matchForm.matchType === t ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                        }`}
+                      >{t}</button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Match Number</span>
@@ -1976,15 +2359,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div className="space-y-1">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Alliance</span>
                   <div className="flex gap-2">
-                    <button
-                      type="button"
+                    <button type="button"
                       onClick={() => setMatchForm({ ...matchForm, alliance: 'Red' })}
                       className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm transition-all ${
                         matchForm.alliance === 'Red' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'bg-red-100 text-red-400'
                       }`}
                     >Red</button>
-                    <button
-                      type="button"
+                    <button type="button"
                       onClick={() => setMatchForm({ ...matchForm, alliance: 'Blue' })}
                       className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm transition-all ${
                         matchForm.alliance === 'Blue' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-blue-100 text-blue-400'
@@ -1993,30 +2374,79 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
+                {(() => {
+                  const scoutedTeam = pitScouts.find((p: any) => p.teamNumber === matchForm.teamNumber);
+                  const autoOpts = scoutedTeam?.autoOptions || [];
+                  return autoOpts.length > 0 ? (
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auto Used</span>
+                      <select
+                        value={matchForm.autoUsed}
+                        onChange={(e) => setMatchForm({ ...matchForm, autoUsed: e.target.value })}
+                        className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                      >
+                        <option value="">Select auto routine...</option>
+                        {autoOpts.map((a: string) => <option key={a} value={a}>{a}</option>)}
+                        <option value="Other">Other / Custom</option>
+                      </select>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="space-y-3">
+                  <div className="border-2 border-green-100 bg-green-50/50 rounded-xl p-4">
+                    <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-3">Auto Period Fuel</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: Math.max(0, matchForm.autoFuelTotal - 1) })}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">−</button>
+                      <span className="w-12 text-center font-black text-xl text-slate-900">{matchForm.autoFuelTotal}</span>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 1 })}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all active:scale-95">+</button>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 5 })}
+                        className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-green-200 text-green-800 hover:bg-green-300 transition-all active:scale-95">+5</button>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, autoFuelTotal: matchForm.autoFuelTotal + 10 })}
+                        className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-green-200 text-green-800 hover:bg-green-300 transition-all active:scale-95">+10</button>
+                    </div>
+                  </div>
+
+                  <div className="border-2 border-blue-100 bg-blue-50/50 rounded-xl p-4">
+                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3">Tele-Op Period Fuel</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: Math.max(0, matchForm.teleopFuelTotal - 1) })}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">−</button>
+                      <span className="w-12 text-center font-black text-xl text-slate-900">{matchForm.teleopFuelTotal}</span>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 1 })}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all active:scale-95">+</button>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 5 })}
+                        className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-blue-200 text-blue-800 hover:bg-blue-300 transition-all active:scale-95">+5</button>
+                      <button type="button" onClick={() => setMatchForm({ ...matchForm, teleopFuelTotal: matchForm.teleopFuelTotal + 10 })}
+                        className="px-3 h-10 flex items-center justify-center rounded-xl font-black text-xs bg-blue-200 text-blue-800 hover:bg-blue-300 transition-all active:scale-95">+10</button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <Counter label="Fuel Scored" value={matchForm.coralScored} onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })} color="green" />
+                  <Counter label="Total Fuel Scored" value={matchForm.coralScored} onChange={(v) => setMatchForm({ ...matchForm, coralScored: v })} color="green" />
                   <Counter label="Fuel Missed" value={matchForm.algaeScored} onChange={(v) => setMatchForm({ ...matchForm, algaeScored: v })} color="orange" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auto Climb</span>
-                    <button
-                      type="button"
+                    <button type="button"
                       onClick={() => setMatchForm({ ...matchForm, autoClimb: !matchForm.autoClimb })}
                       className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
                         matchForm.autoClimb ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-400'
                       }`}
-                    >
-                      {matchForm.autoClimb ? 'Yes' : 'No'}
-                    </button>
+                    >{matchForm.autoClimb ? 'Yes' : 'No'}</button>
                   </div>
                   <Counter label="Climb Level" value={matchForm.endClimbLevel} onChange={(v) => setMatchForm({ ...matchForm, endClimbLevel: v })} min={0} max={3} />
                 </div>
 
                 <Counter label="Penalties" value={matchForm.penalties} onChange={(v) => setMatchForm({ ...matchForm, penalties: v })} />
 
-                <StarRating value={matchForm.defenseRating} onChange={(v) => setMatchForm({ ...matchForm, defenseRating: v })} max={5} label="Defense Rating" />
+                <StarRating value={matchForm.drivingSkillRating} onChange={(v) => setMatchForm({ ...matchForm, drivingSkillRating: v })} max={5} label="Driving Skill Rating" />
+                <StarRating value={matchForm.coreValuesRating} onChange={(v) => setMatchForm({ ...matchForm, coreValuesRating: v })} max={5} label="FIRST Core Values Rating" />
 
                 <div className="space-y-1">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Notes</span>
@@ -2188,6 +2618,63 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <Trophy size={16} />
                 Create Event
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {geminiModal.open && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-blue-600 rounded-xl flex items-center justify-center">
+                  <Brain size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 text-sm">AI Match Analysis</p>
+                  <p className="text-[10px] text-slate-400 font-bold">{geminiModal.matchLabel}</p>
+                </div>
+              </div>
+              <button onClick={() => setGeminiModal({ open: false, text: '', matchLabel: '' })} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="bg-slate-50 rounded-2xl p-4">
+                <pre className="text-xs text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">{geminiModal.text}</pre>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 space-y-3">
+              <p className="text-[10px] text-slate-400 font-bold text-center">Copy this prompt and paste it into Google Gemini or ChatGPT for analysis</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(geminiModal.text).then(() => {
+                      setCopiedGemini(true);
+                      setTimeout(() => setCopiedGemini(false), 2000);
+                    });
+                  }}
+                  className={`flex-1 py-3 font-black rounded-xl uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all ${
+                    copiedGemini ? 'bg-green-600 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'
+                  }`}
+                >
+                  {copiedGemini ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy to Clipboard</>}
+                </button>
+                <button
+                  onClick={() => {
+                    const blob = new Blob([geminiModal.text], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${geminiModal.matchLabel.replace(/\s+/g, '_')}_scout_report.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-4 py-3 bg-slate-100 text-slate-700 font-black rounded-xl hover:bg-slate-200 transition-all"
+                >
+                  <Download size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

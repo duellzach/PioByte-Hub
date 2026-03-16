@@ -97,6 +97,43 @@ After seeding the database:
   - 14 REST API endpoints including bulk import/export
   - Self-contained component with internal state management (no routing for sub-views)
 
+## Recent Changes (March 2026 — Session 2)
+- **Match Claiming System**:
+  - Scouts can claim upcoming TBA matches to indicate who's scouting what
+  - Claimed matches stored in localStorage under `piobyte_claims` (persists offline)
+  - Claim/Unclaim buttons in Matches tab; shows who has claimed each match
+  - "Scout" button quick-fills the match number in the recording form
+
+- **Unscouted Matches Section**:
+  - Matches tab shows unscouted teams with TBA video links (YouTube + TBA page links)
+  - Identifies which teams in each match haven't been scouted yet
+  - "Record" button quick-fills match number for fast entry from video footage
+
+- **AI Match Analysis (Gemini Export)**:
+  - "AI" button on each upcoming match in Pit Display generates a detailed scouting report
+  - Report includes all 6 teams' pit data, match history averages, TBA rankings
+  - Full-screen modal with copy-to-clipboard and download-as-text options
+  - Designed to paste into Google Gemini or ChatGPT for strategic match analysis
+
+- **Enhanced Match Form**:
+  - Match Type selector (Practice / Qualification / Elimination)
+  - Separate Auto Fuel and Tele-Op Fuel counters with +1, +5, +10 quick-add buttons
+  - "Auto Used" dropdown auto-populates from the team's scouted auto options
+  - Driving Skill Rating and FIRST Core Values Rating (star selectors)
+  - Match list shows all new fields: type badge, auto/teleop split, driving/CV ratings
+
+- **Enhanced Pit Scout Form**:
+  - Fuel Capacity numeric input
+  - Shooter Type selector (Turret / Launcher / None)
+  - Field Traversal selector (Over Bump / Under Trench / Both / Neither)
+  - Auto Options tag input — list all autonomous routines the robot can run
+
+- **Robot Detail View Enhancements**:
+  - Shows new fields: Shooter Type, Fuel Capacity, Field Traversal, Auto Routines
+  - TBA Season Events section — fetches all events for the current year, shows location, dates, rank, and W-L-T record from TBA live data
+  - Prior event cards link directly to TBA for full event details
+  - Current event highlighted in red
+
 ## Recent Changes (March 2026)
 - **Dark Mode**:
   - Toggle in sidebar (Moon/Sun icon) switches between light and dark themes
