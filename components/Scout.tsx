@@ -623,8 +623,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         block += `Averages: Auto Fuel: ${avg('autoFuelTotal')}, Teleop Fuel: ${avg('teleopFuelTotal')}, Accuracy: ${avg('coralScored')}/5, Climb Rate: ${((matches.filter((m: any) => m.endClimbLevel > 0).length / matches.length) * 100).toFixed(0)}%\n`;
         block += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5, Avg Penalties: ${avg('penalties')}\n`;
         for (const m of [...matches].sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
-          const typeTag = m.matchType && m.matchType !== 'qualification' ? ` [${m.matchType}]` : '';
-          block += `  M${m.matchNumber}${typeTag} (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel || 0}, Drive: ${m.drivingSkillRating || '?'}/5${m.autoUsed ? `, Auto Used: "${m.autoUsed}"` : ''}${m.notes ? `, Notes: "${m.notes}"` : ''}\n`;
+          block += `  M${m.matchNumber} [${m.matchType || 'qualification'}] (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel || 0}, Drive: ${m.drivingSkillRating || '?'}/5${m.autoUsed ? `, Auto Used: "${m.autoUsed}"` : ''}${m.notes ? `, Notes: "${m.notes}"` : ''}\n`;
         }
       }
       return block + '\n';
