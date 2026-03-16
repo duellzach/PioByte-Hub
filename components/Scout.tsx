@@ -1140,7 +1140,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           const avgTeleopFuel = (totalTeleopFuel / robotMatches.length).toFixed(1);
           const avgTotalFuel = ((totalAutoFuel + totalTeleopFuel) / robotMatches.length).toFixed(1);
           const avgAccuracy = robotMatches.filter(m => m.coralScored > 0).length > 0
-            ? (robotMatches.reduce((s, m) => s + (m.coralScored || 0), 0) / robotMatches.filter(m => m.coralScored > 0).length).toFixed(1)
+            ? (robotMatches.reduce((s, m) => s + Math.min(m.coralScored || 0, 5), 0) / robotMatches.filter(m => m.coralScored > 0).length).toFixed(1)
             : '—';
           const climbMatches = robotMatches.filter(m => m.endClimbLevel > 0).length;
           const climbRate = ((climbMatches / robotMatches.length) * 100).toFixed(0);
@@ -1229,7 +1229,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           </span>
                           <span className="text-sm font-bold text-slate-700">
                             {(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel
-                            {m.coralScored > 0 && <span className="text-yellow-500 ml-1">{'★'.repeat(m.coralScored)}</span>}
+                            {m.coralScored > 0 && <span className="text-yellow-500 ml-1">{'★'.repeat(Math.min(m.coralScored || 0, 5))}</span>}
                           </span>
                           {m._scoutCount > 1 && (
                             <span className="px-2 py-0.5 bg-slate-200 text-slate-500 rounded-lg text-[8px] font-black">
@@ -1527,112 +1527,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </button>
             </div>
 
-            {matchViewMode === 'list' ? (
-              <div className="space-y-3">
-                {sortedMatches.map(m => (
-                  <div
-                    key={m.id}
-                    className={`bg-white rounded-2xl border-2 p-4 md:p-5 ${m.alliance === 'Red' ? 'border-red-200' : 'border-blue-200'}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 md:gap-4">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
-                            m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-                          }`}>
-                            M{m.matchNumber}
-                          </span>
-                          {m.matchType && m.matchType !== 'qualification' && (
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                              m.matchType === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'
-                            }`}>{m.matchType}</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                          <p className="text-[10px] text-slate-400 font-bold">
-                            Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Accuracy: {'★'.repeat(m.coralScored || 0)} | Pen: -{m.penalties}
-                          </p>
-                          {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
-                          {(currentUser.role === 'Coach' || currentUser.role === 'TeamCaptain') && m.scoutedByName && (
-                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Scouted by <span className="text-slate-600">{m.scoutedByName}</span></p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right hidden sm:block">
-                          {m.drivingSkillRating > 0 && <p className="text-[9px] text-slate-400 font-bold">Drive: {'★'.repeat(m.drivingSkillRating)}</p>}
-                          {m.coreValuesRating > 0 && <p className="text-[9px] text-slate-400 font-bold">CV: {'★'.repeat(m.coreValuesRating)}</p>}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[9px] text-slate-400 font-bold">Fuel</p>
-                          <p className="text-base font-black text-slate-900">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
-                          <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {m.notes && <p className="text-[10px] text-slate-500 mt-2 pl-12 font-medium">{m.notes}</p>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {matchRosters.map(roster => (
-                  <div key={roster.matchNumber} className="bg-white rounded-2xl border-2 border-slate-100 p-4 md:p-6">
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
-                      <Swords size={16} className="text-red-600" />
-                      Match {roster.matchNumber}
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">Red Alliance</span>
-                        {roster.red.length > 0 ? roster.red.map(m => (
-                          <div
-                            key={m.id}
-                            onClick={() => openRobotByNumber(m.teamNumber)}
-                            className="p-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all"
-                          >
-                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(m.coralScored) : ''}</p>
-                          </div>
-                        )) : (
-                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Blue Alliance</span>
-                        {roster.blue.length > 0 ? roster.blue.map(m => (
-                          <div
-                            key={m.id}
-                            onClick={() => openRobotByNumber(m.teamNumber)}
-                            className="p-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
-                          >
-                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
-                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(m.coralScored) : ''}</p>
-                          </div>
-                        )) : (
-                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {sortedMatches.length === 0 && (
-              <div className="py-8 text-center">
-                <Swords size={48} className="text-slate-200 mx-auto mb-4" />
-                <p className="text-lg font-black text-slate-300 uppercase tracking-tight">No Matches Recorded</p>
-                <p className="text-slate-400 text-sm mt-1">Record match data to track performance</p>
-              </div>
-            )}
-
             {activeEvent?.tbaEventKey && tbaMatches.length > 0 && (() => {
               const now = Math.floor(Date.now() / 1000);
               const upcoming = tbaMatches
@@ -1671,72 +1565,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               };
 
               return (
-                <div className="space-y-4 mt-6">
-                  {upcoming.length > 0 && (
-                    <div className="bg-white rounded-2xl border-2 border-slate-100 p-5">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <UserCheck size={14} className="text-green-600" />
-                        Claim a Match to Scout
-                      </h4>
-                      <p className="text-[10px] text-slate-400 font-medium mb-3">Tap a match to claim it for scouting so teammates know who's covering what.</p>
-                      <div className="space-y-2">
-                        {upcoming.slice(0, 8).map((m: any) => {
-                          const claim = matchClaims[m.key];
-                          const isMine = claim?.userId === parseInt(currentUser.id);
-                          const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
-                          const time = m.predicted_time || m.time;
-                          return (
-                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 bg-green-50' : claim ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white hover:border-red-200 hover:bg-red-50/30'} transition-all`}>
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
-                                <div className="min-w-0">
-                                  <p className="text-[10px] font-bold text-slate-600 truncate">
-                                    🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}
-                                  </p>
-                                  {claim && (
-                                    <p className={`text-[9px] font-black ${isMine ? 'text-green-600' : 'text-slate-400'}`}>
-                                      {isMine ? '✓ Claimed by you' : `Claimed by ${claim.userName}`}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {time && (
-                                  <span className="text-[9px] text-slate-400 font-bold hidden sm:block">
-                                    {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
-                                  </span>
-                                )}
-                                {isMine ? (
-                                  <button onClick={() => unclaimMatch(m.key)}
-                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black hover:bg-green-700 transition-all">Unclaim</button>
-                                ) : !claim ? (
-                                  <button onClick={() => claimMatch(m.key)}
-                                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all">Claim</button>
-                                ) : (
-                                  <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">Taken</span>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    resetMatchForm();
-                                    const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
-                                    const matchNum = isElim && m.set_number > 0
-                                      ? m.set_number * 10 + (m.match_number || 1)
-                                      : (m.match_number || 1);
-                                    const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
-                                    setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
-                                    setShowMatchForm(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
-                                >Scout</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {(unscoutedMatches.length > 0 || unscoutedRobots.length > 0) && (
+                <div className="space-y-4">
+                  {(unscoutedRobots.length > 0 || unscoutedMatches.length > 0) && (
                     <div className="space-y-4">
                       {unscoutedRobots.length > 0 && (
                         <div className="bg-rose-50 rounded-2xl border-2 border-rose-200 p-5">
@@ -1827,9 +1657,180 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       )}
                     </div>
                   )}
+
+                  {upcoming.length > 0 && (
+                    <div className="bg-white rounded-2xl border-2 border-slate-100 p-5">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <UserCheck size={14} className="text-green-600" />
+                        Claim a Match to Scout
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium mb-3">Tap a match to claim it for scouting so teammates know who's covering what.</p>
+                      <div className="space-y-2">
+                        {upcoming.slice(0, 8).map((m: any) => {
+                          const claim = matchClaims[m.key];
+                          const isMine = claim?.userId === parseInt(currentUser.id);
+                          const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                          const time = m.predicted_time || m.time;
+                          return (
+                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 bg-green-50' : claim ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white hover:border-red-200 hover:bg-red-50/30'} transition-all`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-600 truncate">
+                                    🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}
+                                  </p>
+                                  {claim && (
+                                    <p className={`text-[9px] font-black ${isMine ? 'text-green-600' : 'text-slate-400'}`}>
+                                      {isMine ? '✓ Claimed by you' : `Claimed by ${claim.userName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {time && (
+                                  <span className="text-[9px] text-slate-400 font-bold hidden sm:block">
+                                    {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                  </span>
+                                )}
+                                {isMine ? (
+                                  <button onClick={() => unclaimMatch(m.key)}
+                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black hover:bg-green-700 transition-all">Unclaim</button>
+                                ) : !claim ? (
+                                  <button onClick={() => claimMatch(m.key)}
+                                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all">Claim</button>
+                                ) : (
+                                  <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[9px] font-black">Taken</span>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    resetMatchForm();
+                                    const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                                    const matchNum = isElim && m.set_number > 0
+                                      ? m.set_number * 10 + (m.match_number || 1)
+                                      : (m.match_number || 1);
+                                    const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                                    setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
+                                    setShowMatchForm(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
+                                >Scout</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
+
+            {matchViewMode === 'list' ? (
+              <div className="space-y-3">
+                {sortedMatches.map(m => (
+                  <div
+                    key={m.id}
+                    className={`bg-white rounded-2xl border-2 p-4 md:p-5 ${m.alliance === 'Red' ? 'border-red-200' : 'border-blue-200'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 md:gap-4">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                            m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                          }`}>
+                            M{m.matchNumber}
+                          </span>
+                          {m.matchType && m.matchType !== 'qualification' && (
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                              m.matchType === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'
+                            }`}>{m.matchType}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">
+                            Auto: {m.autoFuelTotal || 0} | Teleop: {m.teleopFuelTotal || 0} | Accuracy: {'★'.repeat(Math.min(m.coralScored || 0, 5))} | Pen: -{m.penalties}
+                          </p>
+                          {m.autoUsed && <p className="text-[9px] text-blue-500 font-bold">Auto: {m.autoUsed}</p>}
+                          {(currentUser.role === 'Coach' || currentUser.role === 'TeamCaptain') && m.scoutedByName && (
+                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Scouted by <span className="text-slate-600">{m.scoutedByName}</span></p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right hidden sm:block">
+                          {m.drivingSkillRating > 0 && <p className="text-[9px] text-slate-400 font-bold">Drive: {'★'.repeat(Math.min(m.drivingSkillRating || 0, 5))}</p>}
+                          {m.coreValuesRating > 0 && <p className="text-[9px] text-slate-400 font-bold">CV: {'★'.repeat(Math.min(m.coreValuesRating || 0, 5))}</p>}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-400 font-bold">Fuel</p>
+                          <p className="text-base font-black text-slate-900">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all text-slate-500 text-[10px] font-black">Edit</button>
+                          <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 rounded-lg hover:bg-red-50 transition-all text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {m.notes && <p className="text-[10px] text-slate-500 mt-2 pl-12 font-medium">{m.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {matchRosters.map(roster => (
+                  <div key={roster.matchNumber} className="bg-white rounded-2xl border-2 border-slate-100 p-4 md:p-6">
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                      <Swords size={16} className="text-red-600" />
+                      Match {roster.matchNumber}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">Red Alliance</span>
+                        {roster.red.length > 0 ? roster.red.map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => openRobotByNumber(m.teamNumber)}
+                            className="p-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all"
+                          >
+                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
+                          </div>
+                        )) : (
+                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Blue Alliance</span>
+                        {roster.blue.length > 0 ? roster.blue.map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => openRobotByNumber(m.teamNumber)}
+                            className="p-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all"
+                          >
+                            <p className="text-sm font-black text-slate-900">Team {m.teamNumber}</p>
+                            <p className="text-[9px] text-slate-500 font-bold">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel {m.coralScored > 0 ? '★'.repeat(Math.min(m.coralScored || 0, 5)) : ''}</p>
+                          </div>
+                        )) : (
+                          <p className="text-[10px] text-slate-400 font-bold p-3">No robots scouted</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sortedMatches.length === 0 && (
+              <div className="py-8 text-center">
+                <Swords size={48} className="text-slate-200 mx-auto mb-4" />
+                <p className="text-lg font-black text-slate-300 uppercase tracking-tight">No Matches Recorded</p>
+                <p className="text-slate-400 text-sm mt-1">Record match data to track performance</p>
+              </div>
+            )}
+
           </div>
         ) : activeTab === 'qr' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
