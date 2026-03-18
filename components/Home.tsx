@@ -6,6 +6,15 @@ import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const ROLE_COLORS: Record<string, string> = {
+  'Scout - Stands': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  'Pit Crew': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  'Networking': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+};
+
 interface HomeProps {
   state: AppState;
   onTaskClick: (task: Task) => void;
@@ -138,19 +147,33 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
   useEffect(() => {
     api.scout.getEvents().then(async events => {
-      const upcoming = events
-        .filter((e: any) => {
-          const start = new Date(e.startDate);
-          return start.getTime() > Date.now() - 86400000;
-        })
-        .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      setScoutEvents(upcoming);
-      if (upcoming.length > 0 && user?.id) {
+      const now = Date.now();
+      // Active: startDate <= now and (no endDate OR endDate >= now)
+      const active = events.filter((e: any) => {
+        if (e.archived) return false;
+        const start = e.startDate ? new Date(e.startDate).getTime() : null;
+        const end = e.endDate ? new Date(e.endDate).getTime() : null;
+        if (start === null) return false;
+        return start <= now && (end === null || end >= now);
+      });
+      // Upcoming: startDate in the future
+      const upcoming = events.filter((e: any) => {
+        if (e.archived) return false;
+        const start = e.startDate ? new Date(e.startDate).getTime() : null;
+        return start !== null && start > now;
+      }).sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      // Prefer active event, fall back to soonest upcoming
+      const candidateEvent = active[0] || upcoming[0] || null;
+      // For the home countdown widget show active + upcoming
+      setScoutEvents([...active, ...upcoming]);
+      if (candidateEvent && user?.id) {
         try {
-          const allAssignments = await api.competitionAssignments.list(upcoming[0].id);
+          const allAssignments = await api.competitionAssignments.list(candidateEvent.id);
           const mine = allAssignments.filter((a: any) => String(a.userId) === String(user.id));
-          if (mine.length > 0) setMySchedule({ event: upcoming[0], assignments: mine });
-        } catch {}
+          setMySchedule({ event: candidateEvent, assignments: mine });
+        } catch {
+          setMySchedule({ event: candidateEvent, assignments: [] });
+        }
       }
     }).catch(() => {});
   }, [user?.id]);
@@ -483,30 +506,26 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           </h2>
           <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-6">
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">{mySchedule.event.name}</p>
-            <div className="space-y-3">
-              {mySchedule.assignments.map((a: any) => {
-                const roleColors: Record<string, string> = {
-                  'Scout - Stands': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-                  'Pit Crew': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-                  'Networking': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-                  'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-                  'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-                  'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-                };
-                const color = roleColors[a.role] || 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-                return (
-                  <div key={a.id} className="flex items-center gap-4">
-                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-shrink-0 ${color}`}>
-                      {a.role}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Matches {a.fromMatch}–{a.toMatch}</p>
-                      {a.notes && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{a.notes}</p>}
+            {mySchedule.assignments.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 font-bold italic">No role assignments found for this event yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {mySchedule.assignments.map((a: any) => {
+                  const color = ROLE_COLORS[a.role] || 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+                  return (
+                    <div key={a.id} className="flex items-center gap-4">
+                      <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-shrink-0 ${color}`}>
+                        {a.role}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Matches {a.fromMatch}–{a.toMatch}</p>
+                        {a.notes && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{a.notes}</p>}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
