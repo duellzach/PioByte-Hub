@@ -121,6 +121,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [tbaLoading, setTbaLoading] = useState(false);
   const [tbaImporting, setTbaImporting] = useState(false);
   const [tbaRankings, setTbaRankings] = useState<Map<number, { rank: number; rp: number; record: string }>>(new Map());
+  const [pitSubTab, setPitSubTab] = useState<'live' | 'rankings'>('live');
 
   const [pitForm, setPitForm] = useState({
     teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
@@ -2425,6 +2426,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
 
+            {/* Sub-tab toggle */}
+            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl w-fit">
+              {(['live', 'rankings'] as const).map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setPitSubTab(sub)}
+                  className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    pitSubTab === sub
+                      ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {sub === 'live' ? '⚡ Live' : '🏆 Rankings'}
+                </button>
+              ))}
+            </div>
+
             {(() => {
               const now = new Date();
               const undismissed = pitDisplayAlerts.filter(a =>
@@ -2554,7 +2572,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               return null;
             })()}
 
-            {activeEvent?.nexusEventKey ? (
+            {pitSubTab === 'live' && (
+              <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6 2xl:gap-8">
+
+              {/* LEFT COLUMN: FRC Nexus Live */}
+              <div>
+              {activeEvent?.nexusEventKey ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-violet-600/10 to-blue-600/10">
                   <div className="flex items-center gap-3">
@@ -2678,15 +2701,27 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
                           {nexusData.matches?.length > 0 && (() => {
                             const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
-                            const sortedMatches = [...nexusData.matches].sort((a: any, b: any) => {
-                              const aT = a.times?.estimatedQueueTime || a.times?.estimatedStartTime;
-                              const bT = b.times?.estimatedQueueTime || b.times?.estimatedStartTime;
-                              if (aT && bT) return new Date(aT).getTime() - new Date(bT).getTime();
-                              return 0;
-                            });
+                            const upcomingStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
+                            const now = Date.now();
+                            const next10 = [...nexusData.matches]
+                              .filter((m: any) => {
+                                if (upcomingStatuses.has(m.status)) return true;
+                                const t = m.times?.estimatedQueueTime || m.times?.estimatedStartTime;
+                                return t && new Date(t).getTime() > now;
+                              })
+                              .sort((a: any, b: any) => {
+                                const aT = a.times?.estimatedQueueTime || a.times?.estimatedStartTime;
+                                const bT = b.times?.estimatedQueueTime || b.times?.estimatedStartTime;
+                                if (aT && bT) return new Date(aT).getTime() - new Date(bT).getTime();
+                                if (upcomingStatuses.has(a.status) && !upcomingStatuses.has(b.status)) return -1;
+                                if (!upcomingStatuses.has(a.status) && upcomingStatuses.has(b.status)) return 1;
+                                return 0;
+                              })
+                              .slice(0, 10);
+                            if (next10.length === 0) return null;
                             return (
                               <div>
-                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Live Match Schedule</p>
+                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Upcoming Matches</p>
                                 <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
                                   <table className="w-full text-sm">
                                     <thead>
@@ -2699,7 +2734,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {sortedMatches.map((m: any, i: number) => {
+                                      {next10.map((m: any, i: number) => {
                                         const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(10991);
                                         const queueTime = m.times?.estimatedQueueTime;
                                         const startTime = m.times?.estimatedStartTime;
@@ -2762,6 +2797,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               )
             )}
+            </div>
+            {/* RIGHT COLUMN: W/L Record + Event Schedule */}
+            <div className="space-y-4">
 
             {tbaRecord && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-4 md:p-6">
@@ -2962,7 +3000,97 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             )}
 
-            {pitScouts.length > 0 && (() => {
+            </div>
+            </div>
+            )}
+
+            {/* RANKINGS SUB-TAB */}
+            {pitSubTab === 'rankings' && (
+              <div className="space-y-8">
+                {/* Full TBA Event Rankings */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+                  <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                    <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                      <span>Event Rankings</span>
+                      {activeEvent?.tbaEventKey && (
+                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg">TBA Live</span>
+                      )}
+                    </h3>
+                    {tbaRecord && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team 10991</span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-black text-xs rounded-lg">{tbaRecord.wins}W</span>
+                          <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-black text-xs rounded-lg">{tbaRecord.losses}L</span>
+                          {tbaRecord.ties > 0 && (
+                            <span className="px-2.5 py-1 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 font-black text-xs rounded-lg">{tbaRecord.ties}T</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {tbaRankings.size === 0 ? (
+                    <div className="py-12 text-center">
+                      <p className="text-sm font-black text-slate-300 uppercase tracking-tight">No rankings yet</p>
+                      <p className="text-xs text-slate-400 mt-1">Rankings will appear once qualifying matches have begun</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-100 dark:border-slate-700">
+                            <th className="pb-3 text-left text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16">Rank</th>
+                            <th className="pb-3 text-left text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team</th>
+                            <th className="pb-3 text-right text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20">Record</th>
+                            <th className="pb-3 text-right text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16">RP</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                          {Array.from(tbaRankings.entries())
+                            .sort((a, b) => a[1].rank - b[1].rank)
+                            .map(([teamNum, r]) => {
+                              const isOurTeam = teamNum === 10991;
+                              return (
+                                <tr key={teamNum} className={`transition-colors ${isOurTeam ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                                  <td className="py-2.5 pr-4">
+                                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-black ${
+                                      r.rank === 1 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' :
+                                      r.rank === 2 ? 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300' :
+                                      r.rank === 3 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300' :
+                                      'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
+                                    }`}>
+                                      {r.rank}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-black ${isOurTeam ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                                        Team {teamNum}
+                                      </span>
+                                      {isOurTeam && (
+                                        <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black rounded uppercase tracking-widest">Us</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 text-right">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 tabular-nums">{r.record}</span>
+                                  </td>
+                                  <td className="py-2.5 text-right">
+                                    <span className={`text-xs font-black tabular-nums ${isOurTeam ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                      {r.rp.toFixed(2)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scouted Robot Leaderboard */}
+                {pitScouts.length > 0 && (() => {
               const hasRankings = tbaRankings.size > 0;
               const sorted = [...pitScouts].sort((a: any, b: any) => {
                 if (hasRankings) {
@@ -3047,7 +3175,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </div>
                 </div>
               );
-            })()}
+                })()}
+              </div>
+            )}
           </div>
         ) : activeTab === 'info' ? (
           <div className="space-y-6">

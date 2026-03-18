@@ -20,7 +20,7 @@ The backend is an Express API running on port 3001, interacting with a PostgreSQ
 - **FRC Scout Module**:
     - **Data Collection**: Pit scouting (robot specs, capabilities, ratings), match scouting (fuel scoring, alliance tracking, climb levels), and event management.
     - **Data Sharing**: QR code generation (pako compression, chunked for large datasets) and import via camera scanner with dynamic `html5-qrcode`. Offline scouting is supported via localStorage queue with auto-sync.
-    - **Analysis & Display**: Robot dashboard with search, detailed views including cross-event match data, Pit Display with W/L records, event schedules, and a leaderboard.
+    - **Analysis & Display**: Robot dashboard with search, detailed views including cross-event match data, Pit Display with two sub-tabs (Live: 2-column 4K-optimized grid with Nexus upcoming matches + event schedule; Rankings: full TBA event standings with team 10991 highlighted + scouted robot leaderboard).
     - **External Integrations**: Blue Alliance API for live win/loss records, event schedules, upcoming matches, and auto-import of team data.
     - **AI Integration**: "Copy for AI" function generates comprehensive scouting reports for external AI analysis tools like ChatGPT, Gemini, or Claude.
     - **Scout Workflow**: Match claiming system for scouts, unscouted match/robot tracking with quick-entry buttons.
