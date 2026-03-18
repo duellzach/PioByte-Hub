@@ -457,9 +457,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const openEventSettings = () => {
+    const tba = activeEvent?.tbaEventKey || '';
+    const nexus = activeEvent?.nexusEventKey || '';
     setEventSettingsForm({
-      tbaEventKey: activeEvent?.tbaEventKey || '',
-      nexusEventKey: activeEvent?.nexusEventKey || '',
+      tbaEventKey: tba,
+      nexusEventKey: nexus || tba,
     });
     setNexusTestStatus('idle');
     setNexusTestMsg('');
@@ -470,9 +472,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (!activeEvent) return;
     try {
       const updated = await api.scout.updateEvent(activeEvent.id, eventSettingsForm);
-      setActiveEvent({ ...activeEvent, ...eventSettingsForm });
+      const merged = updated || { ...activeEvent, ...eventSettingsForm };
+      setActiveEvent(merged);
       setShowEventSettings(false);
-      if (updated?.tbaEventKey) fetchTbaData(updated.tbaEventKey);
+      if (merged.tbaEventKey) fetchTbaData(merged.tbaEventKey);
+      if (merged.nexusEventKey) fetchNexusData(merged.nexusEventKey);
     } catch (err) {
       console.error('Failed to update event settings:', err);
     }
@@ -2506,7 +2510,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               isCoachOrCaptain && (
                 <div className="bg-violet-50 dark:bg-violet-900/20 rounded-2xl md:rounded-[32px] border-2 border-violet-200 dark:border-violet-700 p-6 text-center">
                   <p className="text-sm font-black text-violet-700 dark:text-violet-300 uppercase tracking-tight">No Nexus Event Key</p>
-                  <p className="text-xs text-violet-500 dark:text-violet-400 mt-1">Edit this event and add an FRC Nexus event key to enable live queue data</p>
+                  <p className="text-xs text-violet-500 dark:text-violet-400 mt-1">Open Event Settings and add the event key (same as your TBA key, e.g. 2026orsal) to enable live queue data</p>
                 </div>
               )
             )}
@@ -3307,7 +3311,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">FRC Nexus Event Key</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">FRC Nexus Event Key</label>
+                  {eventSettingsForm.tbaEventKey && eventSettingsForm.nexusEventKey !== eventSettingsForm.tbaEventKey && (
+                    <button
+                      onClick={() => { setEventSettingsForm({ ...eventSettingsForm, nexusEventKey: eventSettingsForm.tbaEventKey }); setNexusTestStatus('idle'); }}
+                      className="text-[9px] font-black text-violet-500 hover:text-violet-700 uppercase tracking-widest transition-colors"
+                    >← Same as TBA key</button>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <input
                     value={eventSettingsForm.nexusEventKey}
@@ -3405,25 +3417,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">TBA Event Key</label>
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Event Key (TBA & Nexus)</label>
                 <input
                   value={eventForm.tbaEventKey}
-                  onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value })}
+                  onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value, nexusEventKey: e.target.value })}
                   placeholder="e.g. 2026azgl"
                   className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm"
                 />
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Find your event key on thebluealliance.com (optional)</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FRC Nexus Event Key</label>
-                <input
-                  value={eventForm.nexusEventKey}
-                  onChange={(e) => setEventForm({ ...eventForm, nexusEventKey: e.target.value })}
-                  placeholder="e.g. 2026azgl"
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-violet-500 transition-all font-bold text-sm"
-                />
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Enables live queue countdown & match schedule from frc.nexus (optional)</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Used for both TBA and Nexus live data — find it on thebluealliance.com (optional)</p>
               </div>
 
               <button
