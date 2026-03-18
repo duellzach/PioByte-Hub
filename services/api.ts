@@ -117,6 +117,47 @@ export const api = {
     getTeamYearStatuses: (teamKey: string, year: number) => apiRequest<any>(`/tba/team/${teamKey}/events/${year}/statuses`),
     getMatchVideos: (matchKey: string) => apiRequest<any>(`/tba/match/${matchKey}`),
   },
+  nexus: {
+    getEvent: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}`),
+    getPits: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}/pits`),
+  },
+  eventInfo: {
+    get: (eventId: number) => apiRequest<any>(`/scout-events/${eventId}/info`),
+    update: (eventId: number, data: any) =>
+      apiRequest<any>(`/scout-events/${eventId}/info`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  competitionAssignments: {
+    list: (eventId: number) => apiRequest<any[]>(`/scout-events/${eventId}/assignments`),
+    create: (eventId: number, data: any) =>
+      apiRequest<any>(`/scout-events/${eventId}/assignments`, { method: 'POST', body: JSON.stringify(data) }),
+    update: (eventId: number, id: number, data: any) =>
+      apiRequest<any>(`/scout-events/${eventId}/assignments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (eventId: number, id: number) =>
+      apiRequest<void>(`/scout-events/${eventId}/assignments/${id}`, { method: 'DELETE' }),
+  },
+  competitionCheckins: {
+    listByEvent: (eventId: number) => apiRequest<any[]>(`/competition-checkins?eventId=${eventId}`),
+    listByUser: (userId: number) => apiRequest<any[]>(`/competition-checkins?userId=${userId}`),
+    checkIn: (userId: number, eventId: number) =>
+      apiRequest<any>('/competition-checkins/check-in', { method: 'POST', body: JSON.stringify({ userId, eventId }) }),
+    checkOut: (id: number) =>
+      apiRequest<any>(`/competition-checkins/${id}/check-out`, { method: 'POST', body: JSON.stringify({}) }),
+    approve: (id: number, coachId: number, roundedMinutes?: number) =>
+      apiRequest<any>(`/competition-checkins/${id}/approve`, { method: 'POST', body: JSON.stringify({ coachId, roundedMinutes }) }),
+    update: (id: number, data: any) =>
+      apiRequest<any>(`/competition-checkins/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      apiRequest<void>(`/competition-checkins/${id}`, { method: 'DELETE' }),
+  },
+  fullscreenAlerts: {
+    list: (activeOnly = false) => apiRequest<any[]>(`/fullscreen-alerts${activeOnly ? '?active=true' : ''}`),
+    create: (data: any) =>
+      apiRequest<any>('/fullscreen-alerts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      apiRequest<any>(`/fullscreen-alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      apiRequest<void>(`/fullscreen-alerts/${id}`, { method: 'DELETE' }),
+  },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
   changePassword: (userId: number, currentPassword: string, newPassword: string) =>

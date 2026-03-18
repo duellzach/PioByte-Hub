@@ -872,6 +872,266 @@ app.get("/api/scout-events/:eventId/export", async (req, res) => {
   }
 });
 
+const NEXUS_BASE = "https://frc.nexus/api/v1";
+const NEXUS_KEY = process.env.NEXUS_API_KEY || "";
+
+async function nexusFetch(path: string) {
+  if (!NEXUS_KEY) {
+    throw new Error("NEXUS_API_KEY environment variable is not configured");
+  }
+  const resp = await fetch(`${NEXUS_BASE}${path}`, {
+    headers: { "Nexus-Api-Key": NEXUS_KEY },
+  });
+  if (!resp.ok) throw new Error(`Nexus API error: ${resp.status} ${resp.statusText}`);
+  return resp.json();
+}
+
+app.get("/api/nexus/:eventKey", async (req, res) => {
+  try {
+    if (!NEXUS_KEY) {
+      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
+      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    }
+    const data = await nexusFetch(`/event/${req.params.eventKey}`);
+    res.json(data);
+  } catch (error: any) {
+    console.error("Nexus event error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to fetch Nexus event data" });
+  }
+});
+
+app.get("/api/nexus/:eventKey/pits", async (req, res) => {
+  try {
+    if (!NEXUS_KEY) {
+      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    }
+    const data = await nexusFetch(`/event/${req.params.eventKey}/pits`);
+    res.json(data);
+  } catch (error: any) {
+    console.error("Nexus pits error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to fetch Nexus pit data" });
+  }
+});
+
+app.get("/api/scout-events/:eventId/info", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const info = await storage.getEventInfo(eventId);
+    res.json(info || { eventId });
+  } catch (error) {
+    console.error("Error fetching event info:", error);
+    res.status(500).json({ error: "Failed to fetch event info" });
+  }
+});
+
+app.put("/api/scout-events/:eventId/info", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const info = await storage.upsertEventInfo(eventId, req.body);
+    res.json(info);
+  } catch (error) {
+    console.error("Error updating event info:", error);
+    res.status(500).json({ error: "Failed to update event info" });
+  }
+});
+
+app.get("/api/scout-events/:eventId/assignments", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const assignments = await storage.getCompetitionAssignments(eventId);
+    const allUsers = await storage.getUsers();
+    const userMap = new Map(allUsers.map((u: any) => [u.id, u.name || u.username]));
+    const enriched = assignments.map(a => ({
+      ...a,
+      userName: userMap.get(a.userId) || `User ${a.userId}`,
+      createdByName: userMap.get(a.createdBy) || `User ${a.createdBy}`,
+    }));
+    res.json(enriched);
+  } catch (error) {
+    console.error("Error fetching assignments:", error);
+    res.status(500).json({ error: "Failed to fetch assignments" });
+  }
+});
+
+app.post("/api/scout-events/:eventId/assignments", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const assignment = await storage.createCompetitionAssignment({ ...req.body, eventId });
+    res.status(201).json(assignment);
+  } catch (error) {
+    console.error("Error creating assignment:", error);
+    res.status(500).json({ error: "Failed to create assignment" });
+  }
+});
+
+app.put("/api/scout-events/:eventId/assignments/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const assignment = await storage.updateCompetitionAssignment(id, req.body);
+    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
+    res.json(assignment);
+  } catch (error) {
+    console.error("Error updating assignment:", error);
+    res.status(500).json({ error: "Failed to update assignment" });
+  }
+});
+
+app.delete("/api/scout-events/:eventId/assignments/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteCompetitionAssignment(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting assignment:", error);
+    res.status(500).json({ error: "Failed to delete assignment" });
+  }
+});
+
+app.get("/api/competition-checkins", async (req, res) => {
+  try {
+    const { eventId, userId } = req.query;
+    let checkins: any[];
+    if (eventId) {
+      checkins = await storage.getCompetitionCheckins(parseInt(eventId as string));
+    } else if (userId) {
+      checkins = await storage.getCompetitionCheckinsByUser(parseInt(userId as string));
+    } else {
+      return res.status(400).json({ error: "eventId or userId query param required" });
+    }
+    const allUsers = await storage.getUsers();
+    const userMap = new Map(allUsers.map((u: any) => [u.id, u.name || u.username]));
+    const enriched = checkins.map(c => ({
+      ...c,
+      userName: userMap.get(c.userId) || `User ${c.userId}`,
+      approvedByName: c.approvedBy ? (userMap.get(c.approvedBy) || `User ${c.approvedBy}`) : null,
+    }));
+    res.json(enriched);
+  } catch (error) {
+    console.error("Error fetching competition checkins:", error);
+    res.status(500).json({ error: "Failed to fetch competition checkins" });
+  }
+});
+
+app.post("/api/competition-checkins/check-in", async (req, res) => {
+  try {
+    const { userId, eventId } = req.body;
+    const open = await storage.getOpenCompetitionCheckin(userId, eventId);
+    if (open) {
+      return res.status(400).json({ error: "Already checked in to this event" });
+    }
+    const checkin = await storage.createCompetitionCheckin({
+      userId,
+      eventId,
+      checkInAt: new Date(),
+      status: "checked_in",
+    });
+    res.status(201).json(checkin);
+  } catch (error) {
+    console.error("Error checking in to competition:", error);
+    res.status(500).json({ error: "Failed to check in" });
+  }
+});
+
+app.post("/api/competition-checkins/:id/check-out", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const updated = await storage.updateCompetitionCheckin(id, {
+      checkOutAt: new Date(),
+      status: "pending_approval",
+    });
+    if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error checking out from competition:", error);
+    res.status(500).json({ error: "Failed to check out" });
+  }
+});
+
+app.post("/api/competition-checkins/:id/approve", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId, roundedMinutes } = req.body;
+    const updated = await storage.updateCompetitionCheckin(id, {
+      approvedBy: coachId,
+      approvedAt: new Date(),
+      status: "approved",
+      roundedMinutes: roundedMinutes || undefined,
+    });
+    if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error approving competition checkin:", error);
+    res.status(500).json({ error: "Failed to approve checkin" });
+  }
+});
+
+app.put("/api/competition-checkins/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const updated = await storage.updateCompetitionCheckin(id, req.body);
+    if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating competition checkin:", error);
+    res.status(500).json({ error: "Failed to update checkin" });
+  }
+});
+
+app.delete("/api/competition-checkins/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteCompetitionCheckin(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting competition checkin:", error);
+    res.status(500).json({ error: "Failed to delete checkin" });
+  }
+});
+
+app.get("/api/fullscreen-alerts", async (req, res) => {
+  try {
+    const activeOnly = req.query.active === "true";
+    const alerts = await storage.getFullscreenAlerts(activeOnly);
+    res.json(alerts);
+  } catch (error) {
+    console.error("Error fetching fullscreen alerts:", error);
+    res.status(500).json({ error: "Failed to fetch alerts" });
+  }
+});
+
+app.post("/api/fullscreen-alerts", async (req, res) => {
+  try {
+    const alert = await storage.createFullscreenAlert(req.body);
+    res.status(201).json(alert);
+  } catch (error) {
+    console.error("Error creating fullscreen alert:", error);
+    res.status(500).json({ error: "Failed to create alert" });
+  }
+});
+
+app.put("/api/fullscreen-alerts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const alert = await storage.updateFullscreenAlert(id, req.body);
+    if (!alert) return res.status(404).json({ error: "Alert not found" });
+    res.json(alert);
+  } catch (error) {
+    console.error("Error updating fullscreen alert:", error);
+    res.status(500).json({ error: "Failed to update alert" });
+  }
+});
+
+app.delete("/api/fullscreen-alerts/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteFullscreenAlert(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting fullscreen alert:", error);
+    res.status(500).json({ error: "Failed to delete alert" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

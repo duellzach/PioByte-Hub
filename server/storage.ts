@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, fullscreenAlerts } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, FullscreenAlert, InsertFullscreenAlert } from "../shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -113,6 +113,28 @@ export interface IStorage {
   createMatchScout(scout: InsertMatchScout): Promise<MatchScout>;
   updateMatchScout(id: number, scout: Partial<InsertMatchScout>): Promise<MatchScout | undefined>;
   deleteMatchScout(id: number): Promise<void>;
+
+  getCompetitionAssignments(eventId: number): Promise<CompetitionAssignment[]>;
+  getCompetitionAssignment(id: number): Promise<CompetitionAssignment | undefined>;
+  createCompetitionAssignment(assignment: InsertCompetitionAssignment): Promise<CompetitionAssignment>;
+  updateCompetitionAssignment(id: number, assignment: Partial<InsertCompetitionAssignment>): Promise<CompetitionAssignment | undefined>;
+  deleteCompetitionAssignment(id: number): Promise<void>;
+
+  getEventInfo(eventId: number): Promise<EventInfo | undefined>;
+  upsertEventInfo(eventId: number, data: Partial<InsertEventInfo>): Promise<EventInfo>;
+
+  getCompetitionCheckins(eventId: number): Promise<CompetitionCheckin[]>;
+  getCompetitionCheckinsByUser(userId: number): Promise<CompetitionCheckin[]>;
+  getOpenCompetitionCheckin(userId: number, eventId: number): Promise<CompetitionCheckin | undefined>;
+  createCompetitionCheckin(checkin: InsertCompetitionCheckin): Promise<CompetitionCheckin>;
+  updateCompetitionCheckin(id: number, checkin: Partial<InsertCompetitionCheckin>): Promise<CompetitionCheckin | undefined>;
+  deleteCompetitionCheckin(id: number): Promise<void>;
+
+  getFullscreenAlerts(activeOnly?: boolean): Promise<FullscreenAlert[]>;
+  getFullscreenAlert(id: number): Promise<FullscreenAlert | undefined>;
+  createFullscreenAlert(alert: InsertFullscreenAlert): Promise<FullscreenAlert>;
+  updateFullscreenAlert(id: number, alert: Partial<InsertFullscreenAlert>): Promise<FullscreenAlert | undefined>;
+  deleteFullscreenAlert(id: number): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -383,6 +405,127 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMatchScout(id: number): Promise<void> {
     await db.delete(matchScouts).where(eq(matchScouts.id, id));
+  }
+
+  async getCompetitionAssignments(eventId: number): Promise<CompetitionAssignment[]> {
+    return db.select().from(competitionAssignments)
+      .where(eq(competitionAssignments.eventId, eventId))
+      .orderBy(competitionAssignments.fromMatch);
+  }
+
+  async getCompetitionAssignment(id: number): Promise<CompetitionAssignment | undefined> {
+    const [row] = await db.select().from(competitionAssignments).where(eq(competitionAssignments.id, id));
+    return row;
+  }
+
+  async createCompetitionAssignment(assignment: InsertCompetitionAssignment): Promise<CompetitionAssignment> {
+    const [row] = await db.insert(competitionAssignments).values(assignment).returning();
+    return row;
+  }
+
+  async updateCompetitionAssignment(id: number, assignment: Partial<InsertCompetitionAssignment>): Promise<CompetitionAssignment | undefined> {
+    const sanitized: any = { ...assignment, updatedAt: new Date() };
+    delete sanitized.id;
+    const [row] = await db.update(competitionAssignments).set(sanitized).where(eq(competitionAssignments.id, id)).returning();
+    return row;
+  }
+
+  async deleteCompetitionAssignment(id: number): Promise<void> {
+    await db.delete(competitionAssignments).where(eq(competitionAssignments.id, id));
+  }
+
+  async getEventInfo(eventId: number): Promise<EventInfo | undefined> {
+    const [row] = await db.select().from(eventInfo).where(eq(eventInfo.eventId, eventId));
+    return row;
+  }
+
+  async upsertEventInfo(eventId: number, data: Partial<InsertEventInfo>): Promise<EventInfo> {
+    const existing = await this.getEventInfo(eventId);
+    const sanitized: any = { ...data, eventId, updatedAt: new Date() };
+    delete sanitized.id;
+    if (existing) {
+      const [row] = await db.update(eventInfo).set(sanitized).where(eq(eventInfo.eventId, eventId)).returning();
+      return row;
+    } else {
+      const [row] = await db.insert(eventInfo).values({ ...sanitized, eventId }).returning();
+      return row;
+    }
+  }
+
+  async getCompetitionCheckins(eventId: number): Promise<CompetitionCheckin[]> {
+    return db.select().from(competitionCheckins)
+      .where(eq(competitionCheckins.eventId, eventId))
+      .orderBy(desc(competitionCheckins.checkInAt));
+  }
+
+  async getCompetitionCheckinsByUser(userId: number): Promise<CompetitionCheckin[]> {
+    return db.select().from(competitionCheckins)
+      .where(eq(competitionCheckins.userId, userId))
+      .orderBy(desc(competitionCheckins.checkInAt));
+  }
+
+  async getOpenCompetitionCheckin(userId: number, eventId: number): Promise<CompetitionCheckin | undefined> {
+    const results = await db.select().from(competitionCheckins)
+      .where(and(
+        eq(competitionCheckins.userId, userId),
+        eq(competitionCheckins.eventId, eventId),
+        isNull(competitionCheckins.checkOutAt)
+      ));
+    return results[0];
+  }
+
+  async createCompetitionCheckin(checkin: InsertCompetitionCheckin): Promise<CompetitionCheckin> {
+    const sanitized: any = { ...checkin };
+    if (sanitized.checkInAt && !(sanitized.checkInAt instanceof Date)) sanitized.checkInAt = new Date(sanitized.checkInAt);
+    const [row] = await db.insert(competitionCheckins).values(sanitized).returning();
+    return row;
+  }
+
+  async updateCompetitionCheckin(id: number, checkin: Partial<InsertCompetitionCheckin>): Promise<CompetitionCheckin | undefined> {
+    const sanitized: any = { ...checkin };
+    delete sanitized.id;
+    if (sanitized.checkInAt && !(sanitized.checkInAt instanceof Date)) sanitized.checkInAt = new Date(sanitized.checkInAt);
+    if (sanitized.checkOutAt && !(sanitized.checkOutAt instanceof Date)) sanitized.checkOutAt = new Date(sanitized.checkOutAt);
+    if (sanitized.approvedAt && !(sanitized.approvedAt instanceof Date)) sanitized.approvedAt = new Date(sanitized.approvedAt);
+    const [row] = await db.update(competitionCheckins).set(sanitized).where(eq(competitionCheckins.id, id)).returning();
+    return row;
+  }
+
+  async deleteCompetitionCheckin(id: number): Promise<void> {
+    await db.delete(competitionCheckins).where(eq(competitionCheckins.id, id));
+  }
+
+  async getFullscreenAlerts(activeOnly = false): Promise<FullscreenAlert[]> {
+    if (activeOnly) {
+      return db.select().from(fullscreenAlerts)
+        .where(eq(fullscreenAlerts.active, true))
+        .orderBy(desc(fullscreenAlerts.createdAt));
+    }
+    return db.select().from(fullscreenAlerts).orderBy(desc(fullscreenAlerts.createdAt));
+  }
+
+  async getFullscreenAlert(id: number): Promise<FullscreenAlert | undefined> {
+    const [row] = await db.select().from(fullscreenAlerts).where(eq(fullscreenAlerts.id, id));
+    return row;
+  }
+
+  async createFullscreenAlert(alert: InsertFullscreenAlert): Promise<FullscreenAlert> {
+    const sanitized: any = { ...alert };
+    if (sanitized.expiresAt && !(sanitized.expiresAt instanceof Date)) sanitized.expiresAt = new Date(sanitized.expiresAt);
+    const [row] = await db.insert(fullscreenAlerts).values(sanitized).returning();
+    return row;
+  }
+
+  async updateFullscreenAlert(id: number, alert: Partial<InsertFullscreenAlert>): Promise<FullscreenAlert | undefined> {
+    const sanitized: any = { ...alert };
+    delete sanitized.id;
+    if (sanitized.expiresAt && !(sanitized.expiresAt instanceof Date)) sanitized.expiresAt = new Date(sanitized.expiresAt);
+    const [row] = await db.update(fullscreenAlerts).set(sanitized).where(eq(fullscreenAlerts.id, id)).returning();
+    return row;
+  }
+
+  async deleteFullscreenAlert(id: number): Promise<void> {
+    await db.delete(fullscreenAlerts).where(eq(fullscreenAlerts.id, id));
   }
 
   async seedDatabase(): Promise<void> {

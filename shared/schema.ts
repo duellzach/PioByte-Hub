@@ -146,6 +146,7 @@ export const scoutEvents = pgTable("scout_events", {
   startDate: text("start_date"),
   endDate: text("end_date"),
   tbaEventKey: text("tba_event_key"),
+  nexusEventKey: text("nexus_event_key"),
   createdBy: integer("created_by").notNull().references(() => users.id),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -215,3 +216,67 @@ export type PitScout = typeof pitScouts.$inferSelect;
 export type InsertPitScout = typeof pitScouts.$inferInsert;
 export type MatchScout = typeof matchScouts.$inferSelect;
 export type InsertMatchScout = typeof matchScouts.$inferInsert;
+
+export const competitionAssignments = pgTable("competition_assignments", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  fromMatch: integer("from_match").notNull(),
+  toMatch: integer("to_match").notNull(),
+  role: text("role").notNull().default("Scout - Stands"),
+  notes: text("notes"),
+  autoAssignScouting: boolean("auto_assign_scouting").notNull().default(false),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const eventInfo = pgTable("event_info", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().unique().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  venueInfo: text("venue_info"),
+  wifiNetwork: text("wifi_network"),
+  wifiPassword: text("wifi_password"),
+  parkingInfo: text("parking_info"),
+  schedule: text("schedule"),
+  resources: text("resources"),
+  notes: text("notes"),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const competitionCheckins = pgTable("competition_checkins", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  checkInAt: timestamp("check_in_at").notNull(),
+  checkOutAt: timestamp("check_out_at"),
+  status: text("status").notNull().default("checked_in"),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  roundedMinutes: integer("rounded_minutes"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const fullscreenAlerts = pgTable("fullscreen_alerts", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
+  type: text("type").notNull().default("general"),
+  message: text("message").notNull(),
+  targetAll: boolean("target_all").notNull().default(true),
+  targetPitDisplay: boolean("target_pit_display").notNull().default(false),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  expiresAt: timestamp("expires_at"),
+  active: boolean("active").notNull().default(true),
+});
+
+export type CompetitionAssignment = typeof competitionAssignments.$inferSelect;
+export type InsertCompetitionAssignment = typeof competitionAssignments.$inferInsert;
+export type EventInfo = typeof eventInfo.$inferSelect;
+export type InsertEventInfo = typeof eventInfo.$inferInsert;
+export type CompetitionCheckin = typeof competitionCheckins.$inferSelect;
+export type InsertCompetitionCheckin = typeof competitionCheckins.$inferInsert;
+export type FullscreenAlert = typeof fullscreenAlerts.$inferSelect;
+export type InsertFullscreenAlert = typeof fullscreenAlerts.$inferInsert;
