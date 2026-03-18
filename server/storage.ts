@@ -122,6 +122,7 @@ export interface IStorage {
 
   getEventInfo(eventId: number): Promise<EventInfo | undefined>;
   upsertEventInfo(eventId: number, data: Partial<InsertEventInfo>): Promise<EventInfo>;
+  deleteEventInfo(eventId: number): Promise<void>;
 
   getCompetitionCheckins(eventId: number): Promise<CompetitionCheckin[]>;
   getCompetitionCheckinsByUser(userId: number): Promise<CompetitionCheckin[]>;
@@ -450,6 +451,10 @@ export class DatabaseStorage implements IStorage {
       const [row] = await db.insert(eventInfo).values({ ...sanitized, eventId }).returning();
       return row;
     }
+  }
+
+  async deleteEventInfo(eventId: number): Promise<void> {
+    await db.delete(eventInfo).where(eq(eventInfo.eventId, eventId));
   }
 
   async getCompetitionCheckins(eventId: number): Promise<CompetitionCheckin[]> {

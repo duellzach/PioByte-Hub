@@ -873,14 +873,14 @@ app.get("/api/scout-events/:eventId/export", async (req, res) => {
 });
 
 const NEXUS_BASE = "https://frc.nexus/api/v1";
-const NEXUS_KEY = process.env.NEXUS_API_KEY || "";
 
 async function nexusFetch(path: string) {
-  if (!NEXUS_KEY) {
+  const key = process.env.NEXUS_API_KEY;
+  if (!key) {
     throw new Error("NEXUS_API_KEY environment variable is not configured");
   }
   const resp = await fetch(`${NEXUS_BASE}${path}`, {
-    headers: { "Nexus-Api-Key": NEXUS_KEY },
+    headers: { "Nexus-Api-Key": key },
   });
   if (!resp.ok) throw new Error(`Nexus API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
@@ -888,7 +888,7 @@ async function nexusFetch(path: string) {
 
 app.get("/api/nexus/:eventKey", async (req, res) => {
   try {
-    if (!NEXUS_KEY) {
+    if (!process.env.NEXUS_API_KEY) {
       console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
       return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
     }
@@ -902,7 +902,8 @@ app.get("/api/nexus/:eventKey", async (req, res) => {
 
 app.get("/api/nexus/:eventKey/pits", async (req, res) => {
   try {
-    if (!NEXUS_KEY) {
+    if (!process.env.NEXUS_API_KEY) {
+      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
       return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
     }
     const data = await nexusFetch(`/event/${req.params.eventKey}/pits`);
