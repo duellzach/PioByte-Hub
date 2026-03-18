@@ -469,6 +469,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(competitionCheckins.checkInAt));
   }
 
+  async getCompetitionCheckinById(id: number): Promise<CompetitionCheckin | undefined> {
+    const [row] = await db.select().from(competitionCheckins).where(eq(competitionCheckins.id, id));
+    return row;
+  }
+
   async getOpenCompetitionCheckin(userId: number, eventId: number): Promise<CompetitionCheckin | undefined> {
     const results = await db.select().from(competitionCheckins)
       .where(and(

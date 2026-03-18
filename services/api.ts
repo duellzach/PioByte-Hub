@@ -144,10 +144,14 @@ export const api = {
       apiRequest<any>(`/competition-checkins/${id}/check-out`, { method: 'POST', body: JSON.stringify({}) }),
     approve: (id: number, coachId: number, roundedMinutes?: number) =>
       apiRequest<any>(`/competition-checkins/${id}/approve`, { method: 'POST', body: JSON.stringify({ coachId, roundedMinutes }) }),
-    update: (id: number, data: any) =>
-      apiRequest<any>(`/competition-checkins/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: number) =>
-      apiRequest<void>(`/competition-checkins/${id}`, { method: 'DELETE' }),
+    reject: (id: number, coachId: number) =>
+      apiRequest<any>(`/competition-checkins/${id}/reject`, { method: 'POST', body: JSON.stringify({ coachId }) }),
+    manualAdd: (coachId: number, userId: number, eventId: number, minutes: number, notes?: string) =>
+      apiRequest<any>('/competition-checkins/manual-add', { method: 'POST', body: JSON.stringify({ coachId, userId, eventId, minutes, notes }) }),
+    update: (id: number, actorId: number, data: any) =>
+      apiRequest<any>(`/competition-checkins/${id}`, { method: 'PUT', body: JSON.stringify({ actorId, ...data }) }),
+    delete: (id: number, actorId: number) =>
+      apiRequest<void>(`/competition-checkins/${id}?actorId=${actorId}`, { method: 'DELETE' }),
   },
   fullscreenAlerts: {
     list: (activeOnly = false) => apiRequest<any[]>(`/fullscreen-alerts${activeOnly ? '?active=true' : ''}`),

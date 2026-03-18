@@ -51,6 +51,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [showApproveModal, setShowApproveModal] = useState<any | null>(null);
   const [approveMinutes, setApproveMinutes] = useState('');
   const compElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualAddForm, setManualAddForm] = useState({ userId: '', minutes: '60', notes: '' });
   const [bulkForm, setBulkForm] = useState<{ 
     selectedUsers: string[]; 
     minutes: number; 
@@ -259,7 +261,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     const loadEvents = async () => {
       try {
         const events = await api.scout.getEvents();
-        const active = events.filter((e: any) => !e.archived);
+        const today = new Date().toISOString().slice(0, 10);
+        const active = events.filter((e: any) =>
+          !e.archived && (!e.endDate || e.endDate >= today)
+        );
         setCompEvents(active);
         if (active.length > 0 && !selectedCompEventId) {
           setSelectedCompEventId(active[0].id);
@@ -315,10 +320,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const handleCompCheckOut = async () => {
-    if (!myCompCheckin) return;
+    const openCheckin = compCheckins.find((c: any) => c.userId === currentUserId && c.status === 'checked_in' && !c.checkOutAt);
+    if (!openCheckin) return;
     setCompLoading(true);
     try {
-      await api.competitionCheckins.checkOut(myCompCheckin.id);
+      await api.competitionCheckins.checkOut(openCheckin.id);
       await fetchCompCheckins(selectedCompEventId!);
     } catch (e: any) {
       alert(e.message || 'Check-out failed');
@@ -341,17 +347,30 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const handleCompDelete = async (id: number) => {
-    if (!confirm('Delete this competition check-in?')) return;
+    if (!confirm('Delete this competition check-in record?')) return;
     try {
-      await api.competitionCheckins.delete(id);
+      await api.competitionCheckins.delete(id, currentUserId);
       if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
-    } catch {}
+    } catch (e: any) { alert(e.message || 'Delete failed'); }
+  };
+
+  const handleManualAdd = async () => {
+    if (!manualAddForm.userId || !manualAddForm.minutes || !selectedCompEventId) return;
+    try {
+      await api.competitionCheckins.manualAdd(
+        currentUserId,
+        parseInt(manualAddForm.userId),
+        selectedCompEventId,
+        parseInt(manualAddForm.minutes),
+        manualAddForm.notes || undefined
+      );
+      setShowManualAdd(false);
+      setManualAddForm({ userId: '', minutes: '60', notes: '' });
+      await fetchCompCheckins(selectedCompEventId);
+    } catch (e: any) { alert(e.message || 'Manual add failed'); }
   };
 
   const selectedCompEvent = compEvents.find(e => e.id === selectedCompEventId);
-  const myTodayCompCheckin = selectedCompEventId
-    ? compCheckins.find((c: any) => c.userId === currentUserId)
-    : null;
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
@@ -506,77 +525,91 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           )}
 
           {!isCoach && (
-            <div>
+            <div className="space-y-4">
               {(() => {
-                const myCheckin = compCheckins.find((c: any) => c.userId === currentUserId);
-                if (!myCheckin) {
-                  return (
-                    <button
-                      onClick={handleCompCheckIn}
-                      disabled={compLoading}
-                      className="w-full flex items-center justify-center gap-3 py-4 md:py-5 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
-                    >
-                      <Flag size={18} /> Check In to Competition
-                    </button>
-                  );
-                }
-                if (myCheckin.status === 'checked_in') {
-                  return (
-                    <div className="bg-violet-50 dark:bg-violet-900/20 border-2 border-violet-200 dark:border-violet-700 rounded-xl p-4 md:p-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center animate-pulse">
-                            <Trophy size={18} />
+                const myCheckins = compCheckins.filter((c: any) => c.userId === currentUserId);
+                const openCheckin = myCheckins.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
+                const pendingCheckin = myCheckins.find((c: any) => c.status === 'pending_approval');
+                const canCheckIn = !openCheckin && !pendingCheckin;
+                return (
+                  <>
+                    {canCheckIn && (
+                      <button
+                        onClick={handleCompCheckIn}
+                        disabled={compLoading}
+                        className="w-full flex items-center justify-center gap-3 py-4 md:py-5 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                      >
+                        <Flag size={18} /> Check In to Competition
+                      </button>
+                    )}
+                    {openCheckin && (
+                      <div className="bg-violet-50 dark:bg-violet-900/20 border-2 border-violet-200 dark:border-violet-700 rounded-xl p-4 md:p-5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center animate-pulse">
+                              <Trophy size={18} />
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">At Competition</p>
+                              <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">Since {formatTime(openCheckin.checkInAt)}</p>
+                              {compElapsed && <p className="text-xs font-black text-violet-700 dark:text-violet-300 mt-0.5">{compElapsed} elapsed</p>}
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">At Competition</p>
-                            <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">Since {formatTime(myCheckin.checkInAt)}</p>
-                            {compElapsed && <p className="text-xs font-black text-violet-700 dark:text-violet-300 mt-0.5">{compElapsed} elapsed</p>}
-                          </div>
+                          <button
+                            onClick={handleCompCheckOut}
+                            disabled={compLoading}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+                          >
+                            <LogOut size={14} /> Check Out
+                          </button>
                         </div>
-                        <button
-                          onClick={handleCompCheckOut}
-                          disabled={compLoading}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
-                        >
-                          <LogOut size={14} /> Check Out
-                        </button>
                       </div>
-                    </div>
-                  );
-                }
-                if (myCheckin.status === 'pending_approval') {
-                  return (
-                    <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-700 rounded-xl p-4 text-center">
-                      <p className="text-xs font-black text-orange-700 dark:text-orange-300 uppercase">Checked Out — Awaiting Coach Approval</p>
-                      <p className="text-[10px] text-orange-500 font-bold mt-1">
-                        {formatTime(myCheckin.checkInAt)} – {myCheckin.checkOutAt ? formatTime(myCheckin.checkOutAt) : ''}
-                      </p>
-                    </div>
-                  );
-                }
-                if (myCheckin.status === 'approved') {
-                  return (
-                    <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
-                      <p className="text-xs font-black text-green-700 dark:text-green-300 uppercase">Attendance Approved</p>
-                      {myCheckin.roundedMinutes && (
-                        <p className="text-2xl font-black text-green-600 dark:text-green-400 mt-1">{formatDuration(myCheckin.roundedMinutes)}</p>
-                      )}
-                      <p className="text-[10px] text-green-500 font-bold mt-1">
-                        Approved by {myCheckin.approvedByName || 'coach'}
-                      </p>
-                    </div>
-                  );
-                }
-                return null;
+                    )}
+                    {pendingCheckin && (
+                      <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-700 rounded-xl p-4 text-center">
+                        <p className="text-xs font-black text-orange-700 dark:text-orange-300 uppercase">Checked Out — Awaiting Coach Approval</p>
+                        <p className="text-[10px] text-orange-500 font-bold mt-1">
+                          {formatTime(pendingCheckin.checkInAt)} – {pendingCheckin.checkOutAt ? formatTime(pendingCheckin.checkOutAt) : ''}
+                        </p>
+                      </div>
+                    )}
+                    {myCheckins.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Your Sessions This Event</p>
+                        {myCheckins.map((c: any) => (
+                          <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                              {formatTime(c.checkInAt)}{c.checkOutAt ? ` → ${formatTime(c.checkOutAt)}` : ' (open)'}
+                              {c.roundedMinutes ? ` • ${formatDuration(c.roundedMinutes)}` : ''}
+                            </p>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase ${
+                              c.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                              c.status === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                              c.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
+                              'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+                            }`}>
+                              {c.status === 'checked_in' ? 'Present' : c.status === 'pending_approval' ? 'Pending' : c.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
               })()}
             </div>
           )}
 
           {isCoach && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{compCheckins.length} attendance records</p>
+                <button
+                  onClick={() => setShowManualAdd(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
+                >
+                  <Plus size={12} /> Manual Add
+                </button>
               </div>
               {compCheckins.length === 0 && (
                 <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No check-ins yet for this event</p>
@@ -600,23 +633,37 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
                       checkin.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
                       checkin.status === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                      checkin.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
                       'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
                     }`}>
-                      {checkin.status === 'checked_in' ? 'Present' : checkin.status === 'pending_approval' ? 'Pending' : 'Approved'}
+                      {checkin.status === 'checked_in' ? 'Present' : checkin.status === 'pending_approval' ? 'Pending' : checkin.status}
                     </span>
                     {checkin.status === 'pending_approval' && (
-                      <button
-                        onClick={() => {
-                          const dur = checkin.checkOutAt
-                            ? Math.ceil((new Date(checkin.checkOutAt).getTime() - new Date(checkin.checkInAt).getTime()) / 60000)
-                            : 0;
-                          setApproveMinutes(String(Math.ceil(dur / 15) * 15));
-                          setShowApproveModal(checkin);
-                        }}
-                        className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
-                      >
-                        <Check size={12} /> Approve
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            const dur = checkin.checkOutAt
+                              ? Math.ceil((new Date(checkin.checkOutAt).getTime() - new Date(checkin.checkInAt).getTime()) / 60000)
+                              : 0;
+                            setApproveMinutes(String(Math.ceil(dur / 15) * 15));
+                            setShowApproveModal(checkin);
+                          }}
+                          className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+                        >
+                          <Check size={12} /> Approve
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await api.competitionCheckins.reject(checkin.id, currentUserId);
+                              if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+                            } catch (e: any) { alert(e.message || 'Reject failed'); }
+                          }}
+                          className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg font-bold text-[10px] uppercase hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                        >
+                          <X size={12} /> Reject
+                        </button>
+                      </>
                     )}
                     {checkin.status === 'checked_in' && (
                       <button
@@ -634,6 +681,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <button
                       onClick={() => handleCompDelete(checkin.id)}
                       className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                      title="Delete record"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -656,7 +704,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               <button onClick={() => setShowApproveModal(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
             </div>
             <div>
-              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Approved Minutes (rounded)</label>
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Approved Minutes (rounded to 15)</label>
               <input
                 type="number"
                 value={approveMinutes}
@@ -669,6 +717,66 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowApproveModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
               <button onClick={handleCompApprove} className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl text-xs uppercase hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all">Approve</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManualAdd && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl border-t-8 border-violet-500">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">Manual Add Time</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedCompEvent?.name}</p>
+              </div>
+              <button onClick={() => setShowManualAdd(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Member</label>
+                <select
+                  value={manualAddForm.userId}
+                  onChange={(e) => setManualAddForm(f => ({ ...f, userId: e.target.value }))}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
+                >
+                  <option value="">Select member...</option>
+                  {state.users.filter(u => u.id !== String(currentUserId)).map(u => (
+                    <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Minutes</label>
+                <input
+                  type="number"
+                  value={manualAddForm.minutes}
+                  onChange={(e) => setManualAddForm(f => ({ ...f, minutes: e.target.value }))}
+                  step="15"
+                  min="15"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={manualAddForm.notes}
+                  onChange={(e) => setManualAddForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="e.g. arrived early setup"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowManualAdd(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
+              <button
+                onClick={handleManualAdd}
+                disabled={!manualAddForm.userId || !manualAddForm.minutes}
+                className="flex-1 py-3 bg-violet-600 text-white font-black rounded-xl text-xs uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50"
+              >
+                Add Approved Time
+              </button>
             </div>
           </div>
         </div>

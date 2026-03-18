@@ -1105,10 +1105,69 @@ app.post("/api/competition-checkins/:id/approve", async (req, res) => {
   }
 });
 
+app.post("/api/competition-checkins/:id/reject", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId } = req.body;
+    if (!coachId) return res.status(400).json({ error: "coachId is required" });
+    const coachUser = await storage.getUser(parseInt(coachId));
+    const coachRoles: string[] = coachUser?.roles || [];
+    if (!coachRoles.includes("Coach") && !coachRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can reject competition checkins" });
+    }
+    const updated = await storage.updateCompetitionCheckin(id, { status: "rejected" });
+    if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error rejecting competition checkin:", error);
+    res.status(500).json({ error: "Failed to reject checkin" });
+  }
+});
+
+app.post("/api/competition-checkins/manual-add", async (req, res) => {
+  try {
+    const { coachId, userId, eventId, minutes, notes } = req.body;
+    if (!coachId || !userId || !eventId || !minutes) {
+      return res.status(400).json({ error: "coachId, userId, eventId, and minutes are required" });
+    }
+    const coachUser = await storage.getUser(parseInt(coachId));
+    const coachRoles: string[] = coachUser?.roles || [];
+    if (!coachRoles.includes("Coach") && !coachRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can manually add competition time" });
+    }
+    const now = new Date();
+    const checkin = await storage.createCompetitionCheckin({
+      userId: parseInt(userId),
+      eventId: parseInt(eventId),
+      checkInAt: now,
+      checkOutAt: now,
+      status: "approved",
+      approvedBy: parseInt(coachId),
+      approvedAt: now,
+      roundedMinutes: parseInt(minutes),
+      notes: notes || "Manually added by coach",
+    });
+    res.status(201).json(checkin);
+  } catch (error) {
+    console.error("Error manually adding competition checkin:", error);
+    res.status(500).json({ error: "Failed to add manual checkin" });
+  }
+});
+
 app.put("/api/competition-checkins/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const updated = await storage.updateCompetitionCheckin(id, req.body);
+    const { actorId, ...data } = req.body;
+    if (!actorId) return res.status(400).json({ error: "actorId is required" });
+    const actor = await storage.getUser(parseInt(actorId));
+    const actorRoles: string[] = actor?.roles || [];
+    const isCoachOrCaptain = actorRoles.includes("Coach") || actorRoles.includes("Team Captain");
+    const existing = await storage.getCompetitionCheckinById ? await storage.getCompetitionCheckinById(id) : null;
+    const ownsRecord = existing?.userId === parseInt(actorId);
+    if (!isCoachOrCaptain && !ownsRecord) {
+      return res.status(403).json({ error: "Not authorized to update this checkin" });
+    }
+    const updated = await storage.updateCompetitionCheckin(id, data);
     if (!updated) return res.status(404).json({ error: "Checkin not found" });
     res.json(updated);
   } catch (error) {
@@ -1120,6 +1179,13 @@ app.put("/api/competition-checkins/:id", async (req, res) => {
 app.delete("/api/competition-checkins/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const actorId = req.query.actorId as string;
+    if (!actorId) return res.status(400).json({ error: "actorId query param is required" });
+    const actor = await storage.getUser(parseInt(actorId));
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can delete competition checkins" });
+    }
     await storage.deleteCompetitionCheckin(id);
     res.status(204).send();
   } catch (error) {
