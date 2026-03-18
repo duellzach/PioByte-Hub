@@ -1902,16 +1902,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
                   {(() => {
                     const myId = parseInt(currentUser?.id);
-                    const standAssignment = assignments.find(a =>
+                    const standAssignments = assignments.filter(a =>
                       a.userId === myId && a.role === 'Scout - Stands'
                     );
-                    if (!standAssignment) return null;
+                    if (standAssignments.length === 0) return null;
+                    const inAnyRange = (mn: number) => standAssignments.some(a => mn >= a.fromMatch && mn <= a.toMatch);
+                    const rangeLabel = standAssignments.map(a => `M${a.fromMatch}–M${a.toMatch}`).join(', ');
                     const pitScoutedNums = new Set(pitScouts.map((ps: any) => ps.teamNumber));
                     const suggestedMatches = tbaMatches
                       .filter((m: any) => {
                         const mn = m.match_number;
                         const isQual = m.comp_level === 'qm';
-                        const inRange = mn >= standAssignment.fromMatch && mn <= standAssignment.toMatch;
+                        const inRange = inAnyRange(mn);
                         const unplayed = m.alliances?.red?.score === null || m.alliances?.red?.score === undefined || m.alliances?.red?.score === -1;
                         return isQual && inRange && unplayed;
                       })
@@ -1943,7 +1945,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-2xl p-5">
                         <h4 className="text-xs font-black text-red-700 dark:text-red-300 uppercase tracking-widest mb-3 flex items-center gap-2">
                           <Swords size={14} className="text-red-600" />
-                          Your Scouting Targets (M{standAssignment.fromMatch}–M{standAssignment.toMatch})
+                          Your Scouting Targets ({rangeLabel})
                         </h4>
                         <div className="space-y-2">
                           {suggestedRobots.slice(0, 8).map((s, idx) => {
