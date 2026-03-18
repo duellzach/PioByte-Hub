@@ -2440,32 +2440,32 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               );
               if (undismissed.length === 0) return null;
               const a = undismissed[0];
-              const borderColor = a.type === 'safety' ? 'border-red-600' : a.type === 'urgent' ? 'border-orange-500' : 'border-blue-500';
-              const iconColor = a.type === 'safety' ? 'text-red-600' : a.type === 'urgent' ? 'text-orange-500' : 'text-blue-500';
-              const bgCard = a.type === 'safety' ? 'bg-red-600/10' : a.type === 'urgent' ? 'bg-orange-500/10' : 'bg-blue-600/10';
+              const isSafety = a.type === 'safety';
+              const pitBorderColor = isSafety ? 'border-red-600' : 'border-orange-500';
+              const pitIconColor = isSafety ? 'text-red-600' : 'text-orange-500';
+              const pitBgCard = isSafety ? 'bg-red-600/15' : 'bg-orange-500/15';
+              const pitBtnColor = isSafety ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600';
+              const pitLabel = isSafety ? 'Safety Alert' : a.type === 'urgent' ? 'Urgent Alert' : 'Pit Display Alert';
+              const pitIcon = isSafety ? '⚠' : '!';
               return (
-                <div className={`fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6`}>
-                  <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 ${borderColor}`}>
+                <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+                  <div className={`bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 ${pitBorderColor} ring-4 ring-offset-2 ring-offset-black ${isSafety ? 'ring-red-600/40' : 'ring-orange-500/40'}`}>
                     <div className="flex justify-end mb-2">
                       <button onClick={() => dismissPitAlert(a.id)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
                         <span className="text-lg font-black">✕</span>
                       </button>
                     </div>
-                    <div className={`w-16 h-16 ${bgCard} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                      <span className={`text-3xl font-black ${iconColor}`}>{a.type === 'safety' ? '⚠' : a.type === 'urgent' ? '!' : '🔔'}</span>
+                    <div className={`w-16 h-16 ${pitBgCard} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+                      <span className={`text-3xl font-black ${pitIconColor}`}>{pitIcon}</span>
                     </div>
-                    <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${iconColor}`}>
-                      {a.type === 'safety' ? 'Safety Alert' : a.type === 'urgent' ? 'Urgent' : 'Pit Display Alert'}
-                    </p>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${pitIconColor}`}>{pitLabel}</p>
                     <p className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-snug">{a.message}</p>
                     {undismissed.length > 1 && (
                       <p className="text-xs text-slate-400 font-bold mt-3">{undismissed.length - 1} more alert{undismissed.length > 2 ? 's' : ''} pending</p>
                     )}
                     <button
                       onClick={() => dismissPitAlert(a.id)}
-                      className={`mt-6 px-8 py-3 font-black text-sm uppercase tracking-widest rounded-2xl text-white transition-all ${
-                        a.type === 'safety' ? 'bg-red-600 hover:bg-red-700' : a.type === 'urgent' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
+                      className={`mt-6 px-8 py-3 font-black text-sm uppercase tracking-widest rounded-2xl text-white transition-all ${pitBtnColor}`}
                     >
                       Dismiss
                     </button>
