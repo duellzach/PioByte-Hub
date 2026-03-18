@@ -11,7 +11,7 @@ import Scout from './components/Scout';
 import TaskModal from './components/TaskModal';
 import Confetti from './components/Confetti';
 import { api } from './services/api';
-import { Database, Zap } from 'lucide-react';
+import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 const TeamLogo = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -44,6 +44,13 @@ const App: React.FC = () => {
   const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('piobyte_dark_mode') === 'true');
+  const [globalAlerts, setGlobalAlerts] = useState<any[]>([]);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<number>>(() => {
+    try {
+      const stored = sessionStorage.getItem('piobyte_dismissed_alerts');
+      return stored ? new Set(JSON.parse(stored)) : new Set<number>();
+    } catch { return new Set<number>(); }
+  });
 
   useEffect(() => {
     if (darkMode) {
@@ -116,6 +123,30 @@ const App: React.FC = () => {
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const fetchAlerts = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const alerts = await api.fullscreenAlerts.list(true);
+      setGlobalAlerts(alerts.filter((a: any) => a.targetAll));
+    } catch {}
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 10000);
+    return () => clearInterval(interval);
+  }, [fetchAlerts, isLoggedIn]);
+
+  const dismissAlert = (id: number) => {
+    setDismissedAlertIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try { sessionStorage.setItem('piobyte_dismissed_alerts', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const savedUserId = localStorage.getItem('frc_hub_active_user');
@@ -421,6 +452,53 @@ const App: React.FC = () => {
           />
         )}
         <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
+
+        {(() => {
+          const now = new Date();
+          const undismissed = globalAlerts.filter(a =>
+            a.active &&
+            !dismissedAlertIds.has(a.id) &&
+            (!a.expiresAt || new Date(a.expiresAt) > now)
+          );
+          if (undismissed.length === 0) return null;
+          const alert = undismissed[0];
+          const borderColor = alert.type === 'safety' ? 'border-red-600' : alert.type === 'urgent' ? 'border-orange-500' : 'border-blue-500';
+          const iconColor = alert.type === 'safety' ? 'text-red-600' : alert.type === 'urgent' ? 'text-orange-500' : 'text-blue-500';
+          const bgColor = alert.type === 'safety' ? 'bg-red-50 dark:bg-red-900/20' : alert.type === 'urgent' ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-blue-50 dark:bg-blue-900/20';
+          const Icon = alert.type === 'safety' ? ShieldAlert : alert.type === 'urgent' ? AlertTriangle : Bell;
+          return (
+            <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+              <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 ${borderColor}`}>
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => dismissAlert(alert.id)}
+                    className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className={`w-16 h-16 ${bgColor} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+                  <Icon size={32} className={iconColor} />
+                </div>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${iconColor}`}>
+                  {alert.type === 'safety' ? '⚠ Safety Alert' : alert.type === 'urgent' ? '! Urgent' : 'Team Notification'}
+                </p>
+                <p className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-snug">{alert.message}</p>
+                {undismissed.length > 1 && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-bold mt-4">{undismissed.length - 1} more alert{undismissed.length > 2 ? 's' : ''} pending</p>
+                )}
+                <button
+                  onClick={() => dismissAlert(alert.id)}
+                  className={`mt-6 px-8 py-3 font-black text-sm uppercase tracking-widest rounded-2xl text-white transition-all ${
+                    alert.type === 'safety' ? 'bg-red-600 hover:bg-red-700' : alert.type === 'urgent' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Layout>
     </HashRouter>
   );

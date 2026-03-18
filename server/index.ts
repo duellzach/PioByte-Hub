@@ -1085,6 +1085,12 @@ app.post("/api/competition-checkins/:id/approve", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { coachId, roundedMinutes } = req.body;
+    if (!coachId) return res.status(400).json({ error: "coachId is required" });
+    const coachUser = await storage.getUser(parseInt(coachId));
+    const coachRoles: string[] = coachUser?.roles || [];
+    if (!coachRoles.includes("Coach") && !coachRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can approve competition checkins" });
+    }
     const updated = await storage.updateCompetitionCheckin(id, {
       approvedBy: coachId,
       approvedAt: new Date(),
@@ -1135,6 +1141,13 @@ app.get("/api/fullscreen-alerts", async (req, res) => {
 
 app.post("/api/fullscreen-alerts", async (req, res) => {
   try {
+    const createdBy = parseInt(req.body.createdBy);
+    if (!createdBy) return res.status(400).json({ error: "createdBy is required" });
+    const actor = await storage.getUser(createdBy);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can create alerts" });
+    }
     const alert = await storage.createFullscreenAlert(req.body);
     res.status(201).json(alert);
   } catch (error) {
@@ -1146,7 +1159,15 @@ app.post("/api/fullscreen-alerts", async (req, res) => {
 app.put("/api/fullscreen-alerts/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const alert = await storage.updateFullscreenAlert(id, req.body);
+    const actorId = parseInt(req.body.actorId);
+    if (!actorId) return res.status(400).json({ error: "actorId is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can update alerts" });
+    }
+    const { actorId: _, ...updateData } = req.body;
+    const alert = await storage.updateFullscreenAlert(id, updateData);
     if (!alert) return res.status(404).json({ error: "Alert not found" });
     res.json(alert);
   } catch (error) {
@@ -1158,6 +1179,13 @@ app.put("/api/fullscreen-alerts/:id", async (req, res) => {
 app.delete("/api/fullscreen-alerts/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const actorId = parseInt(req.query.actorId as string);
+    if (!actorId) return res.status(400).json({ error: "actorId query param is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can delete alerts" });
+    }
     await storage.deleteFullscreenAlert(id);
     res.status(204).send();
   } catch (error) {

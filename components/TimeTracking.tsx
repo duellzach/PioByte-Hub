@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2 } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag } from 'lucide-react';
 import { api } from '../services/api';
 
 interface TimeTrackingProps {
@@ -41,6 +41,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [editForm, setEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
   const [showHistory, setShowHistory] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
+
+  const [compEvents, setCompEvents] = useState<any[]>([]);
+  const [selectedCompEventId, setSelectedCompEventId] = useState<number | null>(null);
+  const [compCheckins, setCompCheckins] = useState<any[]>([]);
+  const [myCompCheckin, setMyCompCheckin] = useState<any | null>(null);
+  const [compElapsed, setCompElapsed] = useState<string>('');
+  const [compLoading, setCompLoading] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState<any | null>(null);
+  const [approveMinutes, setApproveMinutes] = useState('');
+  const compElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [bulkForm, setBulkForm] = useState<{ 
     selectedUsers: string[]; 
     minutes: number; 
@@ -245,6 +255,104 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }));
   };
 
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const events = await api.scout.getEvents();
+        const active = events.filter((e: any) => !e.archived);
+        setCompEvents(active);
+        if (active.length > 0 && !selectedCompEventId) {
+          setSelectedCompEventId(active[0].id);
+        }
+      } catch {}
+    };
+    loadEvents();
+  }, []);
+
+  const fetchCompCheckins = async (eventId: number) => {
+    if (!eventId) return;
+    try {
+      const checkins = await api.competitionCheckins.listByEvent(eventId);
+      setCompCheckins(checkins);
+      const mine = checkins.find((c: any) => c.userId === currentUserId && !c.checkOutAt);
+      setMyCompCheckin(mine || null);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!selectedCompEventId) return;
+    fetchCompCheckins(selectedCompEventId);
+    const interval = setInterval(() => fetchCompCheckins(selectedCompEventId!), 15000);
+    return () => clearInterval(interval);
+  }, [selectedCompEventId, currentUserId]);
+
+  useEffect(() => {
+    if (compElapsedRef.current) clearInterval(compElapsedRef.current);
+    if (!myCompCheckin) { setCompElapsed(''); return; }
+    const tick = () => {
+      const ms = Date.now() - new Date(myCompCheckin.checkInAt).getTime();
+      const totalMinutes = Math.floor(ms / 60000);
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      setCompElapsed(h > 0 ? `${h}h ${m}m` : `${m}m`);
+    };
+    tick();
+    compElapsedRef.current = setInterval(tick, 30000);
+    return () => { if (compElapsedRef.current) clearInterval(compElapsedRef.current); };
+  }, [myCompCheckin]);
+
+  const handleCompCheckIn = async () => {
+    if (!selectedCompEventId) return;
+    setCompLoading(true);
+    try {
+      await api.competitionCheckins.checkIn(currentUserId, selectedCompEventId);
+      await fetchCompCheckins(selectedCompEventId);
+    } catch (e: any) {
+      alert(e.message || 'Check-in failed');
+    } finally {
+      setCompLoading(false);
+    }
+  };
+
+  const handleCompCheckOut = async () => {
+    if (!myCompCheckin) return;
+    setCompLoading(true);
+    try {
+      await api.competitionCheckins.checkOut(myCompCheckin.id);
+      await fetchCompCheckins(selectedCompEventId!);
+    } catch (e: any) {
+      alert(e.message || 'Check-out failed');
+    } finally {
+      setCompLoading(false);
+    }
+  };
+
+  const handleCompApprove = async () => {
+    if (!showApproveModal) return;
+    const mins = approveMinutes ? parseInt(approveMinutes) : undefined;
+    try {
+      await api.competitionCheckins.approve(showApproveModal.id, currentUserId, mins);
+      setShowApproveModal(null);
+      setApproveMinutes('');
+      if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+    } catch (e: any) {
+      alert(e.message || 'Approve failed');
+    }
+  };
+
+  const handleCompDelete = async (id: number) => {
+    if (!confirm('Delete this competition check-in?')) return;
+    try {
+      await api.competitionCheckins.delete(id);
+      if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+    } catch {}
+  };
+
+  const selectedCompEvent = compEvents.find(e => e.id === selectedCompEventId);
+  const myTodayCompCheckin = selectedCompEventId
+    ? compCheckins.find((c: any) => c.userId === currentUserId)
+    : null;
+
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -362,6 +470,209 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </div>
         </div>
       </div>
+
+      {compEvents.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-violet-200 dark:border-violet-700 p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-xl flex items-center justify-center">
+                <Trophy size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Competition Attendance</h3>
+                <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold uppercase tracking-widest">Track your time at competition</p>
+              </div>
+            </div>
+            {compEvents.length > 1 && (
+              <select
+                value={selectedCompEventId || ''}
+                onChange={(e) => setSelectedCompEventId(parseInt(e.target.value))}
+                className="p-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-bold outline-none focus:border-violet-600 dark:text-white"
+              >
+                {compEvents.map(e => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {selectedCompEvent && (
+            <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+              <MapPin size={12} className="text-slate-400 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">
+                {selectedCompEvent.name}{selectedCompEvent.location ? ` • ${selectedCompEvent.location}` : ''}
+              </span>
+            </div>
+          )}
+
+          {!isCoach && (
+            <div>
+              {(() => {
+                const myCheckin = compCheckins.find((c: any) => c.userId === currentUserId);
+                if (!myCheckin) {
+                  return (
+                    <button
+                      onClick={handleCompCheckIn}
+                      disabled={compLoading}
+                      className="w-full flex items-center justify-center gap-3 py-4 md:py-5 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                    >
+                      <Flag size={18} /> Check In to Competition
+                    </button>
+                  );
+                }
+                if (myCheckin.status === 'checked_in') {
+                  return (
+                    <div className="bg-violet-50 dark:bg-violet-900/20 border-2 border-violet-200 dark:border-violet-700 rounded-xl p-4 md:p-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center animate-pulse">
+                            <Trophy size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">At Competition</p>
+                            <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">Since {formatTime(myCheckin.checkInAt)}</p>
+                            {compElapsed && <p className="text-xs font-black text-violet-700 dark:text-violet-300 mt-0.5">{compElapsed} elapsed</p>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleCompCheckOut}
+                          disabled={compLoading}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+                        >
+                          <LogOut size={14} /> Check Out
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                if (myCheckin.status === 'pending_approval') {
+                  return (
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-700 rounded-xl p-4 text-center">
+                      <p className="text-xs font-black text-orange-700 dark:text-orange-300 uppercase">Checked Out — Awaiting Coach Approval</p>
+                      <p className="text-[10px] text-orange-500 font-bold mt-1">
+                        {formatTime(myCheckin.checkInAt)} – {myCheckin.checkOutAt ? formatTime(myCheckin.checkOutAt) : ''}
+                      </p>
+                    </div>
+                  );
+                }
+                if (myCheckin.status === 'approved') {
+                  return (
+                    <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
+                      <p className="text-xs font-black text-green-700 dark:text-green-300 uppercase">Attendance Approved</p>
+                      {myCheckin.roundedMinutes && (
+                        <p className="text-2xl font-black text-green-600 dark:text-green-400 mt-1">{formatDuration(myCheckin.roundedMinutes)}</p>
+                      )}
+                      <p className="text-[10px] text-green-500 font-bold mt-1">
+                        Approved by {myCheckin.approvedByName || 'coach'}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+          )}
+
+          {isCoach && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{compCheckins.length} attendance records</p>
+              </div>
+              {compCheckins.length === 0 && (
+                <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No check-ins yet for this event</p>
+              )}
+              {compCheckins.map((checkin: any) => (
+                <div key={checkin.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center font-black text-violet-700 dark:text-violet-300">
+                      {(checkin.userName || 'U')[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{checkin.userName || `User ${checkin.userId}`}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                        {formatTime(checkin.checkInAt)}
+                        {checkin.checkOutAt ? ` – ${formatTime(checkin.checkOutAt)}` : ' (still here)'}
+                        {checkin.roundedMinutes ? ` • ${formatDuration(checkin.roundedMinutes)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
+                      checkin.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                      checkin.status === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                      'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+                    }`}>
+                      {checkin.status === 'checked_in' ? 'Present' : checkin.status === 'pending_approval' ? 'Pending' : 'Approved'}
+                    </span>
+                    {checkin.status === 'pending_approval' && (
+                      <button
+                        onClick={() => {
+                          const dur = checkin.checkOutAt
+                            ? Math.ceil((new Date(checkin.checkOutAt).getTime() - new Date(checkin.checkInAt).getTime()) / 60000)
+                            : 0;
+                          setApproveMinutes(String(Math.ceil(dur / 15) * 15));
+                          setShowApproveModal(checkin);
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+                      >
+                        <Check size={12} /> Approve
+                      </button>
+                    )}
+                    {checkin.status === 'checked_in' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.competitionCheckins.checkOut(checkin.id);
+                            if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+                          } catch {}
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-orange-600 transition-all"
+                      >
+                        <LogOut size={12} /> Check Out
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleCompDelete(checkin.id)}
+                      className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl border-t-8 border-green-500">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">Approve Attendance</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">{showApproveModal.userName}</p>
+              </div>
+              <button onClick={() => setShowApproveModal(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
+            </div>
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Approved Minutes (rounded)</label>
+              <input
+                type="number"
+                value={approveMinutes}
+                onChange={(e) => setApproveMinutes(e.target.value)}
+                step="15"
+                min="0"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-green-500 dark:text-white font-bold"
+              />
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowApproveModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
+              <button onClick={handleCompApprove} className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl text-xs uppercase hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all">Approve</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCoach && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-blue-200 dark:border-blue-700 p-6 md:p-8">

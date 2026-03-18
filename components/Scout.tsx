@@ -183,6 +183,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
   const [dismissedParts, setDismissedParts] = useState<Set<string>>(new Set());
 
+  const [pitDisplayAlerts, setPitDisplayAlerts] = useState<any[]>([]);
+  const [dismissedPitAlertIds, setDismissedPitAlertIds] = useState<Set<number>>(() => {
+    try {
+      const s = sessionStorage.getItem('piobyte_dismissed_pit_alerts');
+      return s ? new Set(JSON.parse(s)) : new Set<number>();
+    } catch { return new Set<number>(); }
+  });
+
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [eventInfoData, setEventInfoData] = useState<any | null>(null);
   const [editingEventInfo, setEditingEventInfo] = useState(false);
@@ -296,6 +304,28 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     nexusCountdownRef.current = setInterval(tick, 1000);
     return () => { if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current); };
   }, [nexusData]);
+
+  useEffect(() => {
+    if (activeTab !== 'display') return;
+    const fetchPitAlerts = async () => {
+      try {
+        const alerts = await api.fullscreenAlerts.list(true);
+        setPitDisplayAlerts(alerts.filter((a: any) => a.targetPitDisplay && a.active));
+      } catch {}
+    };
+    fetchPitAlerts();
+    const interval = setInterval(fetchPitAlerts, 10000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  const dismissPitAlert = (id: number) => {
+    setDismissedPitAlertIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try { sessionStorage.setItem('piobyte_dismissed_pit_alerts', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const goOnline = () => {
@@ -2401,6 +2431,48 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
+
+            {(() => {
+              const now = new Date();
+              const undismissed = pitDisplayAlerts.filter(a =>
+                !dismissedPitAlertIds.has(a.id) &&
+                (!a.expiresAt || new Date(a.expiresAt) > now)
+              );
+              if (undismissed.length === 0) return null;
+              const a = undismissed[0];
+              const borderColor = a.type === 'safety' ? 'border-red-600' : a.type === 'urgent' ? 'border-orange-500' : 'border-blue-500';
+              const iconColor = a.type === 'safety' ? 'text-red-600' : a.type === 'urgent' ? 'text-orange-500' : 'text-blue-500';
+              const bgCard = a.type === 'safety' ? 'bg-red-600/10' : a.type === 'urgent' ? 'bg-orange-500/10' : 'bg-blue-600/10';
+              return (
+                <div className={`fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6`}>
+                  <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 ${borderColor}`}>
+                    <div className="flex justify-end mb-2">
+                      <button onClick={() => dismissPitAlert(a.id)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
+                        <span className="text-lg font-black">✕</span>
+                      </button>
+                    </div>
+                    <div className={`w-16 h-16 ${bgCard} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+                      <span className={`text-3xl font-black ${iconColor}`}>{a.type === 'safety' ? '⚠' : a.type === 'urgent' ? '!' : '🔔'}</span>
+                    </div>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${iconColor}`}>
+                      {a.type === 'safety' ? 'Safety Alert' : a.type === 'urgent' ? 'Urgent' : 'Pit Display Alert'}
+                    </p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-snug">{a.message}</p>
+                    {undismissed.length > 1 && (
+                      <p className="text-xs text-slate-400 font-bold mt-3">{undismissed.length - 1} more alert{undismissed.length > 2 ? 's' : ''} pending</p>
+                    )}
+                    <button
+                      onClick={() => dismissPitAlert(a.id)}
+                      className={`mt-6 px-8 py-3 font-black text-sm uppercase tracking-widest rounded-2xl text-white transition-all ${
+                        a.type === 'safety' ? 'bg-red-600 hover:bg-red-700' : a.type === 'urgent' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {nexusData && (() => {
               const firstPendingAnnouncement = nexusData.announcements?.find(

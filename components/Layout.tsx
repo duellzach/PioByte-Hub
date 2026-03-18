@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus } from 'lucide-react';
+import { api } from '../services/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,19 @@ interface LayoutProps {
     projectCount: number;
   };
 }
+
+const ALERT_TYPES = [
+  { value: 'general', label: 'General', color: 'blue' },
+  { value: 'urgent', label: 'Urgent', color: 'orange' },
+  { value: 'safety', label: 'Safety', color: 'red' },
+];
+
+const EXPIRY_OPTIONS = [
+  { label: '30 min', hours: 0.5 },
+  { label: '1 hour', hours: 1 },
+  { label: '4 hours', hours: 4 },
+  { label: 'Never', hours: null },
+];
 
 const TeamLogo = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -36,6 +50,80 @@ const TeamLogo = ({ className }: { className?: string }) => (
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
+  const [alertForm, setAlertForm] = useState({
+    message: '',
+    type: 'general',
+    targetAll: true,
+    targetPitDisplay: false,
+    expiryHours: null as number | null,
+  });
+  const [alertSaving, setAlertSaving] = useState(false);
+  const [alertError, setAlertError] = useState('');
+
+  const isCoachOrCaptain = user?.roles?.includes('Coach') || user?.roles?.includes('Team Captain');
+
+  const fetchActiveAlerts = async () => {
+    try {
+      const alerts = await api.fullscreenAlerts.list(false);
+      setActiveAlerts(alerts.filter((a: any) => a.active));
+    } catch {}
+  };
+
+  const openAlertModal = () => {
+    setShowAlertModal(true);
+    fetchActiveAlerts();
+    setAlertForm({ message: '', type: 'general', targetAll: true, targetPitDisplay: false, expiryHours: null });
+    setAlertError('');
+  };
+
+  const handleCreateAlert = async () => {
+    if (!alertForm.message.trim()) { setAlertError('Message is required'); return; }
+    if (!alertForm.targetAll && !alertForm.targetPitDisplay) { setAlertError('Select at least one target'); return; }
+    setAlertSaving(true);
+    setAlertError('');
+    try {
+      const expiresAt = alertForm.expiryHours
+        ? new Date(Date.now() + alertForm.expiryHours * 60 * 60 * 1000).toISOString()
+        : null;
+      await api.fullscreenAlerts.create({
+        message: alertForm.message.trim(),
+        type: alertForm.type,
+        targetAll: alertForm.targetAll,
+        targetPitDisplay: alertForm.targetPitDisplay,
+        createdBy: parseInt(user.id),
+        active: true,
+        ...(expiresAt ? { expiresAt } : {}),
+      });
+      setAlertForm({ message: '', type: 'general', targetAll: true, targetPitDisplay: false, expiryHours: null });
+      fetchActiveAlerts();
+    } catch (e: any) {
+      setAlertError(e.message || 'Failed to create alert');
+    } finally {
+      setAlertSaving(false);
+    }
+  };
+
+  const handleDeactivateAlert = async (id: number) => {
+    try {
+      await api.fullscreenAlerts.update(id, parseInt(user.id), { active: false });
+      fetchActiveAlerts();
+    } catch {}
+  };
+
+  const handleDeleteAlert = async (id: number) => {
+    try {
+      await api.fullscreenAlerts.delete(id, parseInt(user.id));
+      fetchActiveAlerts();
+    } catch {}
+  };
+
+  const alertTypeColor = (type: string) => {
+    if (type === 'urgent') return 'border-orange-500';
+    if (type === 'safety') return 'border-red-600';
+    return 'border-blue-500';
+  };
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
@@ -87,7 +175,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/scout" icon={<Crosshair size={18} />} label="EVENTS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           
-          <div className="pt-2 border-t border-white/10 mt-2">
+          <div className="pt-2 border-t border-white/10 mt-2 space-y-1">
             <button
               onClick={onToggleDarkMode}
               title={collapsed ? (darkMode ? "LIGHT MODE" : "DARK MODE") : ""}
@@ -96,6 +184,17 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <div className="flex-shrink-0">{darkMode ? <Sun size={18} /> : <Moon size={18} />}</div>
               {!collapsed && <span>{darkMode ? 'LIGHT MODE' : 'DARK MODE'}</span>}
             </button>
+
+            {isCoachOrCaptain && (
+              <button
+                onClick={openAlertModal}
+                title={collapsed ? "PUSH ALERT" : ""}
+                className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3 xl:gap-4 px-3 xl:px-5'} py-3 xl:py-4 rounded-xl transition-all font-black text-[10px] xl:text-xs tracking-widest text-red-400 hover:text-white hover:bg-red-600`}
+              >
+                <div className="flex-shrink-0"><Bell size={18} /></div>
+                {!collapsed && <span>PUSH ALERT</span>}
+              </button>
+            )}
           </div>
         </nav>
 
@@ -182,6 +281,147 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           </div>
         </div>
       </main>
+
+      {showAlertModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-8 border-red-600 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                  <Bell size={20} className="text-red-600" /> Push Alert
+                </h2>
+                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">Send fullscreen notification to team</p>
+              </div>
+              <button onClick={() => setShowAlertModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Message</label>
+                <textarea
+                  value={alertForm.message}
+                  onChange={(e) => setAlertForm({ ...alertForm, message: e.target.value })}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium h-24 resize-none"
+                  placeholder="Enter alert message..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Type</label>
+                <div className="flex gap-2">
+                  {ALERT_TYPES.map(t => (
+                    <button
+                      key={t.value}
+                      onClick={() => setAlertForm({ ...alertForm, type: t.value })}
+                      className={`flex-1 py-2 rounded-xl font-black text-xs uppercase transition-all ${
+                        alertForm.type === t.value
+                          ? t.color === 'red' ? 'bg-red-600 text-white' : t.color === 'orange' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Target</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAlertForm({ ...alertForm, targetAll: !alertForm.targetAll })}
+                    className={`flex-1 py-2 rounded-xl font-black text-xs uppercase transition-all ${
+                      alertForm.targetAll ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    All Users
+                  </button>
+                  <button
+                    onClick={() => setAlertForm({ ...alertForm, targetPitDisplay: !alertForm.targetPitDisplay })}
+                    className={`flex-1 py-2 rounded-xl font-black text-xs uppercase transition-all ${
+                      alertForm.targetPitDisplay ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Pit Display
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Expires</label>
+                <div className="flex gap-2">
+                  {EXPIRY_OPTIONS.map(opt => (
+                    <button
+                      key={opt.label}
+                      onClick={() => setAlertForm({ ...alertForm, expiryHours: opt.hours })}
+                      className={`flex-1 py-2 rounded-xl font-black text-xs uppercase transition-all ${
+                        alertForm.expiryHours === opt.hours ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {alertError && (
+                <p className="text-red-600 text-xs font-bold">{alertError}</p>
+              )}
+
+              <button
+                onClick={handleCreateAlert}
+                disabled={alertSaving}
+                className="w-full py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50"
+              >
+                {alertSaving ? 'Sending...' : 'Send Alert'}
+              </button>
+
+              {activeAlerts.length > 0 && (
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Active Alerts</label>
+                  <div className="space-y-2">
+                    {activeAlerts.map((alert: any) => (
+                      <div key={alert.id} className={`flex items-start justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-l-4 ${alertTypeColor(alert.type)}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-2">{alert.message}</p>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            <span className="text-[9px] font-black text-slate-400 uppercase">{alert.type}</span>
+                            {alert.targetAll && <span className="text-[9px] font-black text-blue-500 uppercase">All</span>}
+                            {alert.targetPitDisplay && <span className="text-[9px] font-black text-violet-500 uppercase">Pit Display</span>}
+                            {alert.expiresAt && (
+                              <span className="text-[9px] font-black text-orange-500 uppercase">
+                                Exp {new Date(alert.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleDeactivateAlert(alert.id)}
+                            className="px-2 py-1 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 transition-all"
+                            title="Deactivate"
+                          >
+                            Off
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAlert(alert.id)}
+                            className="p-1.5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -153,10 +153,10 @@ export const api = {
     list: (activeOnly = false) => apiRequest<any[]>(`/fullscreen-alerts${activeOnly ? '?active=true' : ''}`),
     create: (data: any) =>
       apiRequest<any>('/fullscreen-alerts', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: any) =>
-      apiRequest<any>(`/fullscreen-alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: number) =>
-      apiRequest<void>(`/fullscreen-alerts/${id}`, { method: 'DELETE' }),
+    update: (id: number, actorId: number, data: any) =>
+      apiRequest<any>(`/fullscreen-alerts/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, actorId }) }),
+    delete: (id: number, actorId: number) =>
+      apiRequest<void>(`/fullscreen-alerts/${id}?actorId=${actorId}`, { method: 'DELETE' }),
   },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
