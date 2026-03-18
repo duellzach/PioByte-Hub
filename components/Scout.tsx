@@ -176,6 +176,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '' });
   const [nexusTestStatus, setNexusTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [nexusTestMsg, setNexusTestMsg] = useState('');
+  const [nexusToast, setNexusToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
+  const nexusToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [dismissedBreaks, setDismissedBreaks] = useState<Set<string>>(new Set());
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
@@ -473,18 +475,32 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
   };
 
+  const showNexusToast = (type: 'ok' | 'error', msg: string) => {
+    if (nexusToastTimerRef.current) clearTimeout(nexusToastTimerRef.current);
+    setNexusToast({ type, msg });
+    nexusToastTimerRef.current = setTimeout(() => setNexusToast(null), 4000);
+  };
+
   const handleTestNexus = async () => {
     const key = eventSettingsForm.nexusEventKey.trim();
-    if (!key) { setNexusTestStatus('error'); setNexusTestMsg('Enter a Nexus event key first'); return; }
+    if (!key) {
+      setNexusTestStatus('error');
+      setNexusTestMsg('Enter a Nexus event key first');
+      showNexusToast('error', 'Enter a Nexus event key first');
+      return;
+    }
     setNexusTestStatus('testing');
     setNexusTestMsg('');
     try {
       await api.nexus.getEvent(key);
       setNexusTestStatus('ok');
       setNexusTestMsg('Connected successfully!');
+      showNexusToast('ok', `Nexus connected for event "${key}"`);
     } catch (err: any) {
+      const msg = err?.message || 'Connection failed';
       setNexusTestStatus('error');
-      setNexusTestMsg(err?.message || 'Connection failed');
+      setNexusTestMsg(msg);
+      showNexusToast('error', `Nexus error: ${msg}`);
     }
   };
 
@@ -2203,11 +2219,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               const firstPendingPart = nexusData.partsRequests?.find(
                 (r: any) => !dismissedParts.has(String(r.id ?? r.message ?? r))
               );
-              const activeMatchIdx = nexusData.matches?.findIndex(
-                (m: any) => m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
-              ) ?? -1;
-              const breakMatch = activeMatchIdx >= 0 ? nexusData.matches?.[activeMatchIdx] : null;
+
+              const matches: any[] = nexusData.matches || [];
+              const activeStatusSet = new Set(['Now queuing', 'On deck', 'On field']);
+              const activeMatchIdx = matches.findIndex((m: any) => activeStatusSet.has(m.status));
+              const lastCompletedIdx = (() => {
+                for (let i = matches.length - 1; i >= 0; i--) {
+                  if (!activeStatusSet.has(matches[i].status) && matches[i].status !== 'Queuing soon') return i;
+                }
+                return -1;
+              })();
+              const breakMatchIdx = activeMatchIdx >= 0 ? activeMatchIdx : lastCompletedIdx;
+              const breakMatch = breakMatchIdx >= 0 ? matches[breakMatchIdx] : null;
               const breakId = breakMatch?.label ?? '';
+              const nextMatchAfterBreak = breakMatchIdx >= 0 ? matches[breakMatchIdx + 1] : null;
+              const resumeTime = nextMatchAfterBreak?.times?.estimatedQueueTime || nextMatchAfterBreak?.times?.estimatedStartTime;
               const pendingBreak = breakMatch?.breakAfter && !dismissedBreaks.has(breakId) ? breakMatch : null;
 
               if (pendingBreak) {
@@ -2222,9 +2248,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       </div>
                       <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Break After This Match</h2>
                       <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{pendingBreak.breakAfter}</p>
-                      {pendingBreak.times?.estimatedStartTime && (
+                      {resumeTime && (
                         <p className="text-sm text-orange-600 font-black mt-3">
-                          Resumes at {new Date(pendingBreak.times.estimatedStartTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT
+                          Resumes at {new Date(resumeTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT
                         </p>
                       )}
                     </div>
@@ -2390,46 +2416,69 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             </div>
                           )}
 
-                          {nexusData.matches?.length > 0 && (
-                            <div>
-                              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Match Queue</p>
-                              <div className="space-y-2">
-                                {nexusData.matches.map((m: any, i: number) => {
-                                  const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(10991);
-                                  const queueTime = m.times?.estimatedQueueTime;
-                                  const startTime = m.times?.estimatedStartTime;
-                                  const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
-                                  return (
-                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                                      isOurs
-                                        ? 'border-red-500 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
-                                        : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40'
-                                    }`}>
-                                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase flex-shrink-0 ${statusColor(m.status)}`}>
-                                        {m.status === 'Queuing soon' ? 'Soon' :
-                                         m.status === 'Now queuing' ? 'Queue' :
-                                         m.status === 'On deck' ? 'Deck' :
-                                         m.status === 'On field' ? 'Field' : '—'}
-                                      </span>
-                                      <span className={`text-sm font-black flex-shrink-0 ${isOurs ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'}`}>
-                                        {m.label}
-                                        {isOurs && ' ★'}
-                                      </span>
-                                      <div className="flex gap-2 flex-1 min-w-0 flex-wrap">
-                                        {(m.redTeams || []).map((t: number) => teamBadge(t, 'red'))}
-                                        <span className="text-slate-300 dark:text-slate-600 text-xs">vs</span>
-                                        {(m.blueTeams || []).map((t: number) => teamBadge(t, 'blue'))}
-                                      </div>
-                                      <div className="text-right flex-shrink-0 text-[10px] font-bold text-slate-400 dark:text-slate-500">
-                                        {queueTime && <p>Q {timeStr(queueTime)}</p>}
-                                        {startTime && <p>▶ {timeStr(startTime)}</p>}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                          {nexusData.matches?.length > 0 && (() => {
+                            const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+                            const sortedMatches = [...nexusData.matches].sort((a: any, b: any) => {
+                              const aT = a.times?.estimatedQueueTime || a.times?.estimatedStartTime;
+                              const bT = b.times?.estimatedQueueTime || b.times?.estimatedStartTime;
+                              if (aT && bT) return new Date(aT).getTime() - new Date(bT).getTime();
+                              return 0;
+                            });
+                            return (
+                              <div>
+                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Live Match Schedule</p>
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+                                        <th className="px-3 py-2 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="px-3 py-2 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Match</th>
+                                        <th className="px-3 py-2 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Red</th>
+                                        <th className="px-3 py-2 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Blue</th>
+                                        <th className="px-3 py-2 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue / Start</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {sortedMatches.map((m: any, i: number) => {
+                                        const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(10991);
+                                        const queueTime = m.times?.estimatedQueueTime;
+                                        const startTime = m.times?.estimatedStartTime;
+                                        return (
+                                          <tr key={i} className={`border-b last:border-b-0 transition-all ${
+                                            isOurs
+                                              ? 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/20 border-b-red-100 dark:border-b-red-900'
+                                              : 'border-b-slate-100 dark:border-b-slate-700 odd:bg-white dark:odd:bg-transparent even:bg-slate-50/50 dark:even:bg-slate-700/20'
+                                          }`}>
+                                            <td className="px-3 py-2">
+                                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${statusColor(m.status)}`}>
+                                                {m.status === 'Queuing soon' ? 'Soon' :
+                                                 m.status === 'Now queuing' ? 'Queue' :
+                                                 m.status === 'On deck' ? 'Deck' :
+                                                 m.status === 'On field' ? 'Field' : '—'}
+                                              </span>
+                                            </td>
+                                            <td className={`px-3 py-2 font-black text-sm ${isOurs ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'}`}>
+                                              {m.label}{isOurs && ' ★'}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                              <div className="flex gap-1 flex-wrap">{(m.redTeams || []).map((t: number) => teamBadge(t, 'red'))}</div>
+                                            </td>
+                                            <td className="px-3 py-2">
+                                              <div className="flex gap-1 flex-wrap">{(m.blueTeams || []).map((t: number) => teamBadge(t, 'blue'))}</div>
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-[10px] text-slate-400 dark:text-slate-500 font-bold whitespace-nowrap">
+                                              {queueTime && <div>Q {timeStr(queueTime)}</div>}
+                                              {startTime && <div>▶ {timeStr(startTime)}</div>}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
 
                           {nexusData.partsRequests?.length > 0 && (
                             <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-700 rounded-xl p-4">
@@ -3211,6 +3260,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
             {isCoachOrCaptain ? 'Create your first tournament event to start scouting' : 'Ask a Coach or Captain to create an event'}
           </p>
+        </div>
+      )}
+
+      {nexusToast && (
+        <div className={`fixed top-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+          nexusToast.type === 'ok' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {nexusToast.type === 'ok' ? <Check size={16} /> : <AlertCircle size={16} />}
+          <span className="font-black text-sm">{nexusToast.msg}</span>
+          <button onClick={() => setNexusToast(null)} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
         </div>
       )}
 
