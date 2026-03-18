@@ -114,7 +114,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [selectedRobot, setSelectedRobot] = useState<any | null>(null);
   const [eventCounts, setEventCounts] = useState<Record<number, { pits: number; matches: number }>>({});
 
-  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '' });
+  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '' });
   const [tbaMatches, setTbaMatches] = useState<any[]>([]);
   const [tbaRecord, setTbaRecord] = useState<{ wins: number; losses: number; ties: number } | null>(null);
   const [tbaLoading, setTbaLoading] = useState(false);
@@ -164,6 +164,75 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [offlineQueue, setOfflineQueue] = useState<OfflineMatchEntry[]>(getOfflineQueue());
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const [nexusData, setNexusData] = useState<any | null>(null);
+  const [nexusLoading, setNexusLoading] = useState(false);
+  const [nexusError, setNexusError] = useState<string | null>(null);
+  const [nexusCountdown, setNexusCountdown] = useState<string>('');
+  const nexusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchNexusData = useCallback(async (eventKey: string) => {
+    if (!eventKey) return;
+    setNexusLoading(true);
+    setNexusError(null);
+    try {
+      const data = await api.nexus.getEvent(eventKey);
+      setNexusData(data);
+    } catch (err: any) {
+      setNexusError(err?.message || 'Failed to load Nexus data');
+      setNexusData(null);
+    } finally {
+      setNexusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (nexusPollRef.current) clearInterval(nexusPollRef.current);
+    if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current);
+    setNexusData(null);
+    setNexusError(null);
+    setNexusCountdown('');
+
+    const key = activeEvent?.nexusEventKey;
+    if (!key || activeTab !== 'display') return;
+
+    fetchNexusData(key);
+    nexusPollRef.current = setInterval(() => fetchNexusData(key), 30000);
+
+    return () => {
+      if (nexusPollRef.current) clearInterval(nexusPollRef.current);
+    };
+  }, [activeEvent, activeTab, fetchNexusData]);
+
+  useEffect(() => {
+    if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current);
+    if (!nexusData?.matches) return;
+
+    const getNextQueueTime = () => {
+      const active = nexusData.matches.find(
+        (m: any) => m.times?.estimatedQueueTime && (
+          m.status === 'Queuing soon' || m.status === 'Now queuing' || m.status === 'On deck'
+        )
+      ) || nexusData.matches.find(
+        (m: any) => m.times?.estimatedQueueTime && m.status !== 'On field'
+      );
+      return active?.times?.estimatedQueueTime ?? null;
+    };
+
+    const tick = () => {
+      const t = getNextQueueTime();
+      if (!t) { setNexusCountdown(''); return; }
+      const diff = Math.max(0, Math.floor((new Date(t).getTime() - Date.now()) / 1000));
+      if (diff === 0) { setNexusCountdown('Queue now!'); return; }
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      setNexusCountdown(`${m}:${s.toString().padStart(2, '0')}`);
+    };
+    tick();
+    nexusCountdownRef.current = setInterval(tick, 1000);
+    return () => { if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current); };
+  }, [nexusData]);
 
   useEffect(() => {
     const goOnline = () => {
@@ -365,7 +434,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         createdBy: parseInt(currentUser.id),
       });
       setShowEventForm(false);
-      setEventForm({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '' });
+      setEventForm({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '' });
       fetchEvents();
     } catch (err) {
       console.error('Failed to create event:', err);
@@ -2071,6 +2140,190 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
+
+            {activeEvent?.nexusEventKey ? (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-violet-600/10 to-blue-600/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-violet-500 animate-pulse" />
+                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">FRC Nexus Live</span>
+                    {nexusData?.nowQueuing && (
+                      <span className="px-2.5 py-1 bg-red-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest animate-pulse">
+                        {nexusData.nowQueuing}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {nexusLoading && (
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Refreshing...</span>
+                    )}
+                    <button
+                      onClick={() => fetchNexusData(activeEvent.nexusEventKey)}
+                      className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-lg text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {nexusError ? (
+                  <div className="px-6 py-8 text-center">
+                    <p className="text-sm font-black text-red-500 uppercase tracking-tight">Error loading Nexus data</p>
+                    <p className="text-xs text-slate-400 mt-1">{nexusError}</p>
+                  </div>
+                ) : nexusLoading && !nexusData ? (
+                  <div className="px-6 py-8 text-center text-slate-400 font-bold text-sm uppercase tracking-widest">Loading live data...</div>
+                ) : nexusData ? (
+                  <div className="p-6 space-y-6">
+                    {(() => {
+                      const activeMatch = nexusData.matches?.find((m: any) =>
+                        m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
+                      );
+                      const nextMatch = nexusData.matches?.find((m: any) =>
+                        m.status === 'Queuing soon'
+                      );
+
+                      const statusColor = (status: string) => {
+                        if (status === 'Now queuing') return 'bg-red-600 text-white';
+                        if (status === 'On deck') return 'bg-orange-500 text-white';
+                        if (status === 'On field') return 'bg-green-600 text-white';
+                        if (status === 'Queuing soon') return 'bg-blue-600 text-white';
+                        return 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300';
+                      };
+
+                      const teamBadge = (num: number, alliance: 'red' | 'blue') => (
+                        <span
+                          key={num}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-black ${
+                            num === 10991
+                              ? 'ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300'
+                              : alliance === 'red'
+                              ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                              : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          }`}
+                        >
+                          {num === 10991 ? '★ ' : ''}{num}
+                        </span>
+                      );
+
+                      return (
+                        <>
+                          {(activeMatch || nexusCountdown) && (
+                            <div className={`rounded-2xl p-5 flex items-center justify-between gap-4 ${
+                              activeMatch?.status === 'Now queuing' ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700' :
+                              activeMatch?.status === 'On deck' ? 'bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700' :
+                              activeMatch?.status === 'On field' ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700' :
+                              'bg-violet-50 dark:bg-violet-900/20 border-2 border-violet-200 dark:border-violet-800'
+                            }`}>
+                              <div>
+                                {activeMatch && (
+                                  <>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${statusColor(activeMatch.status)}`}>
+                                        {activeMatch.status}
+                                      </span>
+                                      <span className="text-sm font-black text-slate-900 dark:text-white">{activeMatch.label}</span>
+                                    </div>
+                                    <div className="flex gap-3 mt-2">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-black text-red-500 uppercase tracking-widest mr-1">Red</span>
+                                        {(activeMatch.redTeams || []).map((t: number) => teamBadge(t, 'red'))}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mr-1">Blue</span>
+                                        {(activeMatch.blueTeams || []).map((t: number) => teamBadge(t, 'blue'))}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                                {!activeMatch && nextMatch && (
+                                  <p className="text-sm font-black text-slate-900 dark:text-white">Next: {nextMatch.label}</p>
+                                )}
+                              </div>
+                              {nexusCountdown && (
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Queue in</p>
+                                  <p className={`text-3xl font-black tabular-nums ${
+                                    nexusCountdown === 'Queue now!' ? 'text-red-600 animate-pulse' : 'text-slate-900 dark:text-white'
+                                  }`}>{nexusCountdown}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {nexusData.announcements?.length > 0 && (
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700 rounded-xl p-4">
+                              <p className="text-[9px] font-black text-yellow-700 dark:text-yellow-300 uppercase tracking-widest mb-2">Announcements</p>
+                              {nexusData.announcements.map((a: any, i: number) => (
+                                <p key={i} className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">{a.message || a}</p>
+                              ))}
+                            </div>
+                          )}
+
+                          {nexusData.matches?.length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Match Queue</p>
+                              <div className="space-y-2">
+                                {nexusData.matches.map((m: any, i: number) => {
+                                  const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(10991);
+                                  const queueTime = m.times?.estimatedQueueTime;
+                                  const startTime = m.times?.estimatedStartTime;
+                                  const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+                                  return (
+                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                      isOurs
+                                        ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20'
+                                        : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40'
+                                    }`}>
+                                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase flex-shrink-0 ${statusColor(m.status)}`}>
+                                        {m.status === 'Queuing soon' ? 'Soon' :
+                                         m.status === 'Now queuing' ? 'Queue' :
+                                         m.status === 'On deck' ? 'Deck' :
+                                         m.status === 'On field' ? 'Field' : '—'}
+                                      </span>
+                                      <span className={`text-sm font-black flex-shrink-0 ${isOurs ? 'text-yellow-700 dark:text-yellow-300' : 'text-slate-900 dark:text-white'}`}>
+                                        {m.label}
+                                        {isOurs && ' ★'}
+                                      </span>
+                                      <div className="flex gap-2 flex-1 min-w-0 flex-wrap">
+                                        {(m.redTeams || []).map((t: number) => teamBadge(t, 'red'))}
+                                        <span className="text-slate-300 dark:text-slate-600 text-xs">vs</span>
+                                        {(m.blueTeams || []).map((t: number) => teamBadge(t, 'blue'))}
+                                      </div>
+                                      <div className="text-right flex-shrink-0 text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                                        {queueTime && <p>Q {timeStr(queueTime)}</p>}
+                                        {startTime && <p>▶ {timeStr(startTime)}</p>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {nexusData.partsRequests?.length > 0 && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-700 rounded-xl p-4">
+                              <p className="text-[9px] font-black text-red-600 uppercase tracking-widest mb-2">Parts Requests</p>
+                              {nexusData.partsRequests.map((r: any, i: number) => (
+                                <p key={i} className="text-sm text-red-800 dark:text-red-200 font-medium">{typeof r === 'string' ? r : r.message || JSON.stringify(r)}</p>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              isCoachOrCaptain && (
+                <div className="bg-violet-50 dark:bg-violet-900/20 rounded-2xl md:rounded-[32px] border-2 border-violet-200 dark:border-violet-700 p-6 text-center">
+                  <p className="text-sm font-black text-violet-700 dark:text-violet-300 uppercase tracking-tight">No Nexus Event Key</p>
+                  <p className="text-xs text-violet-500 dark:text-violet-400 mt-1">Edit this event and add an FRC Nexus event key to enable live queue data</p>
+                </div>
+              )
+            )}
+
             {tbaRecord && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-4 md:p-6">
                 <div className="flex items-center justify-center gap-6">
@@ -2896,6 +3149,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm"
                 />
                 <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Find your event key on thebluealliance.com (optional)</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FRC Nexus Event Key</label>
+                <input
+                  value={eventForm.nexusEventKey}
+                  onChange={(e) => setEventForm({ ...eventForm, nexusEventKey: e.target.value })}
+                  placeholder="e.g. 2026azgl"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-violet-500 transition-all font-bold text-sm"
+                />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Enables live queue countdown & match schedule from frc.nexus (optional)</p>
               </div>
 
               <button
