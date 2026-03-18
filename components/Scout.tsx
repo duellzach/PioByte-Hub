@@ -101,7 +101,7 @@ const TagInput: React.FC<{ tags: string[]; onChange: (tags: string[]) => void; l
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'qr' | 'display'>('robots');
+  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display'>('robots');
   const [pitScouts, setPitScouts] = useState<any[]>([]);
   const [matchScoutsData, setMatchScoutsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -182,6 +182,54 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [dismissedBreaks, setDismissedBreaks] = useState<Set<string>>(new Set());
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
   const [dismissedParts, setDismissedParts] = useState<Set<string>>(new Set());
+
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [eventInfoData, setEventInfoData] = useState<any | null>(null);
+  const [editingEventInfo, setEditingEventInfo] = useState(false);
+  const [eventInfoForm, setEventInfoForm] = useState({ venueInfo: '', wifiNetwork: '', wifiPassword: '', parkingInfo: '', schedule: '', resources: '', notes: '' });
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [showAssignmentForm, setShowAssignmentForm] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [assignmentForm, setAssignmentForm] = useState({ userId: 0, fromMatch: 1, toMatch: 10, role: 'Scout - Stands', notes: '' });
+
+  const ASSIGNMENT_ROLES = ['Scout - Stands', 'Pit Crew', 'Networking', 'Media', 'Free Time', 'Driver/Coach Support'];
+  const ROLE_COLORS: Record<string, string> = {
+    'Scout - Stands': 'bg-red-500 text-white',
+    'Pit Crew': 'bg-orange-500 text-white',
+    'Networking': 'bg-blue-500 text-white',
+    'Media': 'bg-violet-500 text-white',
+    'Free Time': 'bg-green-500 text-white',
+    'Driver/Coach Support': 'bg-indigo-500 text-white',
+  };
+  const ROLE_BADGE: Record<string, string> = {
+    'Scout - Stands': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    'Pit Crew': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+    'Networking': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    'Media': 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300',
+    'Free Time': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    'Driver/Coach Support': 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+  };
+
+  const fetchEventInfoData = useCallback(async (eventId: number) => {
+    try {
+      const data = await api.eventInfo.get(eventId);
+      setEventInfoData(data || null);
+    } catch (err) {
+      console.error('Failed to fetch event info:', err);
+    }
+  }, []);
+
+  const fetchAssignments = useCallback(async (eventId: number) => {
+    setAssignmentsLoading(true);
+    try {
+      const data = await api.competitionAssignments.list(eventId);
+      setAssignments(data);
+    } catch (err) {
+      console.error('Failed to fetch assignments:', err);
+    }
+    setAssignmentsLoading(false);
+  }, []);
 
   const fetchNexusData = useCallback(async (eventKey: string) => {
     if (!eventKey) return;
@@ -306,6 +354,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   }, []);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  useEffect(() => {
+    api.users.getAll().then(setAllUsers).catch(() => {});
+  }, []);
 
   const fetchEventData = useCallback(async (eventId: number) => {
     setLoading(true);
@@ -437,7 +489,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const enterEvent = (event: any) => {
     setActiveEvent(event);
     setActiveTab('robots');
+    setEventInfoData(null);
+    setAssignments([]);
+    setEditingEventInfo(false);
     fetchEventData(event.id);
+    fetchEventInfoData(event.id);
+    fetchAssignments(event.id);
     if (event.tbaEventKey) fetchTbaData(event.tbaEventKey);
   };
 
@@ -1557,18 +1614,20 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         )}
 
-        <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl border border-slate-200 shadow-inner">
-          {(['robots', 'matches', 'qr', 'display'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                activeTab === tab ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : tab === 'qr' ? 'QR Share' : 'Pit Display'}
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-2 px-2">
+          <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl border border-slate-200 shadow-inner min-w-max">
+            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                  activeTab === tab ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : tab === 'info' ? 'Info' : tab === 'schedule' ? 'Schedule' : tab === 'qr' ? 'QR' : 'Pit Display'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -1651,6 +1710,42 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : activeTab === 'matches' ? (
           <div className="space-y-4">
+            {(() => {
+              const myId = parseInt(currentUser?.id);
+              const myAssignments = assignments.filter(a => a.userId === myId);
+              if (myAssignments.length === 0) return null;
+              const sortedTbaQuals = tbaMatches
+                .filter((m: any) => m.comp_level === 'qm')
+                .sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
+              const nextUnplayed = sortedTbaQuals.find((m: any) => m.alliances?.red?.score === null || m.alliances?.red?.score === undefined || m.alliances?.red?.score === -1);
+              const refMatchNum = nextUnplayed?.match_number ?? sortedTbaQuals[sortedTbaQuals.length - 1]?.match_number ?? 1;
+              const myAssignment = myAssignments.find(a => a.fromMatch <= refMatchNum && a.toMatch >= refMatchNum) || myAssignments[0];
+              if (!myAssignment) return null;
+              const teammates = assignments.filter(a => a.userId !== myId && a.role === myAssignment.role && a.fromMatch <= myAssignment.toMatch && a.toMatch >= myAssignment.fromMatch);
+              const badge = ROLE_BADGE[myAssignment.role] || 'bg-slate-100 text-slate-600';
+              return (
+                <div className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${myAssignment.role === 'Scout - Stands' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Your Role</span>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${badge}`}>{myAssignment.role}</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Matches {myAssignment.fromMatch}–{myAssignment.toMatch}</span>
+                    </div>
+                    {myAssignment.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{myAssignment.notes}</p>}
+                    {teammates.length > 0 && (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-bold">
+                        With: {teammates.map(t => t.userName).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  {myAssignment.role === 'Scout - Stands' && tbaMatches.length > 0 && (
+                    <div className="text-[9px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest bg-red-100 dark:bg-red-900/30 px-3 py-2 rounded-xl">
+                      Scouting: M{myAssignment.fromMatch}–M{myAssignment.toMatch}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="flex justify-between">
               <div className="flex gap-2">
                 <button
@@ -1804,6 +1899,65 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       )}
                     </div>
                   )}
+
+                  {(() => {
+                    const myId = parseInt(currentUser?.id);
+                    const standAssignment = assignments.find(a =>
+                      a.userId === myId && a.role === 'Scout - Stands'
+                    );
+                    if (!standAssignment) return null;
+                    const suggestedMatches = tbaMatches
+                      .filter((m: any) => {
+                        const mn = m.match_number;
+                        const isQual = m.comp_level === 'qm';
+                        const inRange = mn >= standAssignment.fromMatch && mn <= standAssignment.toMatch;
+                        const unplayed = m.alliances?.red?.score === null || m.alliances?.red?.score === undefined || m.alliances?.red?.score === -1;
+                        return isQual && inRange && unplayed;
+                      })
+                      .sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
+                    const suggestedRobots = suggestedMatches.flatMap((m: any) => {
+                      const allKeys = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])];
+                      return allKeys
+                        .map((k: string) => parseInt(k.replace('frc', '')))
+                        .filter(n => n !== 10991)
+                        .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === m.match_number && ms.teamNumber === n))
+                        .map(n => ({ teamNumber: n, matchNumber: m.match_number, matchLabel: getMatchLabel(m), alliance: (m.alliances?.red?.team_keys || []).includes(`frc${n}`) ? 'Red' : 'Blue' }));
+                    });
+                    if (suggestedRobots.length === 0) return null;
+                    return (
+                      <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-2xl p-5">
+                        <h4 className="text-xs font-black text-red-700 dark:text-red-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <Swords size={14} className="text-red-600" />
+                          Your Scouting Targets (M{standAssignment.fromMatch}–M{standAssignment.toMatch})
+                        </h4>
+                        <div className="space-y-2">
+                          {suggestedRobots.slice(0, 8).map((s, idx) => {
+                            const robot = pitScouts.find((ps: any) => ps.teamNumber === s.teamNumber);
+                            return (
+                              <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800 border border-red-200 dark:border-red-700">
+                                <div className="flex items-center gap-3">
+                                  <span className={`px-2 py-1 rounded-lg text-[9px] font-black text-white ${s.alliance === 'Red' ? 'bg-red-600' : 'bg-blue-600'}`}>{s.alliance}</span>
+                                  <div>
+                                    <p className="text-xs font-black text-slate-900 dark:text-white">Team {s.teamNumber}{robot ? ` — ${robot.teamName}` : ''}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold">{s.matchLabel}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    resetMatchForm();
+                                    setMatchForm((f: any) => ({ ...f, teamNumber: s.teamNumber, matchNumber: s.matchNumber, matchType: 'qualification', alliance: s.alliance }));
+                                    setEditingMatch(null);
+                                    setShowMatchForm(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all flex-shrink-0"
+                                >Scout</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {upcoming.length > 0 && (
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-5">
@@ -2800,6 +2954,318 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               );
             })()}
+          </div>
+        ) : activeTab === 'info' ? (
+          <div className="space-y-6">
+            {editingEventInfo ? (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-5">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Edit Event Info</h3>
+                  <button onClick={() => setEditingEventInfo(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><X size={16} className="text-slate-500" /></button>
+                </div>
+                {[
+                  { key: 'venueInfo', label: 'Venue Name & Address', placeholder: 'e.g. Salem Convention Center, 200 Commercial St NE' },
+                  { key: 'wifiNetwork', label: 'Wi-Fi Network', placeholder: 'Network name' },
+                  { key: 'wifiPassword', label: 'Wi-Fi Password', placeholder: 'Password' },
+                  { key: 'parkingInfo', label: 'Parking Info', placeholder: 'Where to park, any fees, etc.' },
+                  { key: 'schedule', label: 'Daily Schedule', placeholder: 'e.g. Day 1: 7am load-in, 9am practice...' },
+                  { key: 'resources', label: 'Resources & Links', placeholder: 'Pit map URL, judging schedule, etc.' },
+                  { key: 'notes', label: 'Notes', placeholder: 'Any other important info...' },
+                ].map(field => (
+                  <div key={field.key} className="space-y-2">
+                    <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{field.label}</label>
+                    <textarea
+                      rows={field.key === 'schedule' || field.key === 'resources' || field.key === 'notes' ? 4 : 2}
+                      value={(eventInfoForm as any)[field.key]}
+                      onChange={e => setEventInfoForm({ ...eventInfoForm, [field.key]: e.target.value })}
+                      placeholder={field.placeholder}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={async () => {
+                    if (!activeEvent) return;
+                    try {
+                      const saved = await api.eventInfo.update(activeEvent.id, { ...eventInfoForm, updatedBy: parseInt(currentUser.id) });
+                      setEventInfoData(saved);
+                      setEditingEventInfo(false);
+                    } catch (err) {
+                      console.error('Failed to save event info:', err);
+                    }
+                  }}
+                  className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs"
+                >Save Event Info</button>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                    <MapPin size={18} className="text-red-600" /> Event Info
+                  </h3>
+                  {isCoachOrCaptain && (
+                    <button
+                      onClick={() => {
+                        setEventInfoForm({
+                          venueInfo: eventInfoData?.venueInfo || '',
+                          wifiNetwork: eventInfoData?.wifiNetwork || '',
+                          wifiPassword: eventInfoData?.wifiPassword || '',
+                          parkingInfo: eventInfoData?.parkingInfo || '',
+                          schedule: eventInfoData?.schedule || '',
+                          resources: eventInfoData?.resources || '',
+                          notes: eventInfoData?.notes || '',
+                        });
+                        setEditingEventInfo(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                    ><Settings size={13} /> Edit</button>
+                  )}
+                </div>
+                {[
+                  { key: 'venueInfo', label: 'Venue', icon: '📍' },
+                  { key: 'wifiNetwork', label: 'Wi-Fi Network', icon: '📶' },
+                  { key: 'wifiPassword', label: 'Wi-Fi Password', icon: '🔒' },
+                  { key: 'parkingInfo', label: 'Parking', icon: '🅿️' },
+                  { key: 'schedule', label: 'Daily Schedule', icon: '📅' },
+                  { key: 'resources', label: 'Resources & Links', icon: '🔗' },
+                  { key: 'notes', label: 'Notes', icon: '📝' },
+                ].map(field => {
+                  const val = eventInfoData?.[field.key];
+                  if (!val && !isCoachOrCaptain) return null;
+                  return (
+                    <div key={field.key} className="mb-5 last:mb-0">
+                      <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{field.icon} {field.label}</p>
+                      {val ? (
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{val}</p>
+                      ) : (
+                        <p className="text-sm text-slate-300 dark:text-slate-600 italic">Not set</p>
+                      )}
+                    </div>
+                  );
+                })}
+                {!eventInfoData?.venueInfo && !eventInfoData?.wifiNetwork && !eventInfoData?.schedule && !eventInfoData?.notes && (
+                  <div className="py-10 text-center">
+                    <MapPin size={40} className="text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+                    <p className="text-sm font-black text-slate-300 dark:text-slate-600 uppercase tracking-tight">No Event Info Yet</p>
+                    {isCoachOrCaptain && <p className="text-xs text-slate-400 mt-1">Click Edit to add venue details, Wi-Fi, parking info, and more.</p>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'schedule' ? (
+          <div className="space-y-6">
+            {isCoachOrCaptain && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setAssignmentForm({ userId: 0, fromMatch: 1, toMatch: 10, role: 'Scout - Stands', notes: '' });
+                    setEditingAssignment(null);
+                    setShowAssignmentForm(true);
+                  }}
+                  className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"
+                ><Plus size={16} /> Add Assignment</button>
+              </div>
+            )}
+
+            {assignmentsLoading ? (
+              <div className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-sm">Loading...</div>
+            ) : assignments.length === 0 ? (
+              <div className="py-16 text-center">
+                <Calendar size={48} className="text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                <p className="text-lg font-black text-slate-300 dark:text-slate-600 uppercase tracking-tight">No Assignments Yet</p>
+                {isCoachOrCaptain && <p className="text-slate-400 text-sm mt-1">Add assignments to tell team members their roles during the competition.</p>}
+              </div>
+            ) : (
+              <>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-5 flex items-center gap-2">
+                    <Grid3X3 size={15} className="text-red-600" /> Schedule Overview
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="text-left py-2 pr-4 font-black text-[9px] text-slate-400 uppercase tracking-widest min-w-[120px]">Member</th>
+                          {assignments
+                            .reduce((acc: any[], a) => {
+                              const key = `${a.fromMatch}-${a.toMatch}`;
+                              if (!acc.find(x => x.key === key)) acc.push({ key, fromMatch: a.fromMatch, toMatch: a.toMatch });
+                              return acc;
+                            }, [])
+                            .sort((a, b) => a.fromMatch - b.fromMatch)
+                            .map(range => (
+                              <th key={range.key} className="py-2 px-2 font-black text-[9px] text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">M{range.fromMatch}–M{range.toMatch}</th>
+                            ))
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const ranges = assignments
+                            .reduce((acc: any[], a) => {
+                              const key = `${a.fromMatch}-${a.toMatch}`;
+                              if (!acc.find((x: any) => x.key === key)) acc.push({ key, fromMatch: a.fromMatch, toMatch: a.toMatch });
+                              return acc;
+                            }, [])
+                            .sort((a: any, b: any) => a.fromMatch - b.fromMatch);
+                          const byUser = new Map<number, { name: string; assignments: any[] }>();
+                          for (const a of assignments) {
+                            if (!byUser.has(a.userId)) byUser.set(a.userId, { name: a.userName || `User ${a.userId}`, assignments: [] });
+                            byUser.get(a.userId)!.assignments.push(a);
+                          }
+                          return Array.from(byUser.entries()).map(([userId, { name, assignments: userAssigns }]) => {
+                            const isMe = userId === parseInt(currentUser?.id);
+                            return (
+                              <tr key={userId} className={isMe ? 'bg-red-50 dark:bg-red-900/10' : ''}>
+                                <td className="py-2 pr-4 font-bold text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap">
+                                  {name}{isMe ? ' (you)' : ''}
+                                </td>
+                                {ranges.map((range: any) => {
+                                  const a = userAssigns.find((ua: any) => ua.fromMatch === range.fromMatch && ua.toMatch === range.toMatch);
+                                  if (!a) return <td key={range.key} className="py-2 px-2 text-center"><span className="text-slate-200 dark:text-slate-700">—</span></td>;
+                                  const color = ROLE_COLORS[a.role] || 'bg-slate-500 text-white';
+                                  return (
+                                    <td key={range.key} className="py-2 px-2 text-center">
+                                      <span
+                                        title={a.notes || a.role}
+                                        className={`inline-block px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest cursor-pointer ${color}`}
+                                        onClick={isCoachOrCaptain ? () => {
+                                          setEditingAssignment(a);
+                                          setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
+                                          setShowAssignmentForm(true);
+                                        } : undefined}
+                                      >{a.role.replace('Scout - Stands', 'Scout').replace('Driver/Coach Support', 'Driver/Coach')}</span>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">All Assignments</h3>
+                  {assignments.map(a => {
+                    const badge = ROLE_BADGE[a.role] || 'bg-slate-100 text-slate-600';
+                    const isMe = a.userId === parseInt(currentUser?.id);
+                    return (
+                      <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-red-200 dark:border-red-800' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="text-sm font-black text-slate-900 dark:text-white">{a.userName}{isMe ? ' (you)' : ''}</p>
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${badge}`}>{a.role}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-bold">Matches {a.fromMatch}–{a.toMatch}</p>
+                          {a.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{a.notes}</p>}
+                        </div>
+                        {isCoachOrCaptain && (
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => {
+                                setEditingAssignment(a);
+                                setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
+                                setShowAssignmentForm(true);
+                              }}
+                              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-all"
+                            ><Settings size={14} className="text-slate-500" /></button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm('Delete this assignment?')) return;
+                                try {
+                                  await api.competitionAssignments.delete(activeEvent.id, a.id);
+                                  fetchAssignments(activeEvent.id);
+                                } catch (err) { console.error('Failed to delete assignment:', err); }
+                              }}
+                              className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 transition-all"
+                            ><Trash2 size={14} className="text-red-500" /></button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {showAssignmentForm && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-md max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+                  <div className="flex justify-between items-start mb-6">
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingAssignment ? 'Edit Assignment' : 'Add Assignment'}</h2>
+                    <button onClick={() => { setShowAssignmentForm(false); setEditingAssignment(null); }} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700"><X size={18} className="text-slate-500" /></button>
+                  </div>
+                  <div className="space-y-5">
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Team Member</label>
+                      <select
+                        value={assignmentForm.userId}
+                        onChange={e => setAssignmentForm({ ...assignmentForm, userId: parseInt(e.target.value) })}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white"
+                      >
+                        <option value={0}>Select member...</option>
+                        {allUsers.map(u => (
+                          <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">From Match #</label>
+                        <input type="number" min={1} value={assignmentForm.fromMatch}
+                          onChange={e => setAssignmentForm({ ...assignmentForm, fromMatch: parseInt(e.target.value) || 1 })}
+                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">To Match #</label>
+                        <input type="number" min={1} value={assignmentForm.toMatch}
+                          onChange={e => setAssignmentForm({ ...assignmentForm, toMatch: parseInt(e.target.value) || 1 })}
+                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Role</label>
+                      <select
+                        value={assignmentForm.role}
+                        onChange={e => setAssignmentForm({ ...assignmentForm, role: e.target.value })}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white"
+                      >
+                        {ASSIGNMENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Notes (optional)</label>
+                      <textarea rows={2} value={assignmentForm.notes}
+                        onChange={e => setAssignmentForm({ ...assignmentForm, notes: e.target.value })}
+                        placeholder="Any specific instructions..."
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500" />
+                    </div>
+                    <button
+                      disabled={!assignmentForm.userId || assignmentForm.fromMatch < 1 || assignmentForm.toMatch < assignmentForm.fromMatch}
+                      onClick={async () => {
+                        if (!activeEvent || !assignmentForm.userId) return;
+                        try {
+                          const payload = { ...assignmentForm, createdBy: parseInt(currentUser.id) };
+                          if (editingAssignment) {
+                            await api.competitionAssignments.update(activeEvent.id, editingAssignment.id, payload);
+                          } else {
+                            await api.competitionAssignments.create(activeEvent.id, payload);
+                          }
+                          setShowAssignmentForm(false);
+                          setEditingAssignment(null);
+                          fetchAssignments(activeEvent.id);
+                        } catch (err) { console.error('Failed to save assignment:', err); }
+                      }}
+                      className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
+                    >{editingAssignment ? 'Update Assignment' : 'Create Assignment'}</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
 
