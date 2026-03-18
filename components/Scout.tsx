@@ -2860,7 +2860,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             Up Next
                           </h4>
                           <div className="space-y-2">
-                            {upcomingMatches.slice(0, 5).map((m: any) => {
+                            {upcomingMatches.slice(0, 10).map((m: any) => {
                               const ourAlliance = getOurAlliance(m);
                               const partnerKeys = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== 'frc10991');
                               const opponentKeys = (m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.team_keys || []);
