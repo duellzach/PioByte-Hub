@@ -84,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/war-room" icon={<LayoutDashboard size={18} />} label="WAR ROOM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/boards" icon={<Kanban size={18} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/time" icon={<Clock size={18} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/scout" icon={<Crosshair size={18} />} label="SCOUT" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          <NavItem to="/scout" icon={<Crosshair size={18} />} label="EVENTS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           
           <div className="pt-2 border-t border-white/10 mt-2">

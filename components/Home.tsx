@@ -134,9 +134,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
   const [scoutEvents, setScoutEvents] = useState<any[]>([]);
   const [countdown, setCountdown] = useState<Record<number, string>>({});
+  const [mySchedule, setMySchedule] = useState<{ event: any; assignments: any[] } | null>(null);
 
   useEffect(() => {
-    api.scout.getEvents().then(events => {
+    api.scout.getEvents().then(async events => {
       const upcoming = events
         .filter((e: any) => {
           const start = new Date(e.startDate);
@@ -144,8 +145,15 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         })
         .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
       setScoutEvents(upcoming);
+      if (upcoming.length > 0 && user?.id) {
+        try {
+          const allAssignments = await api.competitionAssignments.list(upcoming[0].id);
+          const mine = allAssignments.filter((a: any) => String(a.userId) === String(user.id));
+          if (mine.length > 0) setMySchedule({ event: upcoming[0], assignments: mine });
+        } catch {}
+      }
     }).catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (scoutEvents.length === 0) return;
@@ -464,6 +472,41 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {mySchedule && (
+        <div className="mb-12">
+          <h2 className="text-xs font-black text-red-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+            <Calendar size={14} /> My Event Schedule
+          </h2>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-6">
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">{mySchedule.event.name}</p>
+            <div className="space-y-3">
+              {mySchedule.assignments.map((a: any) => {
+                const roleColors: Record<string, string> = {
+                  'Scout - Stands': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                  'Pit Crew': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+                  'Networking': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                  'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+                  'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+                  'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                };
+                const color = roleColors[a.role] || 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+                return (
+                  <div key={a.id} className="flex items-center gap-4">
+                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex-shrink-0 ${color}`}>
+                      {a.role}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Matches {a.fromMatch}–{a.toMatch}</p>
+                      {a.notes && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{a.notes}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
