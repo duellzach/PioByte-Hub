@@ -1162,7 +1162,7 @@ app.put("/api/competition-checkins/:id", async (req, res) => {
     const actor = await storage.getUser(parseInt(actorId));
     const actorRoles: string[] = actor?.roles || [];
     const isCoachOrCaptain = actorRoles.includes("Coach") || actorRoles.includes("Team Captain");
-    const existing = await storage.getCompetitionCheckinById ? await storage.getCompetitionCheckinById(id) : null;
+    const existing = await storage.getCompetitionCheckinById(id);
     const ownsRecord = existing?.userId === parseInt(actorId);
     if (!isCoachOrCaptain && !ownsRecord) {
       return res.status(403).json({ error: "Not authorized to update this checkin" });

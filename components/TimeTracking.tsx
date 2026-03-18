@@ -530,9 +530,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 const myCheckins = compCheckins.filter((c: any) => c.userId === currentUserId);
                 const openCheckin = myCheckins.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
                 const pendingCheckin = myCheckins.find((c: any) => c.status === 'pending_approval');
-                const canCheckIn = !openCheckin && !pendingCheckin;
+                const today = new Date().toISOString().slice(0, 10);
+                const eventStarted = !selectedCompEvent?.startDate || selectedCompEvent.startDate <= today;
+                const canCheckIn = !openCheckin && !pendingCheckin && eventStarted;
                 return (
                   <>
+                    {!eventStarted && !openCheckin && !pendingCheckin && (
+                      <div className="w-full py-4 text-center bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase">Event starts {selectedCompEvent?.startDate}</p>
+                      </div>
+                    )}
                     {canCheckIn && (
                       <button
                         onClick={handleCompCheckIn}
@@ -600,96 +607,132 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             </div>
           )}
 
-          {isCoach && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{compCheckins.length} attendance records</p>
-                <button
-                  onClick={() => setShowManualAdd(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
-                >
-                  <Plus size={12} /> Manual Add
-                </button>
-              </div>
-              {compCheckins.length === 0 && (
-                <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No check-ins yet for this event</p>
-              )}
-              {compCheckins.map((checkin: any) => (
-                <div key={checkin.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center font-black text-violet-700 dark:text-violet-300">
-                      {(checkin.userName || 'U')[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{checkin.userName || `User ${checkin.userId}`}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                        {formatTime(checkin.checkInAt)}
-                        {checkin.checkOutAt ? ` – ${formatTime(checkin.checkOutAt)}` : ' (still here)'}
-                        {checkin.roundedMinutes ? ` • ${formatDuration(checkin.roundedMinutes)}` : ''}
-                      </p>
-                    </div>
+          {isCoach && (() => {
+            const memberRows = state.users.map(user => {
+              const uid = parseInt(user.id);
+              const sessions = compCheckins.filter((c: any) => c.userId === uid);
+              const openSession = sessions.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
+              const pendingSession = sessions.find((c: any) => c.status === 'pending_approval');
+              const latestApproved = sessions.filter((c: any) => c.status === 'approved').sort(
+                (a: any, b: any) => new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime()
+              )[0];
+              const activeSession = openSession || pendingSession;
+              const displayStatus = openSession ? 'checked_in' : pendingSession ? 'pending_approval' : latestApproved ? 'approved' : 'not_checked_in';
+              return { user, uid, sessions, openSession, pendingSession, latestApproved, activeSession, displayStatus };
+            });
+            const present = memberRows.filter(r => r.displayStatus === 'checked_in');
+            const pending = memberRows.filter(r => r.displayStatus === 'pending_approval');
+            const approved = memberRows.filter(r => r.displayStatus === 'approved');
+            const absent = memberRows.filter(r => r.displayStatus === 'not_checked_in');
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-3 text-[10px] font-black uppercase">
+                    <span className="text-violet-600 dark:text-violet-400">{present.length} present</span>
+                    <span className="text-orange-500">{pending.length} pending</span>
+                    <span className="text-green-600 dark:text-green-400">{approved.length} approved</span>
+                    <span className="text-slate-400">{absent.length} absent</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
-                      checkin.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
-                      checkin.status === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
-                      checkin.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
-                      'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
-                    }`}>
-                      {checkin.status === 'checked_in' ? 'Present' : checkin.status === 'pending_approval' ? 'Pending' : checkin.status}
-                    </span>
-                    {checkin.status === 'pending_approval' && (
-                      <>
-                        <button
-                          onClick={() => {
-                            const dur = checkin.checkOutAt
-                              ? Math.ceil((new Date(checkin.checkOutAt).getTime() - new Date(checkin.checkInAt).getTime()) / 60000)
-                              : 0;
-                            setApproveMinutes(String(Math.ceil(dur / 15) * 15));
-                            setShowApproveModal(checkin);
-                          }}
-                          className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
-                        >
-                          <Check size={12} /> Approve
-                        </button>
+                  <button
+                    onClick={() => setShowManualAdd(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
+                  >
+                    <Plus size={12} /> Manual Add
+                  </button>
+                </div>
+
+                {memberRows.length === 0 && (
+                  <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No team members found</p>
+                )}
+
+                {memberRows.map(({ user, openSession, pendingSession, latestApproved, displayStatus }) => (
+                  <div key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
+                        displayStatus === 'checked_in' ? 'bg-violet-500 text-white' :
+                        displayStatus === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                        displayStatus === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                        'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
+                      }`}>
+                        {(user.name || user.username || 'U')[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">{user.name || user.username}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                          {openSession ? `Since ${formatTime(openSession.checkInAt)}` :
+                           pendingSession ? `${formatTime(pendingSession.checkInAt)} → ${pendingSession.checkOutAt ? formatTime(pendingSession.checkOutAt) : '?'}` :
+                           latestApproved ? `${formatDuration(latestApproved.roundedMinutes)} approved` :
+                           'Not checked in'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
+                        displayStatus === 'checked_in' ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' :
+                        displayStatus === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                        displayStatus === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                        'bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
+                      }`}>
+                        {displayStatus === 'checked_in' ? 'Present' :
+                         displayStatus === 'pending_approval' ? 'Pending' :
+                         displayStatus === 'approved' ? 'Approved' : 'Absent'}
+                      </span>
+                      {pendingSession && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const dur = pendingSession.checkOutAt
+                                ? Math.ceil((new Date(pendingSession.checkOutAt).getTime() - new Date(pendingSession.checkInAt).getTime()) / 60000)
+                                : 0;
+                              setApproveMinutes(String(Math.ceil(dur / 15) * 15));
+                              setShowApproveModal({ ...pendingSession, userName: user.name || user.username });
+                            }}
+                            className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+                          >
+                            <Check size={12} /> Approve
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await api.competitionCheckins.reject(pendingSession.id, currentUserId);
+                                if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+                              } catch (e: any) { alert(e.message || 'Reject failed'); }
+                            }}
+                            className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg font-bold text-[10px] uppercase hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                          >
+                            <X size={12} /> Reject
+                          </button>
+                        </>
+                      )}
+                      {openSession && (
                         <button
                           onClick={async () => {
                             try {
-                              await api.competitionCheckins.reject(checkin.id, currentUserId);
+                              await api.competitionCheckins.checkOut(openSession.id);
                               if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
-                            } catch (e: any) { alert(e.message || 'Reject failed'); }
+                            } catch {}
                           }}
-                          className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg font-bold text-[10px] uppercase hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                          className="flex items-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-orange-600 transition-all"
                         >
-                          <X size={12} /> Reject
+                          <LogOut size={12} /> Check Out
                         </button>
-                      </>
-                    )}
-                    {checkin.status === 'checked_in' && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await api.competitionCheckins.checkOut(checkin.id);
-                            if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
-                          } catch {}
-                        }}
-                        className="flex items-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-orange-600 transition-all"
-                      >
-                        <LogOut size={12} /> Check Out
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleCompDelete(checkin.id)}
-                      className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
-                      title="Delete record"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                      )}
+                      {(openSession || pendingSession || latestApproved) && (
+                        <button
+                          onClick={() => handleCompDelete((openSession || pendingSession || latestApproved)!.id)}
+                          className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                          title="Delete record"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
