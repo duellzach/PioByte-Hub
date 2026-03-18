@@ -1059,6 +1059,12 @@ app.post("/api/competition-checkins/check-in", async (req, res) => {
       checkInAt: new Date(),
       status: "checked_in",
     });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: checkin.id,
+      actorId: parseInt(userId),
+      actionType: "check_in",
+      newValues: { status: "checked_in", checkInAt: checkin.checkInAt },
+    });
     res.status(201).json(checkin);
   } catch (error) {
     console.error("Error checking in to competition:", error);
@@ -1069,11 +1075,19 @@ app.post("/api/competition-checkins/check-in", async (req, res) => {
 app.post("/api/competition-checkins/:id/check-out", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const prev = await storage.getCompetitionCheckinById(id);
     const updated = await storage.updateCompetitionCheckin(id, {
       checkOutAt: new Date(),
       status: "pending_approval",
     });
     if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: id,
+      actorId: prev!.userId,
+      actionType: "check_out",
+      previousValues: { status: prev!.status },
+      newValues: { status: "pending_approval", checkOutAt: updated.checkOutAt },
+    });
     res.json(updated);
   } catch (error) {
     console.error("Error checking out from competition:", error);
@@ -1091,6 +1105,7 @@ app.post("/api/competition-checkins/:id/approve", async (req, res) => {
     if (!coachRoles.includes("Coach") && !coachRoles.includes("Team Captain")) {
       return res.status(403).json({ error: "Only coaches and captains can approve competition checkins" });
     }
+    const prev = await storage.getCompetitionCheckinById(id);
     const updated = await storage.updateCompetitionCheckin(id, {
       approvedBy: coachId,
       approvedAt: new Date(),
@@ -1098,6 +1113,13 @@ app.post("/api/competition-checkins/:id/approve", async (req, res) => {
       roundedMinutes: roundedMinutes || undefined,
     });
     if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: id,
+      actorId: parseInt(coachId),
+      actionType: "approve",
+      previousValues: { status: prev!.status, roundedMinutes: prev!.roundedMinutes },
+      newValues: { status: "approved", roundedMinutes: updated.roundedMinutes, approvedBy: coachId },
+    });
     res.json(updated);
   } catch (error) {
     console.error("Error approving competition checkin:", error);
@@ -1115,8 +1137,16 @@ app.post("/api/competition-checkins/:id/reject", async (req, res) => {
     if (!coachRoles.includes("Coach") && !coachRoles.includes("Team Captain")) {
       return res.status(403).json({ error: "Only coaches and captains can reject competition checkins" });
     }
+    const prev = await storage.getCompetitionCheckinById(id);
     const updated = await storage.updateCompetitionCheckin(id, { status: "rejected" });
     if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: id,
+      actorId: parseInt(coachId),
+      actionType: "reject",
+      previousValues: { status: prev!.status },
+      newValues: { status: "rejected" },
+    });
     res.json(updated);
   } catch (error) {
     console.error("Error rejecting competition checkin:", error);
@@ -1147,10 +1177,30 @@ app.post("/api/competition-checkins/manual-add", async (req, res) => {
       roundedMinutes: parseInt(minutes),
       notes: notes || "Manually added by coach",
     });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: checkin.id,
+      actorId: parseInt(coachId),
+      actionType: "manual_add",
+      newValues: { status: "approved", roundedMinutes: checkin.roundedMinutes, notes: checkin.notes, userId: checkin.userId },
+    });
     res.status(201).json(checkin);
   } catch (error) {
     console.error("Error manually adding competition checkin:", error);
     res.status(500).json({ error: "Failed to add manual checkin" });
+  }
+});
+
+app.get("/api/competition-checkins/:id/audit", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const logs = await storage.getCompetitionCheckinAudit(id);
+    const allUsers = await storage.getUsers();
+    const userMap = new Map(allUsers.map((u: any) => [u.id, u.name || u.username]));
+    const enriched = logs.map(l => ({ ...l, actorName: userMap.get(l.actorId) || `User ${l.actorId}` }));
+    res.json(enriched);
+  } catch (error) {
+    console.error("Error fetching competition checkin audit:", error);
+    res.status(500).json({ error: "Failed to fetch audit" });
   }
 });
 
@@ -1169,6 +1219,13 @@ app.put("/api/competition-checkins/:id", async (req, res) => {
     }
     const updated = await storage.updateCompetitionCheckin(id, data);
     if (!updated) return res.status(404).json({ error: "Checkin not found" });
+    await storage.createCompetitionCheckinAudit({
+      checkinId: id,
+      actorId: parseInt(actorId),
+      actionType: "update",
+      previousValues: existing ? { status: existing.status, notes: existing.notes } : undefined,
+      newValues: data,
+    });
     res.json(updated);
   } catch (error) {
     console.error("Error updating competition checkin:", error);
@@ -1186,6 +1243,13 @@ app.delete("/api/competition-checkins/:id", async (req, res) => {
     if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
       return res.status(403).json({ error: "Only coaches and captains can delete competition checkins" });
     }
+    const existing = await storage.getCompetitionCheckinById(id);
+    await storage.createCompetitionCheckinAudit({
+      checkinId: id,
+      actorId: parseInt(actorId),
+      actionType: "delete",
+      previousValues: existing ? { status: existing.status, userId: existing.userId, roundedMinutes: existing.roundedMinutes } : undefined,
+    });
     await storage.deleteCompetitionCheckin(id);
     res.status(204).send();
   } catch (error) {

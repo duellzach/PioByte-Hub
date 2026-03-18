@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, fullscreenAlerts } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, FullscreenAlert, InsertFullscreenAlert } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert } from "../shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -503,6 +503,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCompetitionCheckin(id: number): Promise<void> {
     await db.delete(competitionCheckins).where(eq(competitionCheckins.id, id));
+  }
+
+  async getCompetitionCheckinAudit(checkinId: number): Promise<(CompetitionCheckinAudit & { actorName: string })[]> {
+    const rows = await db.select({
+      id: competitionCheckinAudit.id,
+      checkinId: competitionCheckinAudit.checkinId,
+      actorId: competitionCheckinAudit.actorId,
+      actionType: competitionCheckinAudit.actionType,
+      previousValues: competitionCheckinAudit.previousValues,
+      newValues: competitionCheckinAudit.newValues,
+      createdAt: competitionCheckinAudit.createdAt,
+      actorName: users.name,
+    })
+      .from(competitionCheckinAudit)
+      .leftJoin(users, eq(competitionCheckinAudit.actorId, users.id))
+      .where(eq(competitionCheckinAudit.checkinId, checkinId))
+      .orderBy(desc(competitionCheckinAudit.createdAt));
+    return rows.map(r => ({ ...r, actorName: r.actorName || `User #${r.actorId}` }));
+  }
+
+  async getCompetitionEventAudit(eventCheckinIds: number[]): Promise<CompetitionCheckinAudit[]> {
+    if (eventCheckinIds.length === 0) return [];
+    return db.select().from(competitionCheckinAudit)
+      .orderBy(desc(competitionCheckinAudit.createdAt));
+  }
+
+  async createCompetitionCheckinAudit(audit: InsertCompetitionCheckinAudit): Promise<CompetitionCheckinAudit> {
+    const [row] = await db.insert(competitionCheckinAudit).values(audit).returning();
+    return row;
   }
 
   async getFullscreenAlerts(activeOnly = false): Promise<FullscreenAlert[]> {

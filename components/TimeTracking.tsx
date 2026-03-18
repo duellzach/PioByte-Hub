@@ -53,6 +53,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const compElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualAddForm, setManualAddForm] = useState({ userId: '', minutes: '60', notes: '' });
+  const [compAuditModal, setCompAuditModal] = useState<{ checkinId: number; userName: string } | null>(null);
+  const [compAuditLogs, setCompAuditLogs] = useState<any[]>([]);
+  const [compAuditLoading, setCompAuditLoading] = useState(false);
   const [bulkForm, setBulkForm] = useState<{ 
     selectedUsers: string[]; 
     minutes: number; 
@@ -352,6 +355,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       await api.competitionCheckins.delete(id, currentUserId);
       if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
     } catch (e: any) { alert(e.message || 'Delete failed'); }
+  };
+
+  const openCompAudit = async (checkinId: number, userName: string) => {
+    setCompAuditModal({ checkinId, userName });
+    setCompAuditLoading(true);
+    try {
+      const logs = await api.competitionCheckins.getAudit(checkinId);
+      setCompAuditLogs(logs);
+    } catch { setCompAuditLogs([]); }
+    finally { setCompAuditLoading(false); }
   };
 
   const handleManualAdd = async () => {
@@ -719,13 +732,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                         </button>
                       )}
                       {(openSession || pendingSession || latestApproved) && (
-                        <button
-                          onClick={() => handleCompDelete((openSession || pendingSession || latestApproved)!.id)}
-                          className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
-                          title="Delete record"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openCompAudit(
+                              (openSession || pendingSession || latestApproved)!.id,
+                              user.name || user.username || 'Member'
+                            )}
+                            className="p-2 bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-500 transition-all"
+                            title="View audit trail"
+                          >
+                            <History size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleCompDelete((openSession || pendingSession || latestApproved)!.id)}
+                            className="p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
+                            title="Delete record"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -821,6 +846,52 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 Add Approved Time
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {compAuditModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl border-t-8 border-slate-500">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">Competition Audit Trail</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">{compAuditModal.userName}</p>
+              </div>
+              <button onClick={() => setCompAuditModal(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
+            </div>
+            {compAuditLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : compAuditLogs.length === 0 ? (
+              <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No audit records found</p>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {compAuditLogs.map((log: any) => (
+                  <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                          {log.actionType.replace(/_/g, ' ')}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">
+                          by {log.actorName}
+                        </p>
+                        {log.newValues && Object.keys(log.newValues).length > 0 && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            {Object.entries(log.newValues).map(([k, v]) => `${k}: ${v}`).join(' • ')}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-bold whitespace-nowrap flex-shrink-0">
+                        {new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

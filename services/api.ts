@@ -152,6 +152,7 @@ export const api = {
       apiRequest<any>(`/competition-checkins/${id}`, { method: 'PUT', body: JSON.stringify({ actorId, ...data }) }),
     delete: (id: number, actorId: number) =>
       apiRequest<void>(`/competition-checkins/${id}?actorId=${actorId}`, { method: 'DELETE' }),
+    getAudit: (checkinId: number) => apiRequest<any[]>(`/competition-checkins/${checkinId}/audit`),
   },
   fullscreenAlerts: {
     list: (activeOnly = false) => apiRequest<any[]>(`/fullscreen-alerts${activeOnly ? '?active=true' : ''}`),

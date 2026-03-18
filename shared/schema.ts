@@ -245,6 +245,17 @@ export const eventInfo = pgTable("event_info", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const competitionCheckinAudit = pgTable("competition_checkin_audit", {
+  id: serial("id").primaryKey(),
+  checkinId: integer("checkin_id").notNull(),
+  actorId: integer("actor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  actionType: text("action_type").notNull(),
+  previousValues: jsonb("previous_values").$type<Record<string, any>>(),
+  newValues: jsonb("new_values").$type<Record<string, any>>(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const competitionCheckins = pgTable("competition_checkins", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -278,5 +289,7 @@ export type EventInfo = typeof eventInfo.$inferSelect;
 export type InsertEventInfo = typeof eventInfo.$inferInsert;
 export type CompetitionCheckin = typeof competitionCheckins.$inferSelect;
 export type InsertCompetitionCheckin = typeof competitionCheckins.$inferInsert;
+export type CompetitionCheckinAudit = typeof competitionCheckinAudit.$inferSelect;
+export type InsertCompetitionCheckinAudit = typeof competitionCheckinAudit.$inferInsert;
 export type FullscreenAlert = typeof fullscreenAlerts.$inferSelect;
 export type InsertFullscreenAlert = typeof fullscreenAlerts.$inferInsert;
