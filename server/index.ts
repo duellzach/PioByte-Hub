@@ -928,6 +928,13 @@ app.get("/api/scout-events/:eventId/info", async (req, res) => {
 app.put("/api/scout-events/:eventId/info", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
+    const actorId = parseInt(req.body.updatedBy);
+    if (!actorId) return res.status(400).json({ error: "updatedBy is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can update event info" });
+    }
     const info = await storage.upsertEventInfo(eventId, req.body);
     res.json(info);
   } catch (error) {
@@ -957,6 +964,13 @@ app.get("/api/scout-events/:eventId/assignments", async (req, res) => {
 app.post("/api/scout-events/:eventId/assignments", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
+    const actorId = parseInt(req.body.createdBy);
+    if (!actorId) return res.status(400).json({ error: "createdBy is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can create assignments" });
+    }
     const assignment = await storage.createCompetitionAssignment({ ...req.body, eventId });
     res.status(201).json(assignment);
   } catch (error) {
@@ -968,8 +982,17 @@ app.post("/api/scout-events/:eventId/assignments", async (req, res) => {
 app.put("/api/scout-events/:eventId/assignments/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const eventId = parseInt(req.params.eventId);
+    const actorId = parseInt(req.body.createdBy);
+    if (!actorId) return res.status(400).json({ error: "createdBy is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can update assignments" });
+    }
+    const existing = await storage.getCompetitionAssignment(id);
+    if (!existing || existing.eventId !== eventId) return res.status(404).json({ error: "Assignment not found" });
     const assignment = await storage.updateCompetitionAssignment(id, req.body);
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
     res.json(assignment);
   } catch (error) {
     console.error("Error updating assignment:", error);
@@ -980,6 +1003,16 @@ app.put("/api/scout-events/:eventId/assignments/:id", async (req, res) => {
 app.delete("/api/scout-events/:eventId/assignments/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const eventId = parseInt(req.params.eventId);
+    const actorId = parseInt(req.query.requesterId as string);
+    if (!actorId) return res.status(400).json({ error: "requesterId query param is required" });
+    const actor = await storage.getUser(actorId);
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can delete assignments" });
+    }
+    const existing = await storage.getCompetitionAssignment(id);
+    if (!existing || existing.eventId !== eventId) return res.status(404).json({ error: "Assignment not found" });
     await storage.deleteCompetitionAssignment(id);
     res.status(204).send();
   } catch (error) {

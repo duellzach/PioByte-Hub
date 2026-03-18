@@ -1906,6 +1906,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       a.userId === myId && a.role === 'Scout - Stands'
                     );
                     if (!standAssignment) return null;
+                    const pitScoutedNums = new Set(pitScouts.map((ps: any) => ps.teamNumber));
                     const suggestedMatches = tbaMatches
                       .filter((m: any) => {
                         const mn = m.match_number;
@@ -1916,12 +1917,26 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       })
                       .sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
                     const suggestedRobots = suggestedMatches.flatMap((m: any) => {
-                      const allKeys = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])];
-                      return allKeys
+                      const redKeys: string[] = m.alliances?.red?.team_keys || [];
+                      const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
+                      const ourAlliance = redKeys.includes('frc10991') ? 'red' : blueKeys.includes('frc10991') ? 'blue' : null;
+                      const opponentKeys = ourAlliance === 'red' ? blueKeys : ourAlliance === 'blue' ? redKeys : [...redKeys, ...blueKeys];
+                      const matchClaim = matchClaims[m.key];
+                      const isClaimed = !!matchClaim;
+                      return opponentKeys
                         .map((k: string) => parseInt(k.replace('frc', '')))
                         .filter(n => n !== 10991)
+                        .filter(n => !pitScoutedNums.has(n))
                         .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === m.match_number && ms.teamNumber === n))
-                        .map(n => ({ teamNumber: n, matchNumber: m.match_number, matchLabel: getMatchLabel(m), alliance: (m.alliances?.red?.team_keys || []).includes(`frc${n}`) ? 'Red' : 'Blue' }));
+                        .map(n => ({
+                          teamNumber: n,
+                          matchNumber: m.match_number,
+                          matchLabel: getMatchLabel(m),
+                          matchKey: m.key,
+                          isClaimed,
+                          claimedBy: isClaimed ? matchClaim.userName : null,
+                          alliance: redKeys.includes(`frc${n}`) ? 'Red' : 'Blue',
+                        }));
                     });
                     if (suggestedRobots.length === 0) return null;
                     return (
@@ -1942,15 +1957,27 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     <p className="text-[9px] text-slate-400 font-bold">{s.matchLabel}</p>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => {
-                                    resetMatchForm();
-                                    setMatchForm((f: any) => ({ ...f, teamNumber: s.teamNumber, matchNumber: s.matchNumber, matchType: 'qualification', alliance: s.alliance }));
-                                    setEditingMatch(null);
-                                    setShowMatchForm(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all flex-shrink-0"
-                                >Scout</button>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {s.isClaimed && (
+                                    <span className="text-[9px] text-slate-400 font-bold hidden sm:block">Claimed by {s.claimedBy}</span>
+                                  )}
+                                  {!s.isClaimed && (
+                                    <button
+                                      onClick={() => claimMatch(s.matchKey)}
+                                      className="px-3 py-1.5 bg-slate-800 dark:bg-slate-600 text-white rounded-lg text-[9px] font-black hover:bg-slate-700 transition-all"
+                                    >Claim</button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      resetMatchForm();
+                                      setMatchForm((f: any) => ({ ...f, teamNumber: s.teamNumber, matchNumber: s.matchNumber, matchType: 'qualification', alliance: s.alliance }));
+                                      if (!s.isClaimed) claimMatch(s.matchKey);
+                                      setEditingMatch(null);
+                                      setShowMatchForm(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
+                                  >Scout</button>
+                                </div>
                               </div>
                             );
                           })}
@@ -3177,7 +3204,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               onClick={async () => {
                                 if (!confirm('Delete this assignment?')) return;
                                 try {
-                                  await api.competitionAssignments.delete(activeEvent.id, a.id);
+                                  await api.competitionAssignments.delete(activeEvent.id, a.id, parseInt(currentUser.id));
                                   fetchAssignments(activeEvent.id);
                                 } catch (err) { console.error('Failed to delete assignment:', err); }
                               }}

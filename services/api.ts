@@ -132,8 +132,8 @@ export const api = {
       apiRequest<any>(`/scout-events/${eventId}/assignments`, { method: 'POST', body: JSON.stringify(data) }),
     update: (eventId: number, id: number, data: any) =>
       apiRequest<any>(`/scout-events/${eventId}/assignments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (eventId: number, id: number) =>
-      apiRequest<void>(`/scout-events/${eventId}/assignments/${id}`, { method: 'DELETE' }),
+    delete: (eventId: number, id: number, requesterId: number) =>
+      apiRequest<void>(`/scout-events/${eventId}/assignments/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
   },
   competitionCheckins: {
     listByEvent: (eventId: number) => apiRequest<any[]>(`/competition-checkins?eventId=${eventId}`),
