@@ -34,3 +34,12 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
   [Priority.High]: 'bg-red-100 text-red-700 font-bold border-red-200',
   [Priority.Urgent]: 'bg-red-600 text-white font-black',
 };
+
+export const ROLE_COLORS: Record<string, string> = {
+  'Scout - Stands': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  'Pit Crew': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  'Networking': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+};

@@ -3,17 +3,8 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, Task, Notification, TaskStatus, Role, Announcement, Department, Comment } from '../types';
 import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp, Trash2, Calendar } from 'lucide-react';
 import { api } from '../services/api';
-import { PRIORITY_COLORS } from '../constants';
+import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const ROLE_COLORS: Record<string, string> = {
-  'Scout - Stands': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  'Pit Crew': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  'Networking': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-  'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-  'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-};
 
 interface HomeProps {
   state: AppState;
@@ -174,6 +165,8 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         } catch {
           setMySchedule({ event: candidateEvent, assignments: [] });
         }
+      } else {
+        setMySchedule(null);
       }
     }).catch(() => {});
   }, [user?.id]);

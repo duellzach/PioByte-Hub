@@ -4,6 +4,7 @@ import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Ca
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
+import { ROLE_COLORS } from '../constants';
 
 interface ScoutProps {
   currentUser: any;
@@ -202,21 +203,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [assignmentForm, setAssignmentForm] = useState({ userId: 0, fromMatch: 1, toMatch: 10, role: 'Scout - Stands', notes: '' });
 
   const ASSIGNMENT_ROLES = ['Scout - Stands', 'Pit Crew', 'Networking', 'Media', 'Free Time', 'Driver/Coach Support'];
-  const ROLE_COLORS: Record<string, string> = {
+  const ROLE_CHIP_COLORS: Record<string, string> = {
     'Scout - Stands': 'bg-red-500 text-white',
     'Pit Crew': 'bg-orange-500 text-white',
     'Networking': 'bg-blue-500 text-white',
     'Media': 'bg-violet-500 text-white',
     'Free Time': 'bg-green-500 text-white',
     'Driver/Coach Support': 'bg-indigo-500 text-white',
-  };
-  const ROLE_BADGE: Record<string, string> = {
-    'Scout - Stands': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
-    'Pit Crew': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
-    'Networking': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    'Media': 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300',
-    'Free Time': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-    'Driver/Coach Support': 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
   };
 
   const fetchEventInfoData = useCallback(async (eventId: number) => {
@@ -1752,7 +1745,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               const myAssignment = myAssignments.find(a => a.fromMatch <= refMatchNum && a.toMatch >= refMatchNum) || myAssignments[0];
               if (!myAssignment) return null;
               const teammates = assignments.filter(a => a.userId !== myId && a.role === myAssignment.role && a.fromMatch <= myAssignment.toMatch && a.toMatch >= myAssignment.fromMatch);
-              const badge = ROLE_BADGE[myAssignment.role] || 'bg-slate-100 text-slate-600';
+              const badge = ROLE_COLORS[myAssignment.role] || 'bg-slate-100 text-slate-600';
               return (
                 <div className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${myAssignment.role === 'Scout - Stands' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'}`}>
                   <div className="flex-1 min-w-0">
@@ -3225,7 +3218,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 {ranges.map((range: any) => {
                                   const a = userAssigns.find((ua: any) => ua.fromMatch === range.fromMatch && ua.toMatch === range.toMatch);
                                   if (!a) return <td key={range.key} className="py-2 px-2 text-center"><span className="text-slate-200 dark:text-slate-700">—</span></td>;
-                                  const color = ROLE_COLORS[a.role] || 'bg-slate-500 text-white';
+                                  const color = ROLE_CHIP_COLORS[a.role] || 'bg-slate-500 text-white';
                                   return (
                                     <td key={range.key} className="py-2 px-2 text-center">
                                       <span
@@ -3252,7 +3245,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div className="space-y-3">
                   <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">All Assignments</h3>
                   {assignments.map(a => {
-                    const badge = ROLE_BADGE[a.role] || 'bg-slate-100 text-slate-600';
+                    const badge = ROLE_COLORS[a.role] || 'bg-slate-100 text-slate-600';
                     const isMe = a.userId === parseInt(currentUser?.id);
                     return (
                       <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-red-200 dark:border-red-800' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
