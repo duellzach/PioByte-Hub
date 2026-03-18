@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
@@ -172,6 +172,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const nexusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [showEventSettings, setShowEventSettings] = useState(false);
+  const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '' });
+  const [nexusTestStatus, setNexusTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [nexusTestMsg, setNexusTestMsg] = useState('');
+
+  const [dismissedBreaks, setDismissedBreaks] = useState<Set<string>>(new Set());
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
+  const [dismissedParts, setDismissedParts] = useState<Set<string>>(new Set());
+
   const fetchNexusData = useCallback(async (eventKey: string) => {
     if (!eventKey) return;
     setNexusLoading(true);
@@ -209,15 +218,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current);
     if (!nexusData?.matches) return;
 
+    const isOurMatch = (m: any) =>
+      (m.redTeams || []).includes(10991) || (m.blueTeams || []).includes(10991);
+
     const getNextQueueTime = () => {
-      const active = nexusData.matches.find(
-        (m: any) => m.times?.estimatedQueueTime && (
-          m.status === 'Queuing soon' || m.status === 'Now queuing' || m.status === 'On deck'
+      const ourActive = nexusData.matches.find(
+        (m: any) => isOurMatch(m) && m.times?.estimatedQueueTime && (
+          m.status === 'Queuing soon' || m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
         )
-      ) || nexusData.matches.find(
-        (m: any) => m.times?.estimatedQueueTime && m.status !== 'On field'
       );
-      return active?.times?.estimatedQueueTime ?? null;
+      return ourActive?.times?.estimatedQueueTime ?? null;
     };
 
     const tick = () => {
@@ -438,6 +448,43 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       fetchEvents();
     } catch (err) {
       console.error('Failed to create event:', err);
+    }
+  };
+
+  const openEventSettings = () => {
+    setEventSettingsForm({
+      tbaEventKey: activeEvent?.tbaEventKey || '',
+      nexusEventKey: activeEvent?.nexusEventKey || '',
+    });
+    setNexusTestStatus('idle');
+    setNexusTestMsg('');
+    setShowEventSettings(true);
+  };
+
+  const handleSaveEventSettings = async () => {
+    if (!activeEvent) return;
+    try {
+      const updated = await api.scout.updateEvent(activeEvent.id, eventSettingsForm);
+      setActiveEvent({ ...activeEvent, ...eventSettingsForm });
+      setShowEventSettings(false);
+      if (updated?.tbaEventKey) fetchTbaData(updated.tbaEventKey);
+    } catch (err) {
+      console.error('Failed to update event settings:', err);
+    }
+  };
+
+  const handleTestNexus = async () => {
+    const key = eventSettingsForm.nexusEventKey.trim();
+    if (!key) { setNexusTestStatus('error'); setNexusTestMsg('Enter a Nexus event key first'); return; }
+    setNexusTestStatus('testing');
+    setNexusTestMsg('');
+    try {
+      await api.nexus.getEvent(key);
+      setNexusTestStatus('ok');
+      setNexusTestMsg('Connected successfully!');
+    } catch (err: any) {
+      setNexusTestStatus('error');
+      setNexusTestMsg(err?.message || 'Connection failed');
     }
   };
 
@@ -1446,6 +1493,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 text-[10px]">
+            {isCoachOrCaptain && (
+              <button
+                onClick={openEventSettings}
+                className="flex items-center gap-1.5 px-3 py-2 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-xl border border-violet-200 dark:border-violet-700 font-black uppercase tracking-widest hover:bg-violet-100 transition-all"
+              >
+                <Settings size={13} /> Settings
+              </button>
+            )}
             <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-100 dark:border-slate-700">
               <Bot size={14} className="text-red-600" />
               <span className="font-black text-slate-800">{pitScouts.length}</span>
@@ -2141,6 +2196,81 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         ) : activeTab === 'display' ? (
           <div className="space-y-6 md:space-y-8">
 
+            {nexusData && (() => {
+              const firstPendingAnnouncement = nexusData.announcements?.find(
+                (a: any) => !dismissedAnnouncements.has(String(a.id ?? a.message ?? a))
+              );
+              const firstPendingPart = nexusData.partsRequests?.find(
+                (r: any) => !dismissedParts.has(String(r.id ?? r.message ?? r))
+              );
+              const activeMatchIdx = nexusData.matches?.findIndex(
+                (m: any) => m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
+              ) ?? -1;
+              const breakMatch = activeMatchIdx >= 0 ? nexusData.matches?.[activeMatchIdx] : null;
+              const breakId = breakMatch?.label ?? '';
+              const pendingBreak = breakMatch?.breakAfter && !dismissedBreaks.has(breakId) ? breakMatch : null;
+
+              if (pendingBreak) {
+                return (
+                  <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 border-orange-500">
+                      <div className="flex justify-end mb-2">
+                        <button onClick={() => setDismissedBreaks(prev => new Set([...prev, breakId]))} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all"><X size={20} /></button>
+                      </div>
+                      <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle size={32} className="text-orange-600" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Break After This Match</h2>
+                      <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{pendingBreak.breakAfter}</p>
+                      {pendingBreak.times?.estimatedStartTime && (
+                        <p className="text-sm text-orange-600 font-black mt-3">
+                          Resumes at {new Date(pendingBreak.times.estimatedStartTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (firstPendingAnnouncement) {
+                const key = String(firstPendingAnnouncement.id ?? firstPendingAnnouncement.message ?? firstPendingAnnouncement);
+                return (
+                  <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 border-yellow-500">
+                      <div className="flex justify-end mb-2">
+                        <button onClick={() => setDismissedAnnouncements(prev => new Set([...prev, key]))} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all"><X size={20} /></button>
+                      </div>
+                      <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Zap size={32} className="text-yellow-600" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Announcement</h2>
+                      <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{firstPendingAnnouncement.message ?? firstPendingAnnouncement}</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (firstPendingPart) {
+                const key = String(firstPendingPart.id ?? firstPendingPart.message ?? firstPendingPart);
+                return (
+                  <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 border-red-600">
+                      <div className="flex justify-end mb-2">
+                        <button onClick={() => setDismissedParts(prev => new Set([...prev, key]))} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all"><X size={20} /></button>
+                      </div>
+                      <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle size={32} className="text-red-600" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Parts Request</h2>
+                      <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{firstPendingPart.message ?? firstPendingPart}</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+
             {activeEvent?.nexusEventKey ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-violet-600/10 to-blue-600/10">
@@ -2196,7 +2326,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           key={num}
                           className={`px-2 py-1 rounded-lg text-[11px] font-black ${
                             num === 10991
-                              ? 'ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300'
+                              ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-black'
                               : alliance === 'red'
                               ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                               : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
@@ -2270,9 +2400,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   const startTime = m.times?.estimatedStartTime;
                                   const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
                                   return (
-                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                                       isOurs
-                                        ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20'
+                                        ? 'border-red-500 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
                                         : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40'
                                     }`}>
                                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase flex-shrink-0 ${statusColor(m.status)}`}>
@@ -2281,7 +2411,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                          m.status === 'On deck' ? 'Deck' :
                                          m.status === 'On field' ? 'Field' : '—'}
                                       </span>
-                                      <span className={`text-sm font-black flex-shrink-0 ${isOurs ? 'text-yellow-700 dark:text-yellow-300' : 'text-slate-900 dark:text-white'}`}>
+                                      <span className={`text-sm font-black flex-shrink-0 ${isOurs ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'}`}>
                                         {m.label}
                                         {isOurs && ' ★'}
                                       </span>
@@ -3081,6 +3211,73 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
             {isCoachOrCaptain ? 'Create your first tournament event to start scouting' : 'Ask a Coach or Captain to create an event'}
           </p>
+        </div>
+      )}
+
+      {showEventSettings && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-10 shadow-2xl border-t-8 border-violet-600">
+            <div className="flex justify-between items-start mb-6 md:mb-8">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Event Settings</h2>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">{activeEvent?.name}</p>
+              </div>
+              <button onClick={() => setShowEventSettings(false)} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TBA Event Key</label>
+                <input
+                  value={eventSettingsForm.tbaEventKey}
+                  onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, tbaEventKey: e.target.value })}
+                  placeholder="e.g. 2026azgl"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm"
+                />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Find your event key on thebluealliance.com</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">FRC Nexus Event Key</label>
+                <div className="flex gap-2">
+                  <input
+                    value={eventSettingsForm.nexusEventKey}
+                    onChange={(e) => { setEventSettingsForm({ ...eventSettingsForm, nexusEventKey: e.target.value }); setNexusTestStatus('idle'); }}
+                    placeholder="e.g. 2026azgl"
+                    className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 transition-all font-bold text-sm"
+                  />
+                  <button
+                    onClick={handleTestNexus}
+                    disabled={nexusTestStatus === 'testing'}
+                    className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                      nexusTestStatus === 'ok' ? 'bg-green-600 text-white' :
+                      nexusTestStatus === 'error' ? 'bg-red-600 text-white' :
+                      nexusTestStatus === 'testing' ? 'bg-slate-200 text-slate-500' :
+                      'bg-violet-600 text-white hover:bg-violet-700'
+                    }`}
+                  >
+                    <Zap size={13} />
+                    {nexusTestStatus === 'testing' ? 'Testing...' :
+                     nexusTestStatus === 'ok' ? 'Connected!' :
+                     nexusTestStatus === 'error' ? 'Failed' : 'Test'}
+                  </button>
+                </div>
+                {nexusTestMsg && (
+                  <p className={`text-[9px] font-bold ml-1 ${nexusTestStatus === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{nexusTestMsg}</p>
+                )}
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Enables live queue countdown & match schedule from frc.nexus</p>
+              </div>
+
+              <button
+                onClick={handleSaveEventSettings}
+                className="w-full py-4 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              >
+                <Check size={16} /> Save Settings
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
