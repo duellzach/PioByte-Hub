@@ -204,6 +204,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setNexusData(null);
     setNexusError(null);
     setNexusCountdown('');
+    setDismissedBreaks(new Set());
+    setDismissedAnnouncements(new Set());
+    setDismissedParts(new Set());
 
     const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
@@ -2231,7 +2234,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               })();
               const breakMatchIdx = activeMatchIdx >= 0 ? activeMatchIdx : lastCompletedIdx;
               const breakMatch = breakMatchIdx >= 0 ? matches[breakMatchIdx] : null;
-              const breakId = breakMatch?.label ?? '';
+              const breakId = breakMatch
+                ? `${activeEvent?.id ?? ''}::${breakMatch.label ?? ''}::${breakMatch.breakAfter ?? ''}`
+                : '';
               const nextMatchAfterBreak = breakMatchIdx >= 0 ? matches[breakMatchIdx + 1] : null;
               const resumeTime = nextMatchAfterBreak?.times?.estimatedQueueTime || nextMatchAfterBreak?.times?.estimatedStartTime;
               const pendingBreak = breakMatch?.breakAfter && !dismissedBreaks.has(breakId) ? breakMatch : null;
@@ -2332,10 +2337,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 ) : nexusData ? (
                   <div className="p-6 space-y-6">
                     {(() => {
-                      const activeMatch = nexusData.matches?.find((m: any) =>
+                      const ourMatches = (nexusData.matches || []).filter(
+                        (m: any) => (m.redTeams || []).includes(10991) || (m.blueTeams || []).includes(10991)
+                      );
+                      const activeMatch = ourMatches.find((m: any) =>
                         m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
                       );
-                      const nextMatch = nexusData.matches?.find((m: any) =>
+                      const nextMatch = ourMatches.find((m: any) =>
                         m.status === 'Queuing soon'
                       );
 
