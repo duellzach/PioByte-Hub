@@ -2801,25 +2801,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             {/* RIGHT COLUMN: W/L Record + Event Schedule */}
             <div className="space-y-4">
 
-            {tbaRecord && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-4 md:p-6">
-                <div className="flex items-center justify-center gap-6">
-                  <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team 10991 Record</span>
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg font-black text-green-600">{tbaRecord.wins}W</span>
-                    <span className="text-lg font-black text-slate-300">–</span>
-                    <span className="text-lg font-black text-red-600">{tbaRecord.losses}L</span>
-                    {tbaRecord.ties > 0 && (
-                      <>
-                        <span className="text-lg font-black text-slate-300">–</span>
-                        <span className="text-lg font-black text-yellow-600">{tbaRecord.ties}T</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {activeEvent?.tbaEventKey && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6">
@@ -3041,8 +3022,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <tr className="border-b border-slate-100 dark:border-slate-700">
                             <th className="pb-3 text-left text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16">Rank</th>
                             <th className="pb-3 text-left text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team</th>
-                            <th className="pb-3 text-right text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20">Record</th>
                             <th className="pb-3 text-right text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16">RP</th>
+                            <th className="pb-3 text-right text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-24">Record</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -3073,12 +3054,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     </div>
                                   </td>
                                   <td className="py-2.5 text-right">
-                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 tabular-nums">{r.record}</span>
-                                  </td>
-                                  <td className="py-2.5 text-right">
                                     <span className={`text-xs font-black tabular-nums ${isOurTeam ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>
                                       {r.rp.toFixed(2)}
                                     </span>
+                                  </td>
+                                  <td className="py-2.5 text-right">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 tabular-nums">{r.record}</span>
                                   </td>
                                 </tr>
                               );
