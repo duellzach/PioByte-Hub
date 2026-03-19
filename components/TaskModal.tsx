@@ -583,49 +583,90 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               <div className="space-y-2 max-h-48 overflow-auto kanban-scroll pr-2">
                 {filteredUsersForAssignment.length === 0 ? (
                   <p className="text-center text-slate-400 dark:text-slate-500 text-xs font-bold py-4">No matching users found</p>
-                ) : (
-                  filteredUsersForAssignment.map(u => {
+                ) : (() => {
                     const isCertRequired = !!editedTask.requiredCertificationId;
-                    const isCertified = !isCertRequired || certifiedUserIds.has(parseInt(u.id));
-                    const isAssigned = editedTask.assignees.includes(u.id);
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                            if (!isCertified) return;
+                    const equipmentName = isCertRequired
+                      ? certifications.find((c: any) => c.id === editedTask.requiredCertificationId)?.equipment || 'this equipment'
+                      : '';
+                    const certifiedUsers = isCertRequired
+                      ? filteredUsersForAssignment.filter(u => certifiedUserIds.has(parseInt(u.id)))
+                      : filteredUsersForAssignment;
+                    const uncertifiedUsers = isCertRequired
+                      ? filteredUsersForAssignment.filter(u => !certifiedUserIds.has(parseInt(u.id)))
+                      : [];
+
+                    const renderUser = (u: any) => {
+                      const isCertified = !isCertRequired || certifiedUserIds.has(parseInt(u.id));
+                      const isAssigned = editedTask.assignees.includes(u.id);
+                      const isAssignedUncertified = isAssigned && !isCertified;
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => {
+                            if (!isCertified && !isAssigned) return;
                             const newAssignees = isAssigned
-                                ? editedTask.assignees.filter(id => id !== u.id)
-                                : [...editedTask.assignees, u.id];
+                              ? editedTask.assignees.filter(id => id !== u.id)
+                              : [...editedTask.assignees, u.id];
                             setEditedTask({...editedTask, assignees: newAssignees});
-                        }}
-                        title={!isCertified ? `${u.name} is not certified for this task` : ''}
-                        className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
-                            isAssigned
-                            ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
-                            : !isCertified
-                            ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-60'
-                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${isAssigned ? 'bg-red-600 text-white' : !isCertified ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500' : 'bg-slate-950 dark:bg-slate-900 text-white'}`}>
+                          }}
+                          title={!isCertified && !isAssigned ? `${u.name} is not certified for ${equipmentName} — they cannot be assigned` : isAssignedUncertified ? `${u.name} is assigned but lacks ${equipmentName} certification — click to unassign` : ''}
+                          className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
+                            isAssigned && isCertified
+                              ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
+                              : isAssignedUncertified
+                              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-400'
+                              : !isCertified
+                              ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-60'
+                              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${isAssigned && isCertified ? 'bg-red-600 text-white' : isAssignedUncertified ? 'bg-amber-500 text-white' : !isCertified ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500' : 'bg-slate-950 dark:bg-slate-900 text-white'}`}>
                             {u.name[0]}
-                        </div>
-                        <div className="text-left flex-1">
-                          <p className="tracking-tight">{u.name}</p>
-                          <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
-                        </div>
-                        {isCertRequired && (
-                          <div className="flex-shrink-0">
-                            {isCertified
-                              ? <ShieldCheck size={12} className="text-amber-500" />
-                              : <Lock size={12} className="text-slate-300 dark:text-slate-600" />
-                            }
                           </div>
+                          <div className="text-left flex-1">
+                            <p className="tracking-tight">{u.name}</p>
+                            <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
+                            {isAssignedUncertified && (
+                              <p className="text-[8px] text-amber-600 dark:text-amber-400 font-bold mt-0.5 flex items-center gap-0.5 normal-case">
+                                <AlertTriangle size={7} /> Not certified for {equipmentName}
+                              </p>
+                            )}
+                          </div>
+                          {isCertRequired && (
+                            <div className="flex-shrink-0">
+                              {isCertified
+                                ? <ShieldCheck size={12} className="text-green-500" />
+                                : <Lock size={12} className={isAssignedUncertified ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'} />
+                              }
+                            </div>
+                          )}
+                        </button>
+                      );
+                    };
+
+                    return (
+                      <>
+                        {isCertRequired && certifiedUsers.length > 0 && (
+                          <>
+                            <p className="text-[8px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest px-1 pt-1 flex items-center gap-1">
+                              <ShieldCheck size={8} /> Certified
+                            </p>
+                            {certifiedUsers.map(renderUser)}
+                          </>
                         )}
-                      </button>
+                        {isCertRequired && uncertifiedUsers.length > 0 && (
+                          <>
+                            <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1 pt-2 flex items-center gap-1">
+                              <Lock size={8} /> Not Certified
+                            </p>
+                            {uncertifiedUsers.map(renderUser)}
+                          </>
+                        )}
+                        {!isCertRequired && filteredUsersForAssignment.map(renderUser)}
+                      </>
                     );
-                  })
-                )}
+                  })()
+                }
               </div>
             </div>
 

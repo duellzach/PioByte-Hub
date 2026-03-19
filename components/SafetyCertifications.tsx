@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShieldCheck, Plus, X, ChevronRight, Check, AlertTriangle, Clock, User, Users, Edit3, Trash2, Lock, Unlock, ClipboardList, Search, ChevronDown } from 'lucide-react';
+import { ShieldCheck, Plus, X, ChevronRight, Check, AlertTriangle, Clock, User, Users, Edit3, Trash2, Lock, Unlock, ClipboardList, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { User as UserType, Role } from '../types';
 import { api } from '../services/api';
 
@@ -92,6 +92,8 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
   useEffect(() => {
     loadCertifications();
+    loadMyCerts();
+    loadQueue();
   }, []);
 
   useEffect(() => {
@@ -238,6 +240,10 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
   const handleCompleteRequest = async () => {
     if (!requestDetail || !currentUser) return;
+    if (checklistProgress.length > 0 && !checklistProgress.every(p => p.completed)) {
+      alert('All checklist items must be completed before awarding the certification.');
+      return;
+    }
     setRequestActionLoading(true);
     try {
       await api.certRequests.complete(requestDetail.id, parseInt(currentUser.id));
@@ -251,6 +257,10 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
   const handleRejectRequest = async () => {
     if (!requestDetail || !currentUser) return;
+    if (!trainerNotes.trim()) {
+      alert('Please add trainer notes explaining the rejection before proceeding.');
+      return;
+    }
     if (!confirm('Reject this certification request?')) return;
     setRequestActionLoading(true);
     try {
@@ -345,6 +355,32 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
         <div className="space-y-2 mb-3">
           {certForm.checklistItems.map((item, idx) => (
             <div key={idx} className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-xl">
+              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    if (idx === 0) return;
+                    const next = [...certForm.checklistItems];
+                    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                    setCertForm({ ...certForm, checklistItems: next });
+                  }}
+                  disabled={idx === 0}
+                  className="p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronUp size={11} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (idx === certForm.checklistItems.length - 1) return;
+                    const next = [...certForm.checklistItems];
+                    [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                    setCertForm({ ...certForm, checklistItems: next });
+                  }}
+                  disabled={idx === certForm.checklistItems.length - 1}
+                  className="p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronDown size={11} />
+                </button>
+              </div>
               <Check size={12} className="text-green-500 flex-shrink-0" />
               <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300">{item}</span>
               <button
@@ -609,6 +645,44 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                     )}
                   </div>
 
+                  {(() => {
+                    const alreadyCertified = certifiedUsers.some(u => u.id === parseInt(currentUser?.id || '0'));
+                    const hasActiveRequest = myRequests.some(r => r.certificationId === selectedCert.id && ['pending', 'in_progress'].includes(r.status));
+                    if (!alreadyCertified && !hasActiveRequest) {
+                      return (
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <button
+                            onClick={async () => { await handleRequestCert(selectedCert.id); await loadCertDetail(selectedCert); }}
+                            className="w-full py-3 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                          >
+                            <ClipboardList size={14} /> Request Training Certification
+                          </button>
+                        </div>
+                      );
+                    }
+                    if (alreadyCertified) {
+                      return (
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-2xl">
+                            <Check size={14} className="text-green-600" />
+                            <span className="text-sm font-black text-green-700 dark:text-green-300 uppercase">You are certified for this</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (hasActiveRequest) {
+                      return (
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-2xl">
+                            <Clock size={14} className="text-amber-600" />
+                            <span className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase">Training request pending</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   {(isCoachOrCaptain || isTrainer) && (
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                       <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Grant Certification</p>
@@ -780,60 +854,84 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               <p className="text-slate-400 dark:text-slate-600 text-xs mt-1">No pending certification requests.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {queueRequests.map(req => (
-                <div key={req.id} className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-5">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${req.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'}`}>
-                        <ClipboardList size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{req.certification?.name}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                          Requester: {getUserName(req.userId)} • {new Date(req.createdAt).toLocaleDateString()}
-                        </p>
-                        {req.trainerId && (
-                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
-                            Claimed by: {getUserName(req.trainerId)}
+            <>
+              {(() => {
+                const pendingReqs = queueRequests.filter(r => r.status === 'pending');
+                const inProgressReqs = queueRequests.filter(r => r.status === 'in_progress');
+                const renderCard = (req: any) => (
+                  <div key={req.id} className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-5">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${req.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'}`}>
+                          <ClipboardList size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{req.certification?.name}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                            Requester: {getUserName(req.userId)} • {new Date(req.createdAt).toLocaleDateString()}
                           </p>
+                          {req.trainerId && (
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
+                              Claimed by: {getUserName(req.trainerId)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {statusBadge(req.status)}
+                        {req.status === 'pending' && (
+                          <button
+                            onClick={() => handleClaimRequest(req.id)}
+                            className="px-3 py-1.5 bg-blue-600 text-white font-black text-[9px] rounded-xl hover:bg-blue-700 transition-all uppercase tracking-wider"
+                          >
+                            Claim
+                          </button>
+                        )}
+                        {req.status === 'in_progress' && (req.trainerId === parseInt(currentUser?.id || '0') || isCoachOrCaptain) && (
+                          <button
+                            onClick={() => openRequestDetail(req)}
+                            className="px-3 py-1.5 bg-slate-900 dark:bg-slate-600 text-white font-black text-[9px] rounded-xl hover:bg-red-600 transition-all uppercase tracking-wider"
+                          >
+                            Process
+                          </button>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {statusBadge(req.status)}
-                      {req.status === 'pending' && (
-                        <button
-                          onClick={() => handleClaimRequest(req.id)}
-                          className="px-3 py-1.5 bg-blue-600 text-white font-black text-[9px] rounded-xl hover:bg-blue-700 transition-all uppercase tracking-wider"
-                        >
-                          Claim
-                        </button>
-                      )}
-                      {req.status === 'in_progress' && (req.trainerId === parseInt(currentUser?.id || '0') || isCoachOrCaptain) && (
-                        <button
-                          onClick={() => openRequestDetail(req)}
-                          className="px-3 py-1.5 bg-slate-900 dark:bg-slate-600 text-white font-black text-[9px] rounded-xl hover:bg-red-600 transition-all uppercase tracking-wider"
-                        >
-                          Process
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {req.certification?.checklistItems?.length > 0 && req.status === 'in_progress' && (
-                    <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-700">
-                      <div className="flex gap-1.5 flex-wrap">
-                        {(req.checklistProgress || []).map((p: any, idx: number) => (
-                          <div key={idx} className={`px-2 py-0.5 rounded-lg text-[8px] font-black ${p.completed ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                            {idx + 1}
-                          </div>
-                        ))}
+                    {req.certification?.checklistItems?.length > 0 && req.status === 'in_progress' && (
+                      <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+                        <div className="flex gap-1.5 flex-wrap">
+                          {(req.checklistProgress || []).map((p: any, idx: number) => (
+                            <div key={idx} className={`px-2 py-0.5 rounded-lg text-[8px] font-black ${p.completed ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                              {idx + 1}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    )}
+                  </div>
+                );
+                return (
+                  <>
+                    {pendingReqs.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                          <Clock size={12} /> Pending Requests ({pendingReqs.length})
+                        </h4>
+                        {pendingReqs.map(renderCard)}
+                      </div>
+                    )}
+                    {inProgressReqs.length > 0 && (
+                      <div className="space-y-3 mt-4">
+                        <h4 className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                          <ClipboardList size={12} /> In Progress ({inProgressReqs.length})
+                        </h4>
+                        {inProgressReqs.map(renderCard)}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           )}
         </div>
       )}
@@ -943,19 +1041,27 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               <div className="flex gap-2">
                 <button
                   onClick={handleRejectRequest}
-                  disabled={requestActionLoading}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-red-600 dark:text-red-400 font-black rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
+                  disabled={requestActionLoading || !trainerNotes.trim()}
+                  title={!trainerNotes.trim() ? 'Add trainer notes before rejecting' : ''}
+                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-red-600 dark:text-red-400 font-black rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Reject
                 </button>
                 <button
                   onClick={handleCompleteRequest}
-                  disabled={requestActionLoading}
-                  className="flex-1 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  disabled={requestActionLoading || (checklistProgress.length > 0 && !checklistProgress.every(p => p.completed))}
+                  title={(checklistProgress.length > 0 && !checklistProgress.every(p => p.completed)) ? 'Complete all checklist items first' : ''}
+                  className="flex-1 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
                   <Check size={13} /> Award Certification
                 </button>
               </div>
+              {!trainerNotes.trim() && <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold text-center">Notes required to reject</p>}
+              {checklistProgress.length > 0 && !checklistProgress.every(p => p.completed) && (
+                <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold text-center">
+                  {checklistProgress.filter(p => p.completed).length}/{checklistProgress.length} checklist items done
+                </p>
+              )}
             </div>
           </div>
         </div>

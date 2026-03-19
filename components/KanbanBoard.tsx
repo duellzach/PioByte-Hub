@@ -537,9 +537,8 @@ const TaskCard: React.FC<{
             </h4>
             {certName && (
                 <div className="flex items-center gap-1 mb-1.5">
-                    <ShieldCheck size={8} className="text-amber-500 flex-shrink-0" />
-                    <span className="text-[6px] md:text-[7px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tight truncate">
-                        {certName}
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded text-[6px] md:text-[7px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
+                        🛡 Requires: {certName}
                     </span>
                 </div>
             )}
