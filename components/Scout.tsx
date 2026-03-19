@@ -1863,12 +1863,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
             {activeEvent?.tbaEventKey && tbaMatches.length > 0 && (() => {
               const now = Math.floor(Date.now() / 1000);
+              const isUnplayed = (m: any) => {
+                const score = m.alliances?.red?.score;
+                return score === null || score === undefined || score === -1;
+              };
               const upcoming = tbaMatches
                 .filter((m: any) => {
+                  if (!isUnplayed(m)) return false;
                   const t = m.predicted_time || m.time;
-                  return t && t > now - 3600 && m.alliances?.red?.score === null;
+                  if (t) return t > now - 3600;
+                  return !m.actual_time;
                 })
-                .sort((a: any, b: any) => (a.predicted_time || a.time) - (b.predicted_time || b.time));
+                .sort((a: any, b: any) => {
+                  const ta = a.predicted_time || a.time || 0;
+                  const tb = b.predicted_time || b.time || 0;
+                  if (ta !== tb) return ta - tb;
+                  return (a.match_number || 0) - (b.match_number || 0);
+                });
 
               const renderNextMatchCard = (m: any, isOnDeck: boolean) => {
                 if (!m) return null;
