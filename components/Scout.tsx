@@ -1894,7 +1894,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                             {unscoutedMatches.map((m: any) => {
                               const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
-                              const scoutedNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
+                              const _isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                              const _compositeNum = _isElim && m.set_number > 0 ? m.set_number * 10 + (m.match_number || 1) : (m.match_number || 1);
+                              const _matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                              const scoutedNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === _compositeNum && ms.matchType === _matchType).map((ms: any) => ms.teamNumber));
                               const unscoutedTeams = allTeamNums.filter(n => !scoutedNums.has(n));
                               const tbaMatchUrl = `https://www.thebluealliance.com/match/${m.key}`;
                               const youtubeLink = m.videos?.find((v: any) => v.type === 'youtube');
