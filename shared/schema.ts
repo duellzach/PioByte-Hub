@@ -293,3 +293,16 @@ export type CompetitionCheckinAudit = typeof competitionCheckinAudit.$inferSelec
 export type InsertCompetitionCheckinAudit = typeof competitionCheckinAudit.$inferInsert;
 export type FullscreenAlert = typeof fullscreenAlerts.$inferSelect;
 export type InsertFullscreenAlert = typeof fullscreenAlerts.$inferInsert;
+
+export const teamClaims = pgTable("team_claims", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  matchKey: text("match_key").notNull(),
+  teamNumber: integer("team_number").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userName: text("user_name").notNull(),
+  claimedAt: timestamp("claimed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type TeamClaim = typeof teamClaims.$inferSelect;
+export type InsertTeamClaim = typeof teamClaims.$inferInsert;

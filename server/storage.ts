@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert } from "../shared/schema";
-import { eq, desc, and, isNull } from "drizzle-orm";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim } from "../shared/schema";
+import { eq, desc, and, isNull, lt } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
   if (value === undefined || value === null) return undefined;
@@ -136,6 +136,10 @@ export interface IStorage {
   createFullscreenAlert(alert: InsertFullscreenAlert): Promise<FullscreenAlert>;
   updateFullscreenAlert(id: number, alert: Partial<InsertFullscreenAlert>): Promise<FullscreenAlert | undefined>;
   deleteFullscreenAlert(id: number): Promise<void>;
+
+  getTeamClaims(eventId: number): Promise<TeamClaim[]>;
+  upsertTeamClaim(data: { eventId: number; matchKey: string; teamNumber: number; userId: number; userName: string }): Promise<TeamClaim>;
+  deleteTeamClaim(eventId: number, matchKey: string, teamNumber: number, userId: number): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -565,6 +569,43 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFullscreenAlert(id: number): Promise<void> {
     await db.delete(fullscreenAlerts).where(eq(fullscreenAlerts.id, id));
+  }
+
+  async getTeamClaims(eventId: number): Promise<TeamClaim[]> {
+    const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    await db.delete(teamClaims).where(and(eq(teamClaims.eventId, eventId), lt(teamClaims.claimedAt, cutoff)));
+    return db.select().from(teamClaims).where(eq(teamClaims.eventId, eventId));
+  }
+
+  async upsertTeamClaim(data: { eventId: number; matchKey: string; teamNumber: number; userId: number; userName: string }): Promise<TeamClaim> {
+    const existing = await db.select().from(teamClaims).where(
+      and(
+        eq(teamClaims.eventId, data.eventId),
+        eq(teamClaims.matchKey, data.matchKey),
+        eq(teamClaims.teamNumber, data.teamNumber),
+        eq(teamClaims.userId, data.userId)
+      )
+    );
+    if (existing.length > 0) {
+      const [row] = await db.update(teamClaims)
+        .set({ claimedAt: new Date(), userName: data.userName })
+        .where(eq(teamClaims.id, existing[0].id))
+        .returning();
+      return row;
+    }
+    const [row] = await db.insert(teamClaims).values({ ...data, claimedAt: new Date() }).returning();
+    return row;
+  }
+
+  async deleteTeamClaim(eventId: number, matchKey: string, teamNumber: number, userId: number): Promise<void> {
+    await db.delete(teamClaims).where(
+      and(
+        eq(teamClaims.eventId, eventId),
+        eq(teamClaims.matchKey, matchKey),
+        eq(teamClaims.teamNumber, teamNumber),
+        eq(teamClaims.userId, userId)
+      )
+    );
   }
 
   async seedDatabase(): Promise<void> {

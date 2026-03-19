@@ -142,6 +142,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [matchClaims, setMatchClaims] = useState<Record<string, { userId: number; userName: string }>>(() => {
     try { return JSON.parse(localStorage.getItem(`piobyte_claims`) || '{}'); } catch { return {}; }
   });
+  const [teamClaims, setTeamClaims] = useState<Record<string, { userId: number; userName: string }>>({});
+  const activeTeamClaimRef = useRef<{ matchKey: string; teamNumber: number } | null>(null);
+  const teamClaimsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [geminiModal, setGeminiModal] = useState<{ open: boolean; text: string; matchLabel: string }>({ open: false, text: '', matchLabel: '' });
   const [copiedGemini, setCopiedGemini] = useState(false);
 
@@ -522,6 +525,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (event.tbaEventKey) fetchTbaData(event.tbaEventKey);
   };
 
+  useEffect(() => {
+    if (!activeEvent) return;
+    fetchTeamClaims();
+    if (teamClaimsPollRef.current) clearInterval(teamClaimsPollRef.current);
+    teamClaimsPollRef.current = setInterval(fetchTeamClaims, 30000);
+    return () => {
+      if (teamClaimsPollRef.current) clearInterval(teamClaimsPollRef.current);
+    };
+  }, [activeEvent?.id]);
+
   const handleCreateEvent = async () => {
     if (!eventForm.name.trim()) return;
     try {
@@ -637,6 +650,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (editingMatch) {
       try {
         await api.scout.updateMatchScout(editingMatch.id, data);
+        if (activeTeamClaimRef.current) {
+          unclaimTeam(activeTeamClaimRef.current.matchKey, activeTeamClaimRef.current.teamNumber);
+        }
         setShowMatchForm(false);
         setEditingMatch(null);
         resetMatchForm();
@@ -648,6 +664,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
     try {
       await api.scout.createMatchScout(activeEvent.id, data);
+      if (activeTeamClaimRef.current) {
+        unclaimTeam(activeTeamClaimRef.current.matchKey, activeTeamClaimRef.current.teamNumber);
+      }
       setShowMatchForm(false);
       resetMatchForm();
       fetchEventData(activeEvent.id);
@@ -656,6 +675,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       setOfflineQueue(getOfflineQueue());
       setSyncMessage('Saved offline — will sync when connected');
       setTimeout(() => setSyncMessage(null), 4000);
+      if (activeTeamClaimRef.current) {
+        unclaimTeam(activeTeamClaimRef.current.matchKey, activeTeamClaimRef.current.teamNumber);
+      }
       setShowMatchForm(false);
       resetMatchForm();
     }
@@ -760,6 +782,39 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     delete updated[matchKey];
     setMatchClaims(updated);
     localStorage.setItem('piobyte_claims', JSON.stringify(updated));
+  };
+
+  const fetchTeamClaims = async () => {
+    if (!activeEvent) return;
+    try {
+      const claims = await api.scout.getTeamClaims(activeEvent.id);
+      const map: Record<string, { userId: number; userName: string }> = {};
+      for (const c of claims) {
+        map[`${c.matchKey}:${c.teamNumber}`] = { userId: c.userId, userName: c.userName };
+      }
+      setTeamClaims(map);
+    } catch {}
+  };
+
+  const claimTeam = async (matchKey: string, teamNumber: number) => {
+    if (!activeEvent || !currentUser) return;
+    const key = `${matchKey}:${teamNumber}`;
+    const entry = { userId: parseInt(currentUser.id), userName: currentUser.name || currentUser.username };
+    setTeamClaims(prev => ({ ...prev, [key]: entry }));
+    activeTeamClaimRef.current = { matchKey, teamNumber };
+    try {
+      await api.scout.upsertTeamClaim(activeEvent.id, { matchKey, teamNumber, userId: parseInt(currentUser.id), userName: entry.userName });
+    } catch {}
+  };
+
+  const unclaimTeam = async (matchKey: string, teamNumber: number) => {
+    if (!activeEvent || !currentUser) return;
+    const key = `${matchKey}:${teamNumber}`;
+    setTeamClaims(prev => { const next = { ...prev }; delete next[key]; return next; });
+    activeTeamClaimRef.current = null;
+    try {
+      await api.scout.deleteTeamClaim(activeEvent.id, matchKey, teamNumber, parseInt(currentUser.id));
+    } catch {}
   };
 
   const generateGeminiReport = (tbaMatch: any) => {
@@ -1815,6 +1870,108 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 })
                 .sort((a: any, b: any) => (a.predicted_time || a.time) - (b.predicted_time || b.time));
 
+              const renderNextMatchCard = (m: any, isOnDeck: boolean) => {
+                if (!m) return null;
+                const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                const compositeNum = isElim && m.set_number > 0 ? m.set_number * 10 + (m.match_number || 1) : (m.match_number || 1);
+                const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                const redKeys: string[] = m.alliances?.red?.team_keys || [];
+                const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
+                const renderTeamBtn = (teamKey: string, alliance: 'Red' | 'Blue') => {
+                  const teamNum = parseInt(teamKey.replace('frc', ''));
+                  const isOurTeam = teamNum === 10991;
+                  const alreadyScouted = matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === teamNum);
+                  const claimKey = `${m.key}:${teamNum}`;
+                  const claim = teamClaims[claimKey];
+                  const isMe = claim?.userId === parseInt(currentUser?.id);
+                  const isMineOpen = claim && isMe;
+                  const isOthersClaim = claim && !isMe;
+
+                  let btnClass = '';
+                  let label: React.ReactNode = <span className="font-black text-sm">{teamNum}</span>;
+
+                  if (alreadyScouted) {
+                    btnClass = 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 text-green-700 dark:text-green-300 cursor-default opacity-80';
+                    label = (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="font-black text-sm">{teamNum}</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest">✓ Done</span>
+                      </div>
+                    );
+                  } else if (isOthersClaim) {
+                    btnClass = 'bg-amber-50 dark:bg-amber-900/30 border-2 border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300 cursor-default opacity-75';
+                    label = (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="font-black text-sm">{teamNum}</span>
+                        <span className="text-[8px] font-bold truncate max-w-[60px]">📋 {claim.userName.split(' ')[0]}</span>
+                      </div>
+                    );
+                  } else if (isMineOpen) {
+                    btnClass = 'bg-amber-100 dark:bg-amber-900/40 border-2 border-amber-400 text-amber-800 dark:text-amber-200';
+                    label = (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="font-black text-sm">{teamNum}</span>
+                        <span className="text-[8px] font-black uppercase">📋 You</span>
+                      </div>
+                    );
+                  } else if (isOurTeam) {
+                    btnClass = alliance === 'Red'
+                      ? 'bg-red-600 border-2 border-white text-white ring-2 ring-white/50 hover:bg-red-700'
+                      : 'bg-blue-600 border-2 border-white text-white ring-2 ring-white/50 hover:bg-blue-700';
+                  } else {
+                    btnClass = alliance === 'Red'
+                      ? 'bg-red-600 hover:bg-red-700 border-2 border-red-700 text-white hover:scale-105 active:scale-95'
+                      : 'bg-blue-600 hover:bg-blue-700 border-2 border-blue-700 text-white hover:scale-105 active:scale-95';
+                  }
+
+                  const canScout = !alreadyScouted && !isOthersClaim;
+                  return (
+                    <button
+                      key={teamKey}
+                      disabled={!canScout}
+                      onClick={() => {
+                        if (!canScout) return;
+                        claimTeam(m.key, teamNum);
+                        resetMatchForm();
+                        setMatchForm((f: any) => ({ ...f, teamNumber: teamNum, matchNumber: compositeNum, matchType, alliance }));
+                        setEditingMatch(null);
+                        setShowMatchForm(true);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-center transition-all min-w-[64px] ${btnClass}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                };
+
+                return (
+                  <div key={m.key} className={`rounded-2xl border-2 p-4 ${isOnDeck ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 opacity-80' : 'border-red-200 dark:border-red-700 bg-white dark:bg-slate-800 shadow-sm'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase text-white ${isOnDeck ? 'bg-slate-500' : 'bg-red-600'}`}>
+                          {isOnDeck ? 'On Deck' : 'Up Next'}
+                        </span>
+                        <span className="text-xs font-black text-slate-900 dark:text-white">{getMatchLabel(m)}</span>
+                        {isElim && <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-purple-100 text-purple-700">Elim</span>}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-black text-red-600 uppercase tracking-widest w-8">Red</span>
+                        {redKeys.map(k => renderTeamBtn(k, 'Red'))}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest w-8">Blue</span>
+                        {blueKeys.map(k => renderTeamBtn(k, 'Blue'))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              const nextMatch = upcoming[0] || null;
+              const onDeckMatch = upcoming[1] || null;
+
               const unscoutedMatches = tbaMatches.filter((m: any) => {
                 const allTeamNums = [
                   ...(m.alliances?.red?.team_keys || []),
@@ -1855,6 +2012,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
               return (
                 <div className="space-y-4">
+                  {(nextMatch || onDeckMatch) && (
+                    <div className="space-y-2">
+                      {nextMatch && renderNextMatchCard(nextMatch, false)}
+                      {onDeckMatch && renderNextMatchCard(onDeckMatch, true)}
+                    </div>
+                  )}
                   {(unscoutedRobots.length > 0 || unscoutedMatches.length > 0) && (
                     <div className="space-y-4">
                       {unscoutedRobots.length > 0 && (
@@ -3750,7 +3913,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   </h2>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Match scouting form</p>
                 </div>
-                <button onClick={() => { setShowMatchForm(false); setEditingMatch(null); }} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
+                <button onClick={() => { if (activeTeamClaimRef.current) { unclaimTeam(activeTeamClaimRef.current.matchKey, activeTeamClaimRef.current.teamNumber); } setShowMatchForm(false); setEditingMatch(null); }} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
                   <X size={20} />
                 </button>
               </div>

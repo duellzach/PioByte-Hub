@@ -1324,6 +1324,47 @@ app.delete("/api/fullscreen-alerts/:id", async (req, res) => {
   }
 });
 
+app.get("/api/events/:id/team-claims", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const claims = await storage.getTeamClaims(eventId);
+    res.json(claims);
+  } catch (error) {
+    console.error("Error fetching team claims:", error);
+    res.status(500).json({ error: "Failed to fetch team claims" });
+  }
+});
+
+app.post("/api/events/:id/team-claims", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { matchKey, teamNumber, userId, userName } = req.body;
+    if (!matchKey || !teamNumber || !userId || !userName) {
+      return res.status(400).json({ error: "matchKey, teamNumber, userId, userName are required" });
+    }
+    const claim = await storage.upsertTeamClaim({ eventId, matchKey, teamNumber: parseInt(teamNumber), userId: parseInt(userId), userName });
+    res.status(201).json(claim);
+  } catch (error) {
+    console.error("Error upserting team claim:", error);
+    res.status(500).json({ error: "Failed to upsert team claim" });
+  }
+});
+
+app.delete("/api/events/:id/team-claims", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { matchKey, teamNumber, userId } = req.body;
+    if (!matchKey || !teamNumber || !userId) {
+      return res.status(400).json({ error: "matchKey, teamNumber, userId are required" });
+    }
+    await storage.deleteTeamClaim(eventId, matchKey, parseInt(teamNumber), parseInt(userId));
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting team claim:", error);
+    res.status(500).json({ error: "Failed to delete team claim" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

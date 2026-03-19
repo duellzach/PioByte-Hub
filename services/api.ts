@@ -106,6 +106,11 @@ export const api = {
     getTeamAllMatches: (teamNumber: number) => apiRequest<any[]>(`/scout/team/${teamNumber}/all-matches`),
     exportEvent: (eventId: number) => apiRequest<any>(`/scout-events/${eventId}/export`),
     importEvent: (eventId: number, data: any) => apiRequest<any>(`/scout-events/${eventId}/import`, { method: 'POST', body: JSON.stringify(data) }),
+    getTeamClaims: (eventId: number) => apiRequest<any[]>(`/events/${eventId}/team-claims`),
+    upsertTeamClaim: (eventId: number, data: { matchKey: string; teamNumber: number; userId: number; userName: string }) =>
+      apiRequest<any>(`/events/${eventId}/team-claims`, { method: 'POST', body: JSON.stringify(data) }),
+    deleteTeamClaim: (eventId: number, matchKey: string, teamNumber: number, userId: number) =>
+      apiRequest<void>(`/events/${eventId}/team-claims`, { method: 'DELETE', body: JSON.stringify({ matchKey, teamNumber, userId }) }),
   },
   tba: {
     getEventMatches: (eventKey: string) => apiRequest<any[]>(`/tba/event/${eventKey}/matches`),
