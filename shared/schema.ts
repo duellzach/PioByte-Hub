@@ -92,6 +92,15 @@ export const announcementsRelations = relations(announcements, ({ one }) => ({
   author: one(users, { fields: [announcements.authorId], references: [users.id] }),
 }));
 
+export const generalTasks = pgTable("general_tasks", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const timeEntries = pgTable("time_entries", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -104,6 +113,9 @@ export const timeEntries = pgTable("time_entries", {
   status: text("status").notNull().default("pending_check_in"),
   roundedMinutes: integer("rounded_minutes"),
   notes: text("notes"),
+  workingOnTaskId: integer("working_on_task_id").references(() => tasks.id, { onDelete: "set null" }),
+  workingOnGeneralTaskId: integer("working_on_general_task_id").references(() => generalTasks.id, { onDelete: "set null" }),
+  taskHandoffNote: text("task_handoff_note"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -207,6 +219,8 @@ export const matchScouts = pgTable("match_scouts", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export type GeneralTask = typeof generalTasks.$inferSelect;
+export type InsertGeneralTask = typeof generalTasks.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 export type TimeEntryAudit = typeof timeEntryAudit.$inferSelect;

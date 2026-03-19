@@ -216,8 +216,8 @@ export const api = {
     get: (id: number) => apiRequest<any>(`/time-entries/${id}`),
     checkIn: (userId: number) =>
       apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId }) }),
-    checkOut: (id: number, userId: number) =>
-      apiRequest<any>(`/time-entries/${id}/check-out`, { method: 'POST', body: JSON.stringify({ userId }) }),
+    checkOut: (id: number, userId: number, opts?: { taskHandoffNote?: string; markTaskComplete?: boolean }) =>
+      apiRequest<any>(`/time-entries/${id}/check-out`, { method: 'POST', body: JSON.stringify({ userId, ...opts }) }),
     confirm: (id: number, coachId: number, confirmType: 'check_in' | 'check_out') =>
       apiRequest<any>(`/time-entries/${id}/confirm`, { method: 'POST', body: JSON.stringify({ coachId, confirmType }) }),
     update: (id: number, coachId: number, data: { checkInAt?: string; checkOutAt?: string; notes?: string }) =>
@@ -230,5 +230,18 @@ export const api = {
         method: 'POST', 
         body: JSON.stringify({ coachId, userIds, minutes, notes, date }) 
       }),
+    getAvailableTasks: (userId: number) =>
+      apiRequest<{ assignedTasks: any[]; generalTasks: any[] }>(`/time-entries/available-tasks?userId=${userId}`),
+    setWorkingOn: (id: number, taskId?: number | null, generalTaskId?: number | null) =>
+      apiRequest<any>(`/time-entries/${id}/set-working-on`, { method: 'PATCH', body: JSON.stringify({ taskId, generalTaskId }) }),
+  },
+  generalTasks: {
+    getAll: (includeArchived = false) => apiRequest<any[]>(`/general-tasks${includeArchived ? '?includeArchived=true' : ''}`),
+    create: (name: string, description: string | null, createdBy: number) =>
+      apiRequest<any>('/general-tasks', { method: 'POST', body: JSON.stringify({ name, description, createdBy }) }),
+    update: (id: number, data: { name?: string; description?: string | null; active?: boolean }, updatedBy: number) =>
+      apiRequest<any>(`/general-tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ ...data, updatedBy }) }),
+    delete: (id: number, deletedBy: number) =>
+      apiRequest<any>(`/general-tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ deletedBy }) }),
   },
 };

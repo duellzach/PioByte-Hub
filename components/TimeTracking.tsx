@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 
 interface TimeTrackingProps {
@@ -56,6 +56,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [compAuditModal, setCompAuditModal] = useState<{ checkinId: number; userName: string } | null>(null);
   const [compAuditLogs, setCompAuditLogs] = useState<any[]>([]);
   const [compAuditLoading, setCompAuditLoading] = useState(false);
+
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [taskPickerLoading, setTaskPickerLoading] = useState(false);
+  const [availableAssignedTasks, setAvailableAssignedTasks] = useState<any[]>([]);
+  const [availableGeneralTasks, setAvailableGeneralTasks] = useState<any[]>([]);
+  const [pickerSelectedTaskId, setPickerSelectedTaskId] = useState<number | null>(null);
+  const [pickerSelectedGeneralTaskId, setPickerSelectedGeneralTaskId] = useState<number | null>(null);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [checkoutHandoffNote, setCheckoutHandoffNote] = useState('');
+  const [checkoutMarkComplete, setCheckoutMarkComplete] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const [showGenTaskSettings, setShowGenTaskSettings] = useState(false);
+  const [genTasks, setGenTasks] = useState<any[]>([]);
+  const [genTasksLoading, setGenTasksLoading] = useState(false);
+  const [genTaskForm, setGenTaskForm] = useState({ name: '', description: '' });
+  const [editingGenTask, setEditingGenTask] = useState<any | null>(null);
   const [bulkForm, setBulkForm] = useState<{ 
     selectedUsers: string[]; 
     minutes: number; 
@@ -76,6 +95,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   }, [state.users, bulkForm.filterRole]);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
+  const isCoachOrCaptain = useMemo(() => state.currentUser?.roles.some(r => [Role.Coach, Role.TeamCaptain].includes(r as Role)), [state.currentUser]);
   const currentUserId = parseInt(state.currentUser?.id || '0');
 
   const myOpenEntry = useMemo(() => {
@@ -116,22 +136,111 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return total;
   }, [myEntries]);
 
-  const handleCheckIn = async () => {
+  const openTaskPicker = async () => {
+    setPickerSelectedTaskId(null);
+    setPickerSelectedGeneralTaskId(null);
+    setShowTaskPicker(true);
+    setTaskPickerLoading(true);
     try {
-      await api.timeEntries.checkIn(currentUserId);
-      onRefresh();
-    } catch (error) {
-      console.error('Check-in failed:', error);
+      const result = await api.timeEntries.getAvailableTasks(currentUserId);
+      setAvailableAssignedTasks(result.assignedTasks);
+      setAvailableGeneralTasks(result.generalTasks);
+    } catch {
+      setAvailableAssignedTasks([]);
+      setAvailableGeneralTasks([]);
+    } finally {
+      setTaskPickerLoading(false);
     }
   };
 
-  const handleCheckOut = async () => {
-    if (!myOpenEntry) return;
+  const handleCheckIn = async (taskId?: number | null, generalTaskId?: number | null) => {
+    setCheckInLoading(true);
     try {
-      await api.timeEntries.checkOut(parseInt(myOpenEntry.id), currentUserId);
+      const entry = await api.timeEntries.checkIn(currentUserId);
+      if (entry && entry.id && (taskId || generalTaskId)) {
+        await api.timeEntries.setWorkingOn(parseInt(entry.id), taskId ?? null, generalTaskId ?? null);
+      }
+      setShowTaskPicker(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Check-in failed:', error);
+    } finally {
+      setCheckInLoading(false);
+    }
+  };
+
+  const openCheckoutModal = () => {
+    if (!myOpenEntry) return;
+    if ((myOpenEntry as any).workingOnTaskId || (myOpenEntry as any).workingOnGeneralTaskId) {
+      setCheckoutHandoffNote('');
+      setCheckoutMarkComplete(false);
+      setShowCheckoutModal(true);
+    } else {
+      handleCheckOut();
+    }
+  };
+
+  const handleCheckOut = async (handoffNote?: string, markComplete?: boolean) => {
+    if (!myOpenEntry) return;
+    setCheckoutLoading(true);
+    try {
+      await api.timeEntries.checkOut(parseInt(myOpenEntry.id), currentUserId, {
+        taskHandoffNote: handoffNote,
+        markTaskComplete: markComplete,
+      });
+      setShowCheckoutModal(false);
       onRefresh();
     } catch (error) {
       console.error('Check-out failed:', error);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const loadGenTasks = async () => {
+    setGenTasksLoading(true);
+    try {
+      const items = await api.generalTasks.getAll(true);
+      setGenTasks(items);
+    } catch {
+      setGenTasks([]);
+    } finally {
+      setGenTasksLoading(false);
+    }
+  };
+
+  const handleSaveGenTask = async () => {
+    if (!genTaskForm.name.trim()) return;
+    try {
+      if (editingGenTask) {
+        await api.generalTasks.update(editingGenTask.id, { name: genTaskForm.name, description: genTaskForm.description || null }, currentUserId);
+      } else {
+        await api.generalTasks.create(genTaskForm.name, genTaskForm.description || null, currentUserId);
+      }
+      setGenTaskForm({ name: '', description: '' });
+      setEditingGenTask(null);
+      loadGenTasks();
+    } catch (error) {
+      console.error('Save gen task failed:', error);
+    }
+  };
+
+  const handleToggleGenTaskActive = async (task: any) => {
+    try {
+      await api.generalTasks.update(task.id, { active: !task.active }, currentUserId);
+      loadGenTasks();
+    } catch (error) {
+      console.error('Toggle gen task failed:', error);
+    }
+  };
+
+  const handleDeleteGenTask = async (id: number) => {
+    if (!window.confirm('Delete this general task permanently?')) return;
+    try {
+      await api.generalTasks.delete(id, currentUserId);
+      loadGenTasks();
+    } catch (error) {
+      console.error('Delete gen task failed:', error);
     }
   };
 
@@ -403,24 +512,34 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           {myOpenEntry ? (
             <div className="bg-green-50 dark:bg-green-900/30 border-2 border-green-200 dark:border-green-700 rounded-xl md:rounded-2xl p-4 md:p-6 mb-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 text-white rounded-xl md:rounded-2xl flex items-center justify-center animate-pulse">
+                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 text-white rounded-xl md:rounded-2xl flex items-center justify-center animate-pulse shrink-0">
                     <Clock size={20} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs md:text-sm font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
                     <p className="text-[10px] md:text-xs text-green-600 dark:text-green-400 font-bold">
                       Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
                     </p>
+                    {(myOpenEntry as any).workingOnTaskTitle && (
+                      <p className="text-[9px] md:text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5 flex items-center gap-1 truncate">
+                        <Briefcase size={9} /> {(myOpenEntry as any).workingOnTaskTitle}
+                      </p>
+                    )}
+                    {(myOpenEntry as any).workingOnGeneralTaskName && (
+                      <p className="text-[9px] md:text-[10px] text-violet-600 dark:text-violet-400 font-bold mt-0.5 flex items-center gap-1 truncate">
+                        <ListChecks size={9} /> {(myOpenEntry as any).workingOnGeneralTaskName}
+                      </p>
+                    )}
                     {myOpenEntry.status === 'pending_check_in' && (
                       <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation</p>
                     )}
                   </div>
                 </div>
                 <button
-                  onClick={handleCheckOut}
-                  disabled={myOpenEntry.status === 'pending_check_in'}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${
+                  onClick={openCheckoutModal}
+                  disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
+                  className={`shrink-0 flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${
                     myOpenEntry.status === 'pending_check_in' 
                       ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
                       : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
@@ -432,7 +551,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             </div>
           ) : (
             <button
-              onClick={handleCheckIn}
+              onClick={openTaskPicker}
               className="w-full flex items-center justify-center gap-3 py-4 md:py-6 bg-green-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all uppercase tracking-widest text-sm md:text-base mb-6"
             >
               <LogIn size={20} /> Check In
@@ -896,6 +1015,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
+      {isCoachOrCaptain && (
+        <div className="mb-4">
+          <button
+            onClick={() => { setShowGenTaskSettings(true); loadGenTasks(); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-violet-700 transition-all shadow-lg shadow-violet-600/20"
+          >
+            <ListChecks size={14} /> Manage General Tasks
+          </button>
+        </div>
+      )}
+
       {isCoach && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-blue-200 dark:border-blue-700 p-6 md:p-8">
           <div className="flex items-center justify-between mb-6">
@@ -1262,6 +1392,250 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTaskPicker && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">What are you working on?</h2>
+                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5">Optional — skip to just check in</p>
+              </div>
+              <button onClick={() => setShowTaskPicker(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {taskPickerLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={28} className="animate-spin text-red-600" />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-auto space-y-4">
+                {availableAssignedTasks.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <Briefcase size={10} /> Assigned Tasks
+                    </p>
+                    <div className="space-y-2">
+                      {availableAssignedTasks.map(task => (
+                        <button
+                          key={task.id}
+                          onClick={() => {
+                            setPickerSelectedTaskId(pickerSelectedTaskId === task.id ? null : task.id);
+                            setPickerSelectedGeneralTaskId(null);
+                          }}
+                          className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                            pickerSelectedTaskId === task.id
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                              : 'border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
+                          }`}
+                        >
+                          {pickerSelectedTaskId === task.id ? <CheckSquare size={16} className="text-blue-600 shrink-0 mt-0.5" /> : <Square size={16} className="text-slate-400 shrink-0 mt-0.5" />}
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-slate-900 dark:text-white truncate">{task.title}</p>
+                            <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{task.status} · {task.priority}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {availableGeneralTasks.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <ListChecks size={10} /> General Tasks
+                    </p>
+                    <div className="space-y-2">
+                      {availableGeneralTasks.map(gt => (
+                        <button
+                          key={gt.id}
+                          onClick={() => {
+                            setPickerSelectedGeneralTaskId(pickerSelectedGeneralTaskId === gt.id ? null : gt.id);
+                            setPickerSelectedTaskId(null);
+                          }}
+                          className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                            pickerSelectedGeneralTaskId === gt.id
+                              ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/30'
+                              : 'border-slate-100 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700'
+                          }`}
+                        >
+                          {pickerSelectedGeneralTaskId === gt.id ? <CheckSquare size={16} className="text-violet-600 shrink-0 mt-0.5" /> : <Square size={16} className="text-slate-400 shrink-0 mt-0.5" />}
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-slate-900 dark:text-white">{gt.name}</p>
+                            {gt.description && <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">{gt.description}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {availableAssignedTasks.length === 0 && availableGeneralTasks.length === 0 && (
+                  <p className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm font-bold">No tasks available</p>
+                )}
+              </div>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => handleCheckIn(null, null)}
+                disabled={checkInLoading}
+                className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs uppercase tracking-widest"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => handleCheckIn(pickerSelectedTaskId, pickerSelectedGeneralTaskId)}
+                disabled={checkInLoading}
+                className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                {checkInLoading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+                Check In
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCheckoutModal && myOpenEntry && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Check Out</h2>
+                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5 flex items-center gap-1">
+                  {(myOpenEntry as any).workingOnTaskTitle && <><Briefcase size={9} /> {(myOpenEntry as any).workingOnTaskTitle}</>}
+                  {(myOpenEntry as any).workingOnGeneralTaskName && <><ListChecks size={9} /> {(myOpenEntry as any).workingOnGeneralTaskName}</>}
+                </p>
+              </div>
+              <button onClick={() => setShowCheckoutModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {(myOpenEntry as any).workingOnTaskId && (
+                <button
+                  onClick={() => setCheckoutMarkComplete(!checkoutMarkComplete)}
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left ${
+                    checkoutMarkComplete
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-green-300'
+                  }`}
+                >
+                  {checkoutMarkComplete ? <CheckSquare size={18} className="text-green-600 shrink-0" /> : <Square size={18} className="text-slate-400 shrink-0" />}
+                  <span className={`text-sm font-black uppercase tracking-wide ${checkoutMarkComplete ? 'text-green-700 dark:text-green-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                    Mark task as complete
+                  </span>
+                </button>
+              )}
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                  Handoff Note {!checkoutMarkComplete && <span className="text-red-500">*</span>}
+                </label>
+                <textarea
+                  value={checkoutHandoffNote}
+                  onChange={e => setCheckoutHandoffNote(e.target.value)}
+                  rows={3}
+                  placeholder={checkoutMarkComplete ? 'Optional completion notes...' : 'What did you accomplish? What\'s next for this task?'}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium resize-none text-sm"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!checkoutMarkComplete && !checkoutHandoffNote.trim()) {
+                    alert('Please enter a handoff note or mark the task as complete.');
+                    return;
+                  }
+                  handleCheckOut(checkoutHandoffNote.trim() || undefined, checkoutMarkComplete);
+                }}
+                disabled={checkoutLoading}
+                className="w-full py-3.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                Confirm Check Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGenTaskSettings && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">General Tasks</h2>
+                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5">Always-available recurring tasks for check-in</p>
+              </div>
+              <button onClick={() => setShowGenTaskSettings(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl space-y-3">
+              <input
+                type="text"
+                value={genTaskForm.name}
+                onChange={e => setGenTaskForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Task name (e.g. Scouting matches)"
+                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-bold text-sm"
+              />
+              <input
+                type="text"
+                value={genTaskForm.description}
+                onChange={e => setGenTaskForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Description (optional)"
+                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+              />
+              <div className="flex gap-2">
+                {editingGenTask && (
+                  <button onClick={() => { setEditingGenTask(null); setGenTaskForm({ name: '', description: '' }); }} className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-black text-xs uppercase">Cancel</button>
+                )}
+                <button
+                  onClick={handleSaveGenTask}
+                  disabled={!genTaskForm.name.trim()}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 disabled:opacity-40"
+                >
+                  {editingGenTask ? 'Save Changes' : 'Add Task'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto space-y-2">
+              {genTasksLoading ? (
+                <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-red-600" /></div>
+              ) : genTasks.length === 0 ? (
+                <p className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm font-bold">No general tasks yet</p>
+              ) : (
+                genTasks.map(gt => (
+                  <div key={gt.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${gt.active ? 'border-slate-100 dark:border-slate-700' : 'border-dashed border-slate-200 dark:border-slate-700 opacity-60'}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-black truncate ${gt.active ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 line-through'}`}>{gt.name}</p>
+                      {gt.description && <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{gt.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => { setEditingGenTask(gt); setGenTaskForm({ name: gt.name, description: gt.description || '' }); }} className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg text-blue-600 transition-colors">
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={() => handleToggleGenTaskActive(gt)} className={`p-1.5 rounded-lg transition-colors ${gt.active ? 'hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600' : 'hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600'}`}>
+                        <Archive size={13} />
+                      </button>
+                      <button onClick={() => handleDeleteGenTask(gt.id)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

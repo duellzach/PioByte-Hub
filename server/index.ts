@@ -321,6 +321,21 @@ app.get("/api/time-entries", async (req, res) => {
   }
 });
 
+app.get("/api/time-entries/available-tasks", async (req, res) => {
+  try {
+    const userId = parseInt(req.query.userId as string);
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    const [assignedTasks, activeTasks] = await Promise.all([
+      storage.getAvailableTasksForUser(userId),
+      storage.getGeneralTasks(false),
+    ]);
+    res.json({ assignedTasks, generalTasks: activeTasks });
+  } catch (error) {
+    console.error("Error fetching available tasks:", error);
+    res.status(500).json({ error: "Failed to fetch available tasks" });
+  }
+});
+
 app.get("/api/time-entries/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -361,16 +376,16 @@ app.post("/api/time-entries/check-in", async (req, res) => {
 app.post("/api/time-entries/:id/check-out", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { userId } = req.body;
+    const { userId, taskHandoffNote, markTaskComplete } = req.body;
     const entry = await storage.getTimeEntry(id);
     if (!entry) return res.status(404).json({ error: "Time entry not found" });
     if (entry.checkOutAt) return res.status(400).json({ error: "Already checked out" });
     
     const checkOutAt = new Date();
-    const updated = await storage.updateTimeEntry(id, {
-      checkOutAt,
-      status: "pending_check_out",
-    });
+    const updateData: any = { checkOutAt, status: "pending_check_out" };
+    if (taskHandoffNote !== undefined) updateData.taskHandoffNote = taskHandoffNote;
+
+    const updated = await storage.updateTimeEntry(id, updateData);
     await storage.createTimeEntryAudit({
       entryId: id,
       actorId: userId,
@@ -378,6 +393,14 @@ app.post("/api/time-entries/:id/check-out", async (req, res) => {
       previousValues: { checkOutAt: null },
       newValues: { checkOutAt },
     });
+
+    if (markTaskComplete && entry.workingOnTaskId) {
+      await storage.updateTask(entry.workingOnTaskId, {
+        status: 'Complete',
+        completedAt: new Date(),
+      });
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Error checking out:", error);
@@ -526,6 +549,83 @@ app.delete("/api/time-entries/:id", async (req, res) => {
   } catch (error) {
     console.error("Error deleting time entry:", error);
     res.status(500).json({ error: "Failed to delete time entry" });
+  }
+});
+
+app.patch("/api/time-entries/:id/set-working-on", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { taskId, generalTaskId } = req.body;
+    const updated = await storage.setWorkingOn(id, taskId ?? null, generalTaskId ?? null);
+    if (!updated) return res.status(404).json({ error: "Time entry not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error setting working-on:", error);
+    res.status(500).json({ error: "Failed to update working task" });
+  }
+});
+
+app.get("/api/general-tasks", async (req, res) => {
+  try {
+    const includeArchived = req.query.includeArchived === 'true';
+    const items = await storage.getGeneralTasks(includeArchived);
+    res.json(items);
+  } catch (error) {
+    console.error("Error fetching general tasks:", error);
+    res.status(500).json({ error: "Failed to fetch general tasks" });
+  }
+});
+
+app.post("/api/general-tasks", async (req, res) => {
+  try {
+    const { name, description, createdBy } = req.body;
+    if (!name || !createdBy) return res.status(400).json({ error: "name and createdBy required" });
+    const actorRoles = await getUserRoles(parseInt(createdBy));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only coaches and captains can create general tasks" });
+    }
+    const task = await storage.createGeneralTask({ name, description: description || null, active: true, createdBy: parseInt(createdBy) });
+    res.json(task);
+  } catch (error) {
+    console.error("Error creating general task:", error);
+    res.status(500).json({ error: "Failed to create general task" });
+  }
+});
+
+app.patch("/api/general-tasks/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { updatedBy, ...fields } = req.body;
+    if (updatedBy) {
+      const actorRoles = await getUserRoles(parseInt(updatedBy));
+      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+        return res.status(403).json({ error: "Only coaches and captains can edit general tasks" });
+      }
+    }
+    const updated = await storage.updateGeneralTask(id, fields);
+    if (!updated) return res.status(404).json({ error: "General task not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating general task:", error);
+    res.status(500).json({ error: "Failed to update general task" });
+  }
+});
+
+app.delete("/api/general-tasks/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { deletedBy } = req.body;
+    if (deletedBy) {
+      const actorRoles = await getUserRoles(parseInt(deletedBy));
+      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+        return res.status(403).json({ error: "Only coaches and captains can delete general tasks" });
+      }
+    }
+    await storage.deleteGeneralTask(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting general task:", error);
+    res.status(500).json({ error: "Failed to delete general task" });
   }
 });
 

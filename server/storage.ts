@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -140,6 +140,15 @@ export interface IStorage {
   getTeamClaims(eventId: number): Promise<TeamClaim[]>;
   upsertTeamClaim(data: { eventId: number; matchKey: string; teamNumber: number; userId: number; userName: string }): Promise<TeamClaim>;
   deleteTeamClaim(eventId: number, matchKey: string, teamNumber: number, userId: number): Promise<void>;
+
+  getGeneralTasks(includeArchived?: boolean): Promise<GeneralTask[]>;
+  getGeneralTask(id: number): Promise<GeneralTask | undefined>;
+  createGeneralTask(data: InsertGeneralTask): Promise<GeneralTask>;
+  updateGeneralTask(id: number, data: Partial<InsertGeneralTask>): Promise<GeneralTask | undefined>;
+  deleteGeneralTask(id: number): Promise<void>;
+
+  getAvailableTasksForUser(userId: number): Promise<Task[]>;
+  setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined>;
 
   getCertifications(): Promise<any[]>;
   getCertification(id: number): Promise<SafetyCertification | undefined>;
@@ -296,8 +305,26 @@ export class DatabaseStorage implements IStorage {
     await db.delete(announcements).where(eq(announcements.id, id));
   }
 
-  async getTimeEntries(): Promise<TimeEntry[]> {
-    return db.select().from(timeEntries).orderBy(desc(timeEntries.createdAt));
+  async getTimeEntries(): Promise<any[]> {
+    const entries = await db.select().from(timeEntries).orderBy(desc(timeEntries.createdAt));
+    if (entries.length === 0) return entries;
+    const taskIds = [...new Set(entries.map(e => e.workingOnTaskId).filter((id): id is number => id !== null && id !== undefined))];
+    const genTaskIds = [...new Set(entries.map(e => e.workingOnGeneralTaskId).filter((id): id is number => id !== null && id !== undefined))];
+    const taskMap: Record<number, string> = {};
+    const genTaskMap: Record<number, string> = {};
+    if (taskIds.length > 0) {
+      const taskRows = await db.select({ id: tasks.id, title: tasks.title }).from(tasks).where(inArray(tasks.id, taskIds));
+      for (const t of taskRows) taskMap[t.id] = t.title;
+    }
+    if (genTaskIds.length > 0) {
+      const genRows = await db.select({ id: generalTasks.id, name: generalTasks.name }).from(generalTasks).where(inArray(generalTasks.id, genTaskIds));
+      for (const g of genRows) genTaskMap[g.id] = g.name;
+    }
+    return entries.map(e => ({
+      ...e,
+      workingOnTaskTitle: e.workingOnTaskId ? (taskMap[e.workingOnTaskId] || null) : null,
+      workingOnGeneralTaskName: e.workingOnGeneralTaskId ? (genTaskMap[e.workingOnGeneralTaskId] || null) : null,
+    }));
   }
 
   async getTimeEntry(id: number): Promise<TimeEntry | undefined> {
@@ -330,6 +357,58 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTimeEntry(id: number): Promise<void> {
     await db.delete(timeEntries).where(eq(timeEntries.id, id));
+  }
+
+  async getGeneralTasks(includeArchived = false): Promise<GeneralTask[]> {
+    const rows = await db.select().from(generalTasks).orderBy(generalTasks.name);
+    return includeArchived ? rows : rows.filter(r => r.active);
+  }
+
+  async getGeneralTask(id: number): Promise<GeneralTask | undefined> {
+    const [row] = await db.select().from(generalTasks).where(eq(generalTasks.id, id));
+    return row;
+  }
+
+  async createGeneralTask(data: InsertGeneralTask): Promise<GeneralTask> {
+    const [row] = await db.insert(generalTasks).values(data).returning();
+    return row;
+  }
+
+  async updateGeneralTask(id: number, data: Partial<InsertGeneralTask>): Promise<GeneralTask | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    const [row] = await db.update(generalTasks).set(sanitized).where(eq(generalTasks.id, id)).returning();
+    return row;
+  }
+
+  async deleteGeneralTask(id: number): Promise<void> {
+    await db.delete(generalTasks).where(eq(generalTasks.id, id));
+  }
+
+  async getAvailableTasksForUser(userId: number): Promise<Task[]> {
+    const allTasks = await db.select().from(tasks);
+    const statusOrder: Record<string, number> = {
+      'In Progress': 0,
+      'Not Started': 1,
+      'Backlog': 2,
+      'Blocked': 3,
+    };
+    return allTasks
+      .filter(t => {
+        const assignees = (t.assignees as number[]) || [];
+        return assignees.includes(userId) && t.status !== 'Complete';
+      })
+      .map(t => ({ ...t, successCriteria: migrateSuccessCriteria(t.successCriteria as any) }))
+      .sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+  }
+
+  async setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined> {
+    const updates: any = {
+      workingOnTaskId: taskId ?? null,
+      workingOnGeneralTaskId: generalTaskId ?? null,
+    };
+    const [updated] = await db.update(timeEntries).set(updates).where(eq(timeEntries.id, entryId)).returning();
+    return updated;
   }
 
   async getTimeEntryAudit(entryId: number): Promise<TimeEntryAudit[]> {
