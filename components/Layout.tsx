@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus, ShieldCheck } from 'lucide-react';
 import { api } from '../services/api';
 
 interface LayoutProps {
@@ -174,6 +174,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/time" icon={<Clock size={18} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/scout" icon={<Crosshair size={18} />} label="EVENTS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/team" icon={<Users size={18} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          <NavItem to="/safety" icon={<ShieldCheck size={18} />} label="SAFETY" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           
           <div className="pt-2 border-t border-white/10 mt-2 space-y-1">
             <button

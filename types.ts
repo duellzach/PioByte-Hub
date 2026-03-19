@@ -112,6 +112,7 @@ export interface Task {
   blockedReason?: string;
   completedAt?: number;
   createdAt: number;
+  requiredCertificationId?: number;
 }
 
 export interface Project {

@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck } from 'lucide-react';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
+import { api } from '../services/api';
 
 interface KanbanBoardProps {
   state: AppState;
@@ -31,6 +32,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [blockReasonInput, setBlockReasonInput] = useState('');
 
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.Backlog);
+  const [certifications, setCertifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.certifications.getAll().then(setCertifications).catch(() => {});
+  }, []);
 
   const isCoachOrCaptain = state.currentUser?.roles.some(r => 
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
@@ -250,6 +256,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                 <TaskCard 
                   key={task.id} 
                   task={task} 
+                  certName={task.requiredCertificationId ? certifications.find(c => c.id === task.requiredCertificationId)?.name : undefined}
                   onClick={() => setSelectedTask(task)}
                   onToggleHelp={(e) => toggleHelp(task, e)}
                   onDragStart={(e) => handleDragStart(e, task.id)}
@@ -286,6 +293,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                       <TaskCard 
                         key={task.id} 
                         task={task} 
+                        certName={task.requiredCertificationId ? certifications.find(c => c.id === task.requiredCertificationId)?.name : undefined}
                         onClick={() => setSelectedTask(task)}
                         onToggleHelp={(e) => toggleHelp(task, e)}
                         onDragStart={(e) => handleDragStart(e, task.id)}
@@ -494,10 +502,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 
 const TaskCard: React.FC<{ 
     task: Task; 
+    certName?: string;
     onClick: () => void; 
     onToggleHelp: (e: React.MouseEvent) => void;
     onDragStart: (e: React.DragEvent) => void 
-}> = ({ task, onClick, onToggleHelp, onDragStart }) => {
+}> = ({ task, certName, onClick, onToggleHelp, onDragStart }) => {
     return (
         <div 
             onClick={onClick}
@@ -526,10 +535,18 @@ const TaskCard: React.FC<{
             <h4 className="text-[10px] md:text-xs font-black text-slate-900 dark:text-white leading-tight mb-1.5 uppercase tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
                 {task.title}
             </h4>
+            {certName && (
+                <div className="flex items-center gap-1 mb-1.5">
+                    <ShieldCheck size={8} className="text-amber-500 flex-shrink-0" />
+                    <span className="text-[6px] md:text-[7px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tight truncate">
+                        {certName}
+                    </span>
+                </div>
+            )}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="flex -space-x-1">
-                        {task.assignees.slice(0, 2).map((id, i) => (
+                        {task.assignees.slice(0, 2).map((id) => (
                             <div key={id} className="w-4 h-4 md:w-5 md:h-5 rounded bg-slate-950 text-white border border-white dark:border-slate-800 flex items-center justify-center text-[6px] md:text-[7px] font-black">
                                 {id[0]}
                             </div>

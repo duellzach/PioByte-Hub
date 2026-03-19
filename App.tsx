@@ -8,6 +8,7 @@ import KanbanBoard from './components/KanbanBoard';
 import TeamManagement from './components/TeamManagement';
 import TimeTracking from './components/TimeTracking';
 import Scout from './components/Scout';
+import SafetyCertifications from './components/SafetyCertifications';
 import TaskModal from './components/TaskModal';
 import Confetti from './components/Confetti';
 import { api } from './services/api';
@@ -407,6 +408,9 @@ const App: React.FC = () => {
           } />
           <Route path="/scout" element={
             <Scout currentUser={state.currentUser} />
+          } />
+          <Route path="/safety" element={
+            <SafetyCertifications currentUser={state.currentUser} />
           } />
           <Route path="/team" element={
             <TeamManagement 

@@ -1,8 +1,9 @@
 
-import React, { useState, useMemo, useRef } from 'react';
-import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock } from 'lucide-react';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
+import { api } from '../services/api';
 
 interface TaskModalProps {
   task: Task | null;
@@ -43,6 +44,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const [mentionFilter, setMentionFilter] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const [certifications, setCertifications] = useState<any[]>([]);
+  const [certifiedUserIds, setCertifiedUserIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    api.certifications.getAll().then(setCertifications).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (editedTask.requiredCertificationId) {
+      api.certifications.getCertifiedUsers(editedTask.requiredCertificationId)
+        .then(users => setCertifiedUserIds(new Set(users.map((u: any) => u.id))))
+        .catch(() => setCertifiedUserIds(new Set()));
+    } else {
+      setCertifiedUserIds(new Set());
+    }
+  }, [editedTask.requiredCertificationId]);
 
   const filteredUsersForAssignment = useMemo(() => {
     let filtered = users;
@@ -527,6 +544,28 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </div>
 
             <div>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Required Certification</label>
+              <div className="relative">
+                <ShieldCheck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" />
+                <select
+                  value={editedTask.requiredCertificationId ?? ''}
+                  onChange={(e) => setEditedTask({ ...editedTask, requiredCertificationId: e.target.value ? parseInt(e.target.value) : undefined })}
+                  className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-amber-500 transition-colors dark:text-white"
+                >
+                  <option value="">None</option>
+                  {certifications.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}{c.equipment ? ` — ${c.equipment}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              {editedTask.requiredCertificationId && (
+                <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1.5 ml-1 flex items-center gap-1">
+                  <ShieldCheck size={9} /> Only certified members can be assigned
+                </p>
+              )}
+            </div>
+
+            <div>
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Authorized Units</label>
               <div className="relative mb-3">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
@@ -545,30 +584,47 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 {filteredUsersForAssignment.length === 0 ? (
                   <p className="text-center text-slate-400 dark:text-slate-500 text-xs font-bold py-4">No matching users found</p>
                 ) : (
-                  filteredUsersForAssignment.map(u => (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                          const newAssignees = editedTask.assignees.includes(u.id)
-                              ? editedTask.assignees.filter(id => id !== u.id)
-                              : [...editedTask.assignees, u.id];
-                          setEditedTask({...editedTask, assignees: newAssignees});
-                      }}
-                      className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
-                          editedTask.assignees.includes(u.id)
-                          ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
-                          : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-slate-950 dark:bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
-                          {u.name[0]}
-                      </div>
-                      <div className="text-left">
-                        <p className="tracking-tight">{u.name}</p>
-                        <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
-                      </div>
-                    </button>
-                  ))
+                  filteredUsersForAssignment.map(u => {
+                    const isCertRequired = !!editedTask.requiredCertificationId;
+                    const isCertified = !isCertRequired || certifiedUserIds.has(parseInt(u.id));
+                    const isAssigned = editedTask.assignees.includes(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => {
+                            if (!isCertified) return;
+                            const newAssignees = isAssigned
+                                ? editedTask.assignees.filter(id => id !== u.id)
+                                : [...editedTask.assignees, u.id];
+                            setEditedTask({...editedTask, assignees: newAssignees});
+                        }}
+                        title={!isCertified ? `${u.name} is not certified for this task` : ''}
+                        className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
+                            isAssigned
+                            ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
+                            : !isCertified
+                            ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-60'
+                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${isAssigned ? 'bg-red-600 text-white' : !isCertified ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500' : 'bg-slate-950 dark:bg-slate-900 text-white'}`}>
+                            {u.name[0]}
+                        </div>
+                        <div className="text-left flex-1">
+                          <p className="tracking-tight">{u.name}</p>
+                          <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
+                        </div>
+                        {isCertRequired && (
+                          <div className="flex-shrink-0">
+                            {isCertified
+                              ? <ShieldCheck size={12} className="text-amber-500" />
+                              : <Lock size={12} className="text-slate-300 dark:text-slate-600" />
+                            }
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </div>
