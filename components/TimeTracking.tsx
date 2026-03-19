@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
+import { PRIORITY_COLORS } from '../constants';
 
 interface TimeTrackingProps {
   state: AppState;
@@ -1432,17 +1433,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                             setPickerSelectedTaskId(pickerSelectedTaskId === task.id ? null : task.id);
                             setPickerSelectedGeneralTaskId(null);
                           }}
-                          className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                          className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
                             pickerSelectedTaskId === task.id
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                              : 'border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
+                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm'
                           }`}
                         >
-                          {pickerSelectedTaskId === task.id ? <CheckSquare size={16} className="text-blue-600 shrink-0 mt-0.5" /> : <Square size={16} className="text-slate-400 shrink-0 mt-0.5" />}
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-slate-900 dark:text-white truncate">{task.title}</p>
-                            <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{task.status} · {task.priority}</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {task.priority}
+                            </span>
+                            <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
                           </div>
+                          <p className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase leading-tight">{task.title}</p>
+                          {pickerSelectedTaskId === task.id && (
+                            <div className="mt-1.5 flex items-center gap-1 text-blue-600">
+                              <CheckSquare size={11} />
+                              <span className="text-[9px] font-black uppercase">Selected</span>
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -1552,20 +1561,23 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 />
               </div>
 
-              <button
-                onClick={() => {
-                  if (!checkoutMarkComplete && !checkoutHandoffNote.trim()) {
-                    alert('Please enter a handoff note or mark the task as complete.');
-                    return;
-                  }
-                  handleCheckOut(checkoutHandoffNote.trim() || undefined, checkoutMarkComplete);
-                }}
-                disabled={checkoutLoading}
-                className="w-full py-3.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-              >
-                {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
-                Confirm Check Out
-              </button>
+              {(() => {
+                const noteRequired = !checkoutMarkComplete && !checkoutHandoffNote.trim();
+                return (
+                  <button
+                    onClick={() => handleCheckOut(checkoutHandoffNote.trim() || undefined, checkoutMarkComplete)}
+                    disabled={checkoutLoading || noteRequired}
+                    className={`w-full py-3.5 font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      checkoutLoading || noteRequired
+                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                        : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
+                    }`}
+                  >
+                    {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                    {noteRequired ? 'Add a handoff note to continue' : 'Confirm Check Out'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
