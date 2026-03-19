@@ -144,6 +144,31 @@ export interface TimeEntry {
   createdAt: number;
 }
 
+export interface TimeEntryWithTaskInfo extends TimeEntry {
+  workingOnTaskId?: number | null;
+  workingOnGeneralTaskId?: number | null;
+  workingOnTaskTitle?: string | null;
+  workingOnGeneralTaskName?: string | null;
+  taskHandoffNote?: string | null;
+}
+
+export interface AvailableTask {
+  id: number;
+  title: string;
+  status: TaskStatus;
+  priority: Priority;
+  effort: number;
+}
+
+export interface GeneralTask {
+  id: number;
+  name: string;
+  description?: string;
+  active: boolean;
+  createdBy: number;
+  createdAt: string;
+}
+
 export interface TimeEntryAudit {
   id: string;
   entryId: string;
@@ -161,6 +186,6 @@ export interface AppState {
   tasks: Task[];
   notifications: Notification[];
   announcements: Announcement[];
-  timeEntries: TimeEntry[];
+  timeEntries: TimeEntryWithTaskInfo[];
   currentUser: User | null;
 }

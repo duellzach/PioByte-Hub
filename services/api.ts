@@ -1,3 +1,5 @@
+import type { AvailableTask, GeneralTask } from '../types';
+
 const API_BASE = '/api';
 
 export async function apiRequest<T>(
@@ -230,19 +232,19 @@ export const api = {
         method: 'POST', 
         body: JSON.stringify({ coachId, userIds, minutes, notes, date }) 
       }),
-    getAvailableTasks: (userId: number) =>
-      apiRequest<any[]>(`/time-entries/available-tasks?userId=${userId}`),
+    availableTasks: (userId: number) =>
+      apiRequest<AvailableTask[]>(`/time-entries/available-tasks?userId=${userId}`),
     setWorkingOn: (id: number, userId: number, taskId?: number | null, generalTaskId?: number | null) =>
-      apiRequest<any>(`/time-entries/${id}/set-working-on`, { method: 'PATCH', body: JSON.stringify({ userId, taskId, generalTaskId }) }),
+      apiRequest<Record<string, unknown>>(`/time-entries/${id}/set-working-on`, { method: 'PATCH', body: JSON.stringify({ userId, taskId, generalTaskId }) }),
   },
   generalTasks: {
     getAll: (includeArchived = false, requesterId?: number) =>
-      apiRequest<any[]>(`/general-tasks${includeArchived ? `?includeArchived=true&requesterId=${requesterId ?? ''}` : ''}`),
+      apiRequest<GeneralTask[]>(`/general-tasks${includeArchived ? `?includeArchived=true&requesterId=${requesterId ?? ''}` : ''}`),
     create: (name: string, description: string, createdBy: number) =>
-      apiRequest<any>('/general-tasks', { method: 'POST', body: JSON.stringify({ name, description, createdBy }) }),
+      apiRequest<GeneralTask>('/general-tasks', { method: 'POST', body: JSON.stringify({ name, description, createdBy }) }),
     update: (id: number, data: { name?: string; description?: string; active?: boolean }, updatedBy: number) =>
-      apiRequest<any>(`/general-tasks/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, updatedBy }) }),
+      apiRequest<GeneralTask>(`/general-tasks/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, updatedBy }) }),
     delete: (id: number, deletedBy: number) =>
-      apiRequest<any>(`/general-tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ deletedBy }) }),
+      apiRequest<void>(`/general-tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ deletedBy }) }),
   },
 };

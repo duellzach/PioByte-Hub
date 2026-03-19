@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { AppState, TimeEntry, TimeEntryAudit, User, Role } from '../types';
+import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
@@ -60,10 +60,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [taskPickerLoading, setTaskPickerLoading] = useState(false);
-  const [availableAssignedTasks, setAvailableAssignedTasks] = useState<any[]>([]);
-  const [availableGeneralTasks, setAvailableGeneralTasks] = useState<any[]>([]);
+  const [availableAssignedTasks, setAvailableAssignedTasks] = useState<AvailableTask[]>([]);
+  const [availableGeneralTasks, setAvailableGeneralTasks] = useState<GeneralTask[]>([]);
   const [pickerSelectedTaskId, setPickerSelectedTaskId] = useState<number | null>(null);
   const [pickerSelectedGeneralTaskId, setPickerSelectedGeneralTaskId] = useState<number | null>(null);
+  const [pendingEntryId, setPendingEntryId] = useState<number | null>(null);
   const [checkInLoading, setCheckInLoading] = useState(false);
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -72,10 +73,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const [showGenTaskSettings, setShowGenTaskSettings] = useState(false);
-  const [genTasks, setGenTasks] = useState<any[]>([]);
+  const [genTasks, setGenTasks] = useState<GeneralTask[]>([]);
   const [genTasksLoading, setGenTasksLoading] = useState(false);
   const [genTaskForm, setGenTaskForm] = useState({ name: '', description: '' });
-  const [editingGenTask, setEditingGenTask] = useState<any | null>(null);
+  const [editingGenTask, setEditingGenTask] = useState<GeneralTask | null>(null);
   const [bulkForm, setBulkForm] = useState<{ 
     selectedUsers: string[]; 
     minutes: number; 
@@ -137,45 +138,47 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return total;
   }, [myEntries]);
 
-  const openTaskPicker = async () => {
+  const handleCheckIn = async () => {
+    setCheckInLoading(true);
     setPickerSelectedTaskId(null);
     setPickerSelectedGeneralTaskId(null);
-    setShowTaskPicker(true);
-    setTaskPickerLoading(true);
     try {
-      const [assignedTasks, genTasks] = await Promise.all([
-        api.timeEntries.getAvailableTasks(currentUserId),
+      const entry = await api.timeEntries.checkIn(currentUserId);
+      const entryId = parseInt(entry.id);
+      setPendingEntryId(entryId);
+      setShowTaskPicker(true);
+      setTaskPickerLoading(true);
+      const [assignedTasks, generalTaskList] = await Promise.all([
+        api.timeEntries.availableTasks(currentUserId),
         api.generalTasks.getAll(false),
       ]);
       setAvailableAssignedTasks(assignedTasks);
-      setAvailableGeneralTasks(genTasks);
-    } catch {
-      setAvailableAssignedTasks([]);
-      setAvailableGeneralTasks([]);
+      setAvailableGeneralTasks(generalTaskList);
+    } catch (error) {
+      console.error('Check-in failed:', error);
+      onRefresh();
     } finally {
+      setCheckInLoading(false);
       setTaskPickerLoading(false);
     }
   };
 
-  const handleCheckIn = async (taskId?: number | null, generalTaskId?: number | null) => {
-    setCheckInLoading(true);
-    try {
-      const entry = await api.timeEntries.checkIn(currentUserId);
-      if (entry && entry.id && (taskId || generalTaskId)) {
-        await api.timeEntries.setWorkingOn(parseInt(entry.id), currentUserId, taskId ?? null, generalTaskId ?? null);
+  const handlePickTask = async (taskId: number | null, generalTaskId: number | null) => {
+    if (pendingEntryId !== null && (taskId !== null || generalTaskId !== null)) {
+      try {
+        await api.timeEntries.setWorkingOn(pendingEntryId, currentUserId, taskId, generalTaskId);
+      } catch (error) {
+        console.error('Set working on failed:', error);
       }
-      setShowTaskPicker(false);
-      onRefresh();
-    } catch (error) {
-      console.error('Check-in failed:', error);
-    } finally {
-      setCheckInLoading(false);
     }
+    setShowTaskPicker(false);
+    setPendingEntryId(null);
+    onRefresh();
   };
 
   const openCheckoutModal = () => {
     if (!myOpenEntry) return;
-    if ((myOpenEntry as any).workingOnTaskId || (myOpenEntry as any).workingOnGeneralTaskId) {
+    if (myOpenEntry.workingOnTaskId || myOpenEntry.workingOnGeneralTaskId) {
       setCheckoutHandoffNote('');
       setCheckoutMarkComplete(false);
       setShowCheckoutModal(true);
@@ -525,14 +528,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <p className="text-[10px] md:text-xs text-green-600 dark:text-green-400 font-bold">
                       Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
                     </p>
-                    {(myOpenEntry as any).workingOnTaskTitle && (
+                    {myOpenEntry.workingOnTaskTitle && (
                       <p className="text-[9px] md:text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                        <Briefcase size={9} /> {(myOpenEntry as any).workingOnTaskTitle}
+                        <Briefcase size={9} /> {myOpenEntry.workingOnTaskTitle}
                       </p>
                     )}
-                    {(myOpenEntry as any).workingOnGeneralTaskName && (
+                    {myOpenEntry.workingOnGeneralTaskName && (
                       <p className="text-[9px] md:text-[10px] text-violet-600 dark:text-violet-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                        <ListChecks size={9} /> {(myOpenEntry as any).workingOnGeneralTaskName}
+                        <ListChecks size={9} /> {myOpenEntry.workingOnGeneralTaskName}
                       </p>
                     )}
                     {myOpenEntry.status === 'pending_check_in' && (
@@ -555,10 +558,12 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             </div>
           ) : (
             <button
-              onClick={openTaskPicker}
-              className="w-full flex items-center justify-center gap-3 py-4 md:py-6 bg-green-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all uppercase tracking-widest text-sm md:text-base mb-6"
+              onClick={handleCheckIn}
+              disabled={checkInLoading}
+              className="w-full flex items-center justify-center gap-3 py-4 md:py-6 bg-green-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all uppercase tracking-widest text-sm md:text-base mb-6 disabled:opacity-70"
             >
-              <LogIn size={20} /> Check In
+              {checkInLoading ? <Loader2 size={20} className="animate-spin" /> : <LogIn size={20} />}
+              Check In
             </button>
           )}
 
@@ -1496,19 +1501,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
             <div className="mt-5 flex gap-3">
               <button
-                onClick={() => handleCheckIn(null, null)}
-                disabled={checkInLoading}
+                onClick={() => handlePickTask(null, null)}
                 className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs uppercase tracking-widest"
               >
                 Skip
               </button>
               <button
-                onClick={() => handleCheckIn(pickerSelectedTaskId, pickerSelectedGeneralTaskId)}
-                disabled={checkInLoading}
+                onClick={() => handlePickTask(pickerSelectedTaskId, pickerSelectedGeneralTaskId)}
                 className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
               >
-                {checkInLoading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
-                Check In
+                <Check size={14} />
+                {pickerSelectedTaskId || pickerSelectedGeneralTaskId ? 'Confirm Selection' : 'Done'}
               </button>
             </div>
           </div>
@@ -1522,8 +1525,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Check Out</h2>
                 <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5 flex items-center gap-1">
-                  {(myOpenEntry as any).workingOnTaskTitle && <><Briefcase size={9} /> {(myOpenEntry as any).workingOnTaskTitle}</>}
-                  {(myOpenEntry as any).workingOnGeneralTaskName && <><ListChecks size={9} /> {(myOpenEntry as any).workingOnGeneralTaskName}</>}
+                  {myOpenEntry.workingOnTaskTitle && <><Briefcase size={9} /> {myOpenEntry.workingOnTaskTitle}</>}
+                  {myOpenEntry.workingOnGeneralTaskName && <><ListChecks size={9} /> {myOpenEntry.workingOnGeneralTaskName}</>}
                 </p>
               </div>
               <button onClick={() => setShowCheckoutModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
@@ -1532,7 +1535,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             </div>
 
             <div className="space-y-4">
-              {(myOpenEntry as any).workingOnTaskId && (
+              {myOpenEntry.workingOnTaskId && (
                 <button
                   onClick={() => setCheckoutMarkComplete(!checkoutMarkComplete)}
                   className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left ${
