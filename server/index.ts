@@ -1530,15 +1530,17 @@ app.delete("/api/users/:userId/certifications/:certId", async (req, res) => {
 app.get("/api/cert-requests", async (req, res) => {
   try {
     const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
-    const statuses = req.query.statuses ? (req.query.statuses as string).split(",") : undefined;
-    let filters: { userId?: number; statuses?: string[] } = { statuses };
+    const statusParam = req.query.statuses ? (req.query.statuses as string).split(",") : undefined;
+    let filters: { userId?: number; statuses?: string[] };
     if (requesterId) {
       const actorRoles = await getUserRoles(requesterId);
-      if (!hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
-        filters.userId = requesterId;
+      if (hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
+        filters = { statuses: statusParam ?? ['pending', 'in_progress'] };
+      } else {
+        filters = { userId: requesterId, statuses: statusParam };
       }
     } else {
-      filters.statuses = statuses ?? ['pending', 'in_progress'];
+      filters = { statuses: ['pending', 'in_progress'] };
     }
     const requests = await storage.getCertRequests(filters);
     res.json(requests);
@@ -1554,11 +1556,17 @@ app.post("/api/cert-requests", async (req, res) => {
     if (!userId || !certId) {
       return res.status(400).json({ error: "userId and certId are required" });
     }
-    const hasAlreadyCert = await storage.getUserCertifications(parseInt(userId));
-    if (hasAlreadyCert.some((c: any) => c.certificationId === parseInt(certId))) {
+    const parsedUserId = parseInt(userId);
+    const parsedCertId = parseInt(certId);
+    const existingCerts = await storage.getUserCertifications(parsedUserId);
+    if (existingCerts.some((c: any) => c.certificationId === parsedCertId)) {
       return res.status(409).json({ error: "User already holds this certification" });
     }
-    const request = await storage.createCertRequest(parseInt(userId), parseInt(certId));
+    const activeRequests = await storage.getCertRequests({ userId: parsedUserId, statuses: ['pending', 'in_progress'] });
+    if (activeRequests.some((r: any) => r.certificationId === parsedCertId)) {
+      return res.status(409).json({ error: "An active certification request already exists for this certification" });
+    }
+    const request = await storage.createCertRequest(parsedUserId, parsedCertId);
     res.status(201).json(request);
   } catch (error) {
     console.error("Error creating cert request:", error);

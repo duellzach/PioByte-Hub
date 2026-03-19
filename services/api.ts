@@ -178,12 +178,10 @@ export const api = {
       apiRequest<void>(`/certifications/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
     getCertifiedUsers: (id: number) => apiRequest<any[]>(`/certifications/${id}/certified-users`),
     getTrainers: (id: number) => apiRequest<any[]>(`/certifications/${id}/trainers`),
-  },
-  userCertifications: {
     getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/certifications`),
-    grant: (userId: number, certId: number, grantedBy: number) =>
+    grantUser: (userId: number, certId: number, grantedBy: number) =>
       apiRequest<any>(`/users/${userId}/certifications`, { method: 'POST', body: JSON.stringify({ certId, grantedBy }) }),
-    revoke: (userId: number, certId: number, requesterId: number) =>
+    revokeUser: (userId: number, certId: number, requesterId: number) =>
       apiRequest<void>(`/users/${userId}/certifications/${certId}?requesterId=${requesterId}`, { method: 'DELETE' }),
   },
   certRequests: {
