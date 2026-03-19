@@ -341,7 +341,11 @@ export const certificationRequests = pgTable("certification_requests", {
   notes: text("notes"),
   requestedAt: timestamp("requested_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (t) => ({
+  uniqActiveRequest: uniqueIndex("cert_requests_active_uniq_idx")
+    .on(t.userId, t.certificationId)
+    .where(sql`status IN ('pending', 'in_progress')`),
+}));
 
 export type SafetyCertification = typeof safetyCertifications.$inferSelect;
 export type InsertSafetyCertification = typeof safetyCertifications.$inferInsert;

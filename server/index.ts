@@ -1367,6 +1367,19 @@ app.delete("/api/events/:id/team-claims", async (req, res) => {
 
 // ─── Safety Certifications ────────────────────────────────────────────────────
 
+const COACH_CAPTAIN = ['Coach', 'Team Captain'];
+const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', 'Safety Trainer'];
+const TRAINER_COACH = ['Safety Trainer', 'Coach'];
+
+async function getUserRoles(userId: number): Promise<string[]> {
+  const user = await storage.getUser(userId);
+  return user ? (user.roles as string[]) : [];
+}
+
+function hasAnyRole(userRoles: string[], allowedRoles: string[]): boolean {
+  return userRoles.some(r => allowedRoles.includes(r));
+}
+
 app.get("/api/certifications", async (req, res) => {
   try {
     const certs = await storage.getCertifications();
@@ -1394,6 +1407,10 @@ app.post("/api/certifications", async (req, res) => {
     if (!name || !createdBy) {
       return res.status(400).json({ error: "name and createdBy are required" });
     }
+    const actorRoles = await getUserRoles(parseInt(createdBy));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Team Captains can create certifications" });
+    }
     const cert = await storage.createCertification({
       name,
       equipment: equipment || "",
@@ -1412,7 +1429,13 @@ app.post("/api/certifications", async (req, res) => {
 app.put("/api/certifications/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const cert = await storage.updateCertification(id, req.body);
+    const { requesterId, ...updateData } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
+      return res.status(403).json({ error: "Only Coaches, Team Captains, or Safety Trainers can edit certifications" });
+    }
+    const cert = await storage.updateCertification(id, updateData);
     if (!cert) return res.status(404).json({ error: "Certification not found" });
     res.json(cert);
   } catch (error) {
@@ -1423,6 +1446,12 @@ app.put("/api/certifications/:id", async (req, res) => {
 
 app.delete("/api/certifications/:id", async (req, res) => {
   try {
+    const requesterId = parseInt(req.query.requesterId as string);
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(requesterId);
+    if (!hasAnyRole(actorRoles, ['Coach'])) {
+      return res.status(403).json({ error: "Only Coaches can delete certifications" });
+    }
     await storage.deleteCertification(parseInt(req.params.id));
     res.status(204).send();
   } catch (error) {
@@ -1431,10 +1460,10 @@ app.delete("/api/certifications/:id", async (req, res) => {
   }
 });
 
-app.get("/api/certifications/:id/users", async (req, res) => {
+app.get("/api/certifications/:id/certified-users", async (req, res) => {
   try {
-    const users = await storage.getCertifiedUsers(parseInt(req.params.id));
-    res.json(users);
+    const certifiedUsers = await storage.getCertifiedUsers(parseInt(req.params.id));
+    res.json(certifiedUsers);
   } catch (error) {
     console.error("Error fetching certified users:", error);
     res.status(500).json({ error: "Failed to fetch certified users" });
@@ -1468,6 +1497,10 @@ app.post("/api/users/:id/certifications", async (req, res) => {
     if (!certId || !grantedBy) {
       return res.status(400).json({ error: "certId and grantedBy are required" });
     }
+    const actorRoles = await getUserRoles(parseInt(grantedBy));
+    if (!hasAnyRole(actorRoles, TRAINER_COACH)) {
+      return res.status(403).json({ error: "Only Safety Trainers or Coaches can grant certifications" });
+    }
     const result = await storage.grantCertification(userId, parseInt(certId), parseInt(grantedBy));
     res.status(201).json(result);
   } catch (error) {
@@ -1478,6 +1511,12 @@ app.post("/api/users/:id/certifications", async (req, res) => {
 
 app.delete("/api/users/:userId/certifications/:certId", async (req, res) => {
   try {
+    const requesterId = parseInt(req.query.requesterId as string);
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(requesterId);
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Team Captains can revoke certifications" });
+    }
     await storage.revokeCertification(parseInt(req.params.userId), parseInt(req.params.certId));
     res.status(204).send();
   } catch (error) {
@@ -1490,9 +1529,18 @@ app.delete("/api/users/:userId/certifications/:certId", async (req, res) => {
 
 app.get("/api/cert-requests", async (req, res) => {
   try {
-    const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
+    const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
     const statuses = req.query.statuses ? (req.query.statuses as string).split(",") : undefined;
-    const requests = await storage.getCertRequests({ userId, statuses });
+    let filters: { userId?: number; statuses?: string[] } = { statuses };
+    if (requesterId) {
+      const actorRoles = await getUserRoles(requesterId);
+      if (!hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
+        filters.userId = requesterId;
+      }
+    } else {
+      filters.statuses = statuses ?? ['pending', 'in_progress'];
+    }
+    const requests = await storage.getCertRequests(filters);
     res.json(requests);
   } catch (error) {
     console.error("Error fetching cert requests:", error);
@@ -1523,6 +1571,10 @@ app.post("/api/cert-requests/:id/claim", async (req, res) => {
     const requestId = parseInt(req.params.id);
     const { trainerId } = req.body;
     if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const actorRoles = await getUserRoles(parseInt(trainerId));
+    if (!hasAnyRole(actorRoles, TRAINER_COACH)) {
+      return res.status(403).json({ error: "Only Safety Trainers or Coaches can claim certification requests" });
+    }
     const request = await storage.claimCertRequest(requestId, parseInt(trainerId));
     if (!request) return res.status(409).json({ error: "Request is no longer pending" });
     res.json(request);
@@ -1551,6 +1603,10 @@ app.post("/api/cert-requests/:id/complete", async (req, res) => {
     const requestId = parseInt(req.params.id);
     const { trainerId } = req.body;
     if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const actorRoles = await getUserRoles(parseInt(trainerId));
+    if (!hasAnyRole(actorRoles, TRAINER_COACH)) {
+      return res.status(403).json({ error: "Only Safety Trainers or Coaches can complete certification requests" });
+    }
     const request = await storage.completeCertRequest(requestId, parseInt(trainerId));
     if (!request) return res.status(404).json({ error: "Request not found" });
     res.json(request);
@@ -1565,6 +1621,10 @@ app.post("/api/cert-requests/:id/reject", async (req, res) => {
     const requestId = parseInt(req.params.id);
     const { trainerId, notes } = req.body;
     if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const actorRoles = await getUserRoles(parseInt(trainerId));
+    if (!hasAnyRole(actorRoles, TRAINER_COACH)) {
+      return res.status(403).json({ error: "Only Safety Trainers or Coaches can reject certification requests" });
+    }
     const request = await storage.rejectCertRequest(requestId, parseInt(trainerId), notes);
     if (!request) return res.status(404).json({ error: "Request not found" });
     res.json(request);

@@ -172,22 +172,24 @@ export const api = {
     getAll: () => apiRequest<any[]>('/certifications'),
     get: (id: number) => apiRequest<any>(`/certifications/${id}`),
     create: (data: any) => apiRequest<any>('/certifications', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: any) => apiRequest<any>(`/certifications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: number) => apiRequest<void>(`/certifications/${id}`, { method: 'DELETE' }),
-    getCertifiedUsers: (id: number) => apiRequest<any[]>(`/certifications/${id}/users`),
+    update: (id: number, requesterId: number, data: any) =>
+      apiRequest<any>(`/certifications/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, requesterId }) }),
+    delete: (id: number, requesterId: number) =>
+      apiRequest<void>(`/certifications/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
+    getCertifiedUsers: (id: number) => apiRequest<any[]>(`/certifications/${id}/certified-users`),
     getTrainers: (id: number) => apiRequest<any[]>(`/certifications/${id}/trainers`),
   },
   userCertifications: {
     getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/certifications`),
     grant: (userId: number, certId: number, grantedBy: number) =>
       apiRequest<any>(`/users/${userId}/certifications`, { method: 'POST', body: JSON.stringify({ certId, grantedBy }) }),
-    revoke: (userId: number, certId: number) =>
-      apiRequest<void>(`/users/${userId}/certifications/${certId}`, { method: 'DELETE' }),
+    revoke: (userId: number, certId: number, requesterId: number) =>
+      apiRequest<void>(`/users/${userId}/certifications/${certId}?requesterId=${requesterId}`, { method: 'DELETE' }),
   },
   certRequests: {
-    getAll: (filters?: { userId?: number; statuses?: string[] }) => {
+    getAll: (filters?: { requesterId?: number; statuses?: string[] }) => {
       const params = new URLSearchParams();
-      if (filters?.userId !== undefined) params.set('userId', String(filters.userId));
+      if (filters?.requesterId !== undefined) params.set('requesterId', String(filters.requesterId));
       if (filters?.statuses?.length) params.set('statuses', filters.statuses.join(','));
       const qs = params.toString();
       return apiRequest<any[]>(`/cert-requests${qs ? `?${qs}` : ''}`);
