@@ -158,7 +158,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     try {
       const entry = await api.timeEntries.checkIn(currentUserId);
       if (entry && entry.id && (taskId || generalTaskId)) {
-        await api.timeEntries.setWorkingOn(parseInt(entry.id), taskId ?? null, generalTaskId ?? null);
+        await api.timeEntries.setWorkingOn(parseInt(entry.id), currentUserId, taskId ?? null, generalTaskId ?? null);
       }
       setShowTaskPicker(false);
       onRefresh();
@@ -200,7 +200,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const loadGenTasks = async () => {
     setGenTasksLoading(true);
     try {
-      const items = await api.generalTasks.getAll(true);
+      const items = await api.generalTasks.getAll(true, currentUserId);
       setGenTasks(items);
     } catch {
       setGenTasks([]);
@@ -213,9 +213,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     if (!genTaskForm.name.trim()) return;
     try {
       if (editingGenTask) {
-        await api.generalTasks.update(editingGenTask.id, { name: genTaskForm.name, description: genTaskForm.description || null }, currentUserId);
+        await api.generalTasks.update(editingGenTask.id, { name: genTaskForm.name, description: genTaskForm.description || '' }, currentUserId);
       } else {
-        await api.generalTasks.create(genTaskForm.name, genTaskForm.description || null, currentUserId);
+        await api.generalTasks.create(genTaskForm.name, genTaskForm.description || '', currentUserId);
       }
       setGenTaskForm({ name: '', description: '' });
       setEditingGenTask(null);
@@ -1629,9 +1629,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       <button onClick={() => handleToggleGenTaskActive(gt)} className={`p-1.5 rounded-lg transition-colors ${gt.active ? 'hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600' : 'hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600'}`}>
                         <Archive size={13} />
                       </button>
-                      <button onClick={() => handleDeleteGenTask(gt.id)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 transition-colors">
-                        <Trash2 size={13} />
-                      </button>
+                      {isCoach && (
+                        <button onClick={() => handleDeleteGenTask(gt.id)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

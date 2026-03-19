@@ -555,9 +555,17 @@ app.delete("/api/time-entries/:id", async (req, res) => {
 app.patch("/api/time-entries/:id/set-working-on", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { taskId, generalTaskId } = req.body;
+    const { userId, taskId, generalTaskId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    if (taskId != null && generalTaskId != null) {
+      return res.status(400).json({ error: "Cannot set both taskId and generalTaskId" });
+    }
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    if (entry.userId !== parseInt(userId)) {
+      return res.status(403).json({ error: "Cannot modify another user's time entry" });
+    }
     const updated = await storage.setWorkingOn(id, taskId ?? null, generalTaskId ?? null);
-    if (!updated) return res.status(404).json({ error: "Time entry not found" });
     res.json(updated);
   } catch (error) {
     console.error("Error setting working-on:", error);
@@ -568,6 +576,14 @@ app.patch("/api/time-entries/:id/set-working-on", async (req, res) => {
 app.get("/api/general-tasks", async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
+    if (includeArchived) {
+      const requesterId = parseInt(req.query.requesterId as string);
+      if (!requesterId) return res.status(400).json({ error: "requesterId required for includeArchived" });
+      const actorRoles = await getUserRoles(requesterId);
+      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+        return res.status(403).json({ error: "Only coaches and captains can view archived tasks" });
+      }
+    }
     const items = await storage.getGeneralTasks(includeArchived);
     res.json(items);
   } catch (error) {
@@ -584,7 +600,7 @@ app.post("/api/general-tasks", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
       return res.status(403).json({ error: "Only coaches and captains can create general tasks" });
     }
-    const task = await storage.createGeneralTask({ name, description: description || null, active: true, createdBy: parseInt(createdBy) });
+    const task = await storage.createGeneralTask({ name, description: description || '', active: true, createdBy: parseInt(createdBy) });
     res.json(task);
   } catch (error) {
     console.error("Error creating general task:", error);
@@ -596,13 +612,16 @@ app.patch("/api/general-tasks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { updatedBy, ...fields } = req.body;
-    if (updatedBy) {
-      const actorRoles = await getUserRoles(parseInt(updatedBy));
-      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-        return res.status(403).json({ error: "Only coaches and captains can edit general tasks" });
-      }
+    if (!updatedBy) return res.status(400).json({ error: "updatedBy required" });
+    const actorRoles = await getUserRoles(parseInt(updatedBy));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only coaches and captains can edit general tasks" });
     }
-    const updated = await storage.updateGeneralTask(id, fields);
+    const sanitized: any = {};
+    if (fields.name !== undefined) sanitized.name = fields.name;
+    if (fields.description !== undefined) sanitized.description = fields.description || '';
+    if (fields.active !== undefined) sanitized.active = fields.active;
+    const updated = await storage.updateGeneralTask(id, sanitized);
     if (!updated) return res.status(404).json({ error: "General task not found" });
     res.json(updated);
   } catch (error) {
@@ -615,11 +634,10 @@ app.delete("/api/general-tasks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { deletedBy } = req.body;
-    if (deletedBy) {
-      const actorRoles = await getUserRoles(parseInt(deletedBy));
-      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-        return res.status(403).json({ error: "Only coaches and captains can delete general tasks" });
-      }
+    if (!deletedBy) return res.status(400).json({ error: "deletedBy required" });
+    const actorRoles = await getUserRoles(parseInt(deletedBy));
+    if (!hasAnyRole(actorRoles, ['Coach'])) {
+      return res.status(403).json({ error: "Only coaches can permanently delete general tasks" });
     }
     await storage.deleteGeneralTask(id);
     res.json({ success: true });
