@@ -690,16 +690,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async grantCertification(userId: number, certId: number, grantedBy: number): Promise<UserCertification> {
-    const existing = await db.select().from(userCertifications)
+    const [inserted] = await db.insert(userCertifications)
+      .values({ userId, certificationId: certId, grantedBy, grantedAt: new Date() })
+      .onConflictDoNothing()
+      .returning();
+    if (inserted) return inserted;
+    const [existing] = await db.select().from(userCertifications)
       .where(and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId)));
-    if (existing.length > 0) return existing[0];
-    const [row] = await db.insert(userCertifications).values({
-      userId,
-      certificationId: certId,
-      grantedBy,
-      grantedAt: new Date(),
-    }).returning();
-    return row;
+    return existing;
   }
 
   async revokeCertification(userId: number, certId: number): Promise<void> {

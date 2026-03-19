@@ -1429,13 +1429,19 @@ app.post("/api/certifications", async (req, res) => {
 app.put("/api/certifications/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { requesterId, ...updateData } = req.body;
+    const { requesterId, name, equipment, description, safetyGuide, checklistItems } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
       return res.status(403).json({ error: "Only Coaches, Team Captains, or Safety Trainers can edit certifications" });
     }
-    const cert = await storage.updateCertification(id, updateData);
+    const allowedUpdates: Record<string, any> = {};
+    if (name !== undefined) allowedUpdates.name = name;
+    if (equipment !== undefined) allowedUpdates.equipment = equipment;
+    if (description !== undefined) allowedUpdates.description = description;
+    if (safetyGuide !== undefined) allowedUpdates.safetyGuide = safetyGuide;
+    if (checklistItems !== undefined) allowedUpdates.checklistItems = checklistItems;
+    const cert = await storage.updateCertification(id, allowedUpdates);
     if (!cert) return res.status(404).json({ error: "Certification not found" });
     res.json(cert);
   } catch (error) {
