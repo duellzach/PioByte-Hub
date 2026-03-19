@@ -300,6 +300,41 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
   const getUserName = (userId: number) => allUsers.find(u => u.id === userId)?.name || `User #${userId}`;
 
+  const renderInline = (text: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = [];
+    let remaining = text;
+    let k = 0;
+    while (remaining) {
+      const bold = remaining.match(/^(.*?)\*\*(.*?)\*\*(.*)/s);
+      if (bold) {
+        if (bold[1]) parts.push(<span key={k++}>{bold[1]}</span>);
+        parts.push(<strong key={k++} className="font-black">{bold[2]}</strong>);
+        remaining = bold[3]; continue;
+      }
+      const italic = remaining.match(/^(.*?)_(.*?)_(.*)/s);
+      if (italic) {
+        if (italic[1]) parts.push(<span key={k++}>{italic[1]}</span>);
+        parts.push(<em key={k++}>{italic[2]}</em>);
+        remaining = italic[3]; continue;
+      }
+      parts.push(<span key={k++}>{remaining}</span>);
+      break;
+    }
+    return parts;
+  };
+
+  const renderMarkdown = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('# '))  return <p key={i} className="font-black text-base text-amber-900 dark:text-amber-200 mt-2 mb-0.5">{line.slice(2)}</p>;
+      if (line.startsWith('## ')) return <p key={i} className="font-black text-sm text-amber-900 dark:text-amber-200 mt-1.5 mb-0.5">{line.slice(3)}</p>;
+      if (line.startsWith('- ') || line.startsWith('• ')) {
+        return <div key={i} className="flex gap-1.5 ml-2"><span className="text-amber-600 font-black flex-shrink-0">•</span><span>{renderInline(line.slice(2))}</span></div>;
+      }
+      if (!line.trim()) return <div key={i} className="h-1.5" />;
+      return <p key={i}>{renderInline(line)}</p>;
+    });
+  };
+
   const statusBadge = (status: string) => {
     switch (status) {
       case 'pending': return <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[9px] font-black rounded-full uppercase">Pending</span>;
@@ -576,7 +611,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                   <p className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                     <AlertTriangle size={11} /> Safety Guide
                   </p>
-                  <p className="text-sm text-amber-900 dark:text-amber-200 font-medium leading-relaxed whitespace-pre-wrap">{selectedCert.safetyGuide}</p>
+                  <div className="text-sm text-amber-900 dark:text-amber-200 font-medium leading-relaxed space-y-0.5">{renderMarkdown(selectedCert.safetyGuide)}</div>
                 </div>
               )}
 
@@ -858,8 +893,13 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               {(() => {
                 const pendingReqs = queueRequests.filter(r => r.status === 'pending');
                 const inProgressReqs = queueRequests.filter(r => r.status === 'in_progress');
-                const renderCard = (req: any) => (
-                  <div key={req.id} className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-5">
+                const renderCard = (req: any) => {
+                  const claimedByOther = req.status === 'in_progress' &&
+                    req.trainerId &&
+                    req.trainerId !== parseInt(currentUser?.id || '0') &&
+                    !isCoachOrCaptain;
+                  return (
+                  <div key={req.id} className={`rounded-2xl border-2 p-5 transition-all ${claimedByOther ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50 opacity-60' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex items-start gap-3 min-w-0">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${req.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'}`}>
@@ -909,7 +949,8 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                       </div>
                     )}
                   </div>
-                );
+                  );
+                };
                 return (
                   <>
                     {pendingReqs.length > 0 && (
@@ -995,7 +1036,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                   <p className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                     <AlertTriangle size={11} /> Safety Guide
                   </p>
-                  <p className="text-sm text-amber-900 dark:text-amber-200 font-medium leading-relaxed whitespace-pre-wrap">{requestDetail.certification.safetyGuide}</p>
+                  <div className="text-sm text-amber-900 dark:text-amber-200 font-medium leading-relaxed space-y-0.5">{renderMarkdown(requestDetail.certification.safetyGuide)}</div>
                 </div>
               )}
 

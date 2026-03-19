@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock } from 'lucide-react';
+import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown } from 'lucide-react';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 import { api } from '../services/api';
@@ -46,10 +46,24 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const [certifications, setCertifications] = useState<any[]>([]);
   const [certifiedUserIds, setCertifiedUserIds] = useState<Set<number>>(new Set());
+  const [certPickerSearch, setCertPickerSearch] = useState('');
+  const [showCertPicker, setShowCertPicker] = useState(false);
+  const certPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!showCertPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (certPickerRef.current && !certPickerRef.current.contains(e.target as Node)) {
+        setShowCertPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCertPicker]);
 
   useEffect(() => {
     if (editedTask.requiredCertificationId) {
@@ -545,18 +559,65 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Required Certification</label>
-              <div className="relative">
-                <ShieldCheck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" />
-                <select
-                  value={editedTask.requiredCertificationId ?? ''}
-                  onChange={(e) => setEditedTask({ ...editedTask, requiredCertificationId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-amber-500 transition-colors dark:text-white"
+              <div className="relative" ref={certPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => { setShowCertPicker(v => !v); setCertPickerSearch(''); }}
+                  className="w-full flex items-center gap-2 pl-3 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-amber-500 transition-colors dark:text-white text-left"
                 >
-                  <option value="">None</option>
-                  {certifications.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name}{c.equipment ? ` — ${c.equipment}` : ''}</option>
-                  ))}
-                </select>
+                  <ShieldCheck size={14} className="text-amber-500 flex-shrink-0" />
+                  <span className={`flex-1 truncate ${!editedTask.requiredCertificationId ? 'text-slate-400 dark:text-slate-500' : ''}`}>
+                    {editedTask.requiredCertificationId
+                      ? (() => { const c = certifications.find((c: any) => c.id === editedTask.requiredCertificationId); return c ? `${c.name}${c.equipment ? ` — ${c.equipment}` : ''}` : 'Unknown'; })()
+                      : 'None (no certification required)'}
+                  </span>
+                  <ChevronDown size={14} className={`flex-shrink-0 text-slate-400 transition-transform ${showCertPicker ? 'rotate-180' : ''}`} />
+                </button>
+                {showCertPicker && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          autoFocus
+                          value={certPickerSearch}
+                          onChange={(e) => setCertPickerSearch(e.target.value)}
+                          placeholder="Search certifications..."
+                          className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-xs font-medium outline-none dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-auto">
+                      <button
+                        type="button"
+                        onClick={() => { setEditedTask({ ...editedTask, requiredCertificationId: undefined }); setShowCertPicker(false); }}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${!editedTask.requiredCertificationId ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+                      >
+                        None (no certification required)
+                      </button>
+                      {certifications
+                        .filter((c: any) => {
+                          const s = certPickerSearch.toLowerCase();
+                          return !s || c.name?.toLowerCase().includes(s) || c.equipment?.toLowerCase().includes(s);
+                        })
+                        .map((c: any) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setEditedTask({ ...editedTask, requiredCertificationId: c.id }); setShowCertPicker(false); }}
+                            className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${editedTask.requiredCertificationId === c.id ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}
+                          >
+                            <p className={`text-xs font-black uppercase tracking-tight ${editedTask.requiredCertificationId === c.id ? 'text-amber-700 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>{c.name}</p>
+                            {c.equipment && <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">{c.equipment}</p>}
+                          </button>
+                        ))
+                      }
+                      {certifications.filter((c: any) => { const s = certPickerSearch.toLowerCase(); return !s || c.name?.toLowerCase().includes(s) || c.equipment?.toLowerCase().includes(s); }).length === 0 && (
+                        <p className="text-center text-slate-400 text-xs py-3 font-medium">No certifications found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               {editedTask.requiredCertificationId && (
                 <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1.5 ml-1 flex items-center gap-1">
