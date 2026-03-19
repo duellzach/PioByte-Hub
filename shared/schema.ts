@@ -44,6 +44,7 @@ export const tasks = pgTable("tasks", {
   helpRequested: boolean("help_requested").notNull().default(false),
   blockedReason: text("blocked_reason"),
   completedAt: timestamp("completed_at"),
+  requiredCertificationId: integer("required_certification_id").references(() => safetyCertifications.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -308,3 +309,43 @@ export const teamClaims = pgTable("team_claims", {
 
 export type TeamClaim = typeof teamClaims.$inferSelect;
 export type InsertTeamClaim = typeof teamClaims.$inferInsert;
+
+export const safetyCertifications = pgTable("safety_certifications", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  equipment: text("equipment").notNull().default(""),
+  description: text("description").notNull().default(""),
+  safetyGuide: text("safety_guide").notNull().default(""),
+  checklistItems: jsonb("checklist_items").$type<{ id: string; text: string }[]>().notNull().default([]),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const userCertifications = pgTable("user_certifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  certificationId: integer("certification_id").notNull().references(() => safetyCertifications.id, { onDelete: "cascade" }),
+  grantedBy: integer("granted_by").notNull().references(() => users.id),
+  grantedAt: timestamp("granted_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  uniqUserCert: uniqueIndex("user_certifications_user_cert_idx").on(t.userId, t.certificationId),
+}));
+
+export const certificationRequests = pgTable("certification_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  certificationId: integer("certification_id").notNull().references(() => safetyCertifications.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"),
+  trainerId: integer("trainer_id").references(() => users.id),
+  checklistProgress: jsonb("checklist_progress").$type<{ id: string; completed: boolean }[]>().notNull().default([]),
+  notes: text("notes"),
+  requestedAt: timestamp("requested_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type SafetyCertification = typeof safetyCertifications.$inferSelect;
+export type InsertSafetyCertification = typeof safetyCertifications.$inferInsert;
+export type UserCertification = typeof userCertifications.$inferSelect;
+export type InsertUserCertification = typeof userCertifications.$inferInsert;
+export type CertificationRequest = typeof certificationRequests.$inferSelect;
+export type InsertCertificationRequest = typeof certificationRequests.$inferInsert;

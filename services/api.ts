@@ -168,6 +168,41 @@ export const api = {
     delete: (id: number, actorId: number) =>
       apiRequest<void>(`/fullscreen-alerts/${id}?actorId=${actorId}`, { method: 'DELETE' }),
   },
+  certifications: {
+    getAll: () => apiRequest<any[]>('/certifications'),
+    get: (id: number) => apiRequest<any>(`/certifications/${id}`),
+    create: (data: any) => apiRequest<any>('/certifications', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) => apiRequest<any>(`/certifications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) => apiRequest<void>(`/certifications/${id}`, { method: 'DELETE' }),
+    getCertifiedUsers: (id: number) => apiRequest<any[]>(`/certifications/${id}/users`),
+    getTrainers: (id: number) => apiRequest<any[]>(`/certifications/${id}/trainers`),
+  },
+  userCertifications: {
+    getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/certifications`),
+    grant: (userId: number, certId: number, grantedBy: number) =>
+      apiRequest<any>(`/users/${userId}/certifications`, { method: 'POST', body: JSON.stringify({ certId, grantedBy }) }),
+    revoke: (userId: number, certId: number) =>
+      apiRequest<void>(`/users/${userId}/certifications/${certId}`, { method: 'DELETE' }),
+  },
+  certRequests: {
+    getAll: (filters?: { userId?: number; statuses?: string[] }) => {
+      const params = new URLSearchParams();
+      if (filters?.userId !== undefined) params.set('userId', String(filters.userId));
+      if (filters?.statuses?.length) params.set('statuses', filters.statuses.join(','));
+      const qs = params.toString();
+      return apiRequest<any[]>(`/cert-requests${qs ? `?${qs}` : ''}`);
+    },
+    create: (userId: number, certId: number) =>
+      apiRequest<any>('/cert-requests', { method: 'POST', body: JSON.stringify({ userId, certId }) }),
+    claim: (requestId: number, trainerId: number) =>
+      apiRequest<any>(`/cert-requests/${requestId}/claim`, { method: 'POST', body: JSON.stringify({ trainerId }) }),
+    updateProgress: (requestId: number, checklistProgress: any[], notes?: string) =>
+      apiRequest<any>(`/cert-requests/${requestId}/progress`, { method: 'PUT', body: JSON.stringify({ checklistProgress, notes }) }),
+    complete: (requestId: number, trainerId: number) =>
+      apiRequest<any>(`/cert-requests/${requestId}/complete`, { method: 'POST', body: JSON.stringify({ trainerId }) }),
+    reject: (requestId: number, trainerId: number, notes?: string) =>
+      apiRequest<any>(`/cert-requests/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ trainerId, notes }) }),
+  },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
   changePassword: (userId: number, currentPassword: string, newPassword: string) =>

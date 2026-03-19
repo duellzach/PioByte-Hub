@@ -15,7 +15,8 @@ export enum Role {
   DepartmentHead = 'Department Head',
   TeamMember = 'Team Member',
   ClassMember = 'Class Member',
-  Coach = 'Coach'
+  Coach = 'Coach',
+  SafetyTrainer = 'Safety Trainer'
 }
 
 export enum TaskStatus {

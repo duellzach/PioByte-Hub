@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim } from "../shared/schema";
-import { eq, desc, and, isNull, lt } from "drizzle-orm";
+import { users, projects, tasks, notifications, announcements, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest } from "../shared/schema";
+import { eq, desc, and, isNull, lt, inArray } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
   if (value === undefined || value === null) return undefined;
@@ -140,6 +140,23 @@ export interface IStorage {
   getTeamClaims(eventId: number): Promise<TeamClaim[]>;
   upsertTeamClaim(data: { eventId: number; matchKey: string; teamNumber: number; userId: number; userName: string }): Promise<TeamClaim>;
   deleteTeamClaim(eventId: number, matchKey: string, teamNumber: number, userId: number): Promise<void>;
+
+  getCertifications(): Promise<any[]>;
+  getCertification(id: number): Promise<SafetyCertification | undefined>;
+  createCertification(data: InsertSafetyCertification): Promise<SafetyCertification>;
+  updateCertification(id: number, data: Partial<InsertSafetyCertification>): Promise<SafetyCertification | undefined>;
+  deleteCertification(id: number): Promise<void>;
+  getUserCertifications(userId: number): Promise<any[]>;
+  grantCertification(userId: number, certId: number, grantedBy: number): Promise<UserCertification>;
+  revokeCertification(userId: number, certId: number): Promise<void>;
+  getCertifiedUsers(certId: number): Promise<any[]>;
+  getTrainersForCert(certId: number): Promise<any[]>;
+  createCertRequest(userId: number, certId: number): Promise<CertificationRequest>;
+  getCertRequests(filters: { userId?: number; statuses?: string[] }): Promise<any[]>;
+  claimCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined>;
+  updateCertRequestProgress(requestId: number, checklistProgress: { id: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined>;
+  completeCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined>;
+  rejectCertRequest(requestId: number, trainerId: number, notes?: string): Promise<CertificationRequest | undefined>;
 
   seedDatabase(): Promise<void>;
 }
@@ -598,6 +615,244 @@ export class DatabaseStorage implements IStorage {
         eq(teamClaims.userId, userId)
       )
     );
+  }
+
+  async getCertifications(): Promise<any[]> {
+    const certs = await db.select().from(safetyCertifications).orderBy(safetyCertifications.name);
+    if (certs.length === 0) return [];
+    const allUserCerts = await db.select({
+      certId: userCertifications.certificationId,
+      userId: userCertifications.userId,
+    }).from(userCertifications);
+    const userIds = [...new Set(allUserCerts.map(uc => uc.userId))];
+    const trainerUsers = userIds.length > 0
+      ? await db.select({ id: users.id, roles: users.roles }).from(users).where(inArray(users.id, userIds))
+      : [];
+    const trainerSet = new Set(trainerUsers.filter(u => (u.roles as string[]).includes('Safety Trainer')).map(u => u.id));
+    const certifiedCount: Record<number, number> = {};
+    const trainerCount: Record<number, number> = {};
+    for (const uc of allUserCerts) {
+      certifiedCount[uc.certId] = (certifiedCount[uc.certId] || 0) + 1;
+      if (trainerSet.has(uc.userId)) {
+        trainerCount[uc.certId] = (trainerCount[uc.certId] || 0) + 1;
+      }
+    }
+    return certs.map(c => ({
+      ...c,
+      certifiedCount: certifiedCount[c.id] || 0,
+      trainerCount: trainerCount[c.id] || 0,
+    }));
+  }
+
+  async getCertification(id: number): Promise<SafetyCertification | undefined> {
+    const [row] = await db.select().from(safetyCertifications).where(eq(safetyCertifications.id, id));
+    return row;
+  }
+
+  async createCertification(data: InsertSafetyCertification): Promise<SafetyCertification> {
+    const [row] = await db.insert(safetyCertifications).values(data).returning();
+    return row;
+  }
+
+  async updateCertification(id: number, data: Partial<InsertSafetyCertification>): Promise<SafetyCertification | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.update(safetyCertifications).set(sanitized).where(eq(safetyCertifications.id, id)).returning();
+    return row;
+  }
+
+  async deleteCertification(id: number): Promise<void> {
+    await db.delete(safetyCertifications).where(eq(safetyCertifications.id, id));
+  }
+
+  async getUserCertifications(userId: number): Promise<any[]> {
+    const rows = await db.select({
+      id: userCertifications.id,
+      userId: userCertifications.userId,
+      certificationId: userCertifications.certificationId,
+      grantedBy: userCertifications.grantedBy,
+      grantedAt: userCertifications.grantedAt,
+      certName: safetyCertifications.name,
+      certEquipment: safetyCertifications.equipment,
+      certDescription: safetyCertifications.description,
+    }).from(userCertifications)
+      .innerJoin(safetyCertifications, eq(userCertifications.certificationId, safetyCertifications.id))
+      .where(eq(userCertifications.userId, userId))
+      .orderBy(desc(userCertifications.grantedAt));
+    const grantorIds = [...new Set(rows.map(r => r.grantedBy))];
+    const grantors = grantorIds.length > 0
+      ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, grantorIds))
+      : [];
+    const grantorMap: Record<number, string> = {};
+    for (const g of grantors) grantorMap[g.id] = g.name;
+    return rows.map(r => ({ ...r, grantedByName: grantorMap[r.grantedBy] || `User #${r.grantedBy}` }));
+  }
+
+  async grantCertification(userId: number, certId: number, grantedBy: number): Promise<UserCertification> {
+    const existing = await db.select().from(userCertifications)
+      .where(and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId)));
+    if (existing.length > 0) return existing[0];
+    const [row] = await db.insert(userCertifications).values({
+      userId,
+      certificationId: certId,
+      grantedBy,
+      grantedAt: new Date(),
+    }).returning();
+    return row;
+  }
+
+  async revokeCertification(userId: number, certId: number): Promise<void> {
+    await db.delete(userCertifications).where(
+      and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId))
+    );
+  }
+
+  async getCertifiedUsers(certId: number): Promise<any[]> {
+    const rows = await db.select({
+      id: userCertifications.id,
+      userId: userCertifications.userId,
+      certificationId: userCertifications.certificationId,
+      grantedBy: userCertifications.grantedBy,
+      grantedAt: userCertifications.grantedAt,
+      userName: users.name,
+      userUsername: users.username,
+      userRoles: users.roles,
+    }).from(userCertifications)
+      .innerJoin(users, eq(userCertifications.userId, users.id))
+      .where(eq(userCertifications.certificationId, certId))
+      .orderBy(desc(userCertifications.grantedAt));
+    const grantorIds = [...new Set(rows.map(r => r.grantedBy))];
+    const grantors = grantorIds.length > 0
+      ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, grantorIds))
+      : [];
+    const grantorMap: Record<number, string> = {};
+    for (const g of grantors) grantorMap[g.id] = g.name;
+    return rows.map(r => ({
+      ...r,
+      grantedByName: grantorMap[r.grantedBy] || `User #${r.grantedBy}`,
+      isTrainer: (r.userRoles as string[]).includes('Safety Trainer'),
+    }));
+  }
+
+  async getTrainersForCert(certId: number): Promise<any[]> {
+    const rows = await db.select({
+      id: userCertifications.id,
+      userId: userCertifications.userId,
+      certificationId: userCertifications.certificationId,
+      grantedAt: userCertifications.grantedAt,
+      userName: users.name,
+      userUsername: users.username,
+      userRoles: users.roles,
+    }).from(userCertifications)
+      .innerJoin(users, eq(userCertifications.userId, users.id))
+      .where(eq(userCertifications.certificationId, certId));
+    return rows.filter(r => (r.userRoles as string[]).includes('Safety Trainer'));
+  }
+
+  async createCertRequest(userId: number, certId: number): Promise<CertificationRequest> {
+    const existing = await db.select().from(certificationRequests).where(
+      and(
+        eq(certificationRequests.userId, userId),
+        eq(certificationRequests.certificationId, certId),
+        eq(certificationRequests.status, 'pending')
+      )
+    );
+    if (existing.length > 0) return existing[0];
+    const inProgress = await db.select().from(certificationRequests).where(
+      and(
+        eq(certificationRequests.userId, userId),
+        eq(certificationRequests.certificationId, certId),
+        eq(certificationRequests.status, 'in_progress')
+      )
+    );
+    if (inProgress.length > 0) return inProgress[0];
+    const [row] = await db.insert(certificationRequests).values({
+      userId,
+      certificationId: certId,
+      status: 'pending',
+      requestedAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    return row;
+  }
+
+  async getCertRequests(filters: { userId?: number; statuses?: string[] }): Promise<any[]> {
+    let rows = await db.select({
+      id: certificationRequests.id,
+      userId: certificationRequests.userId,
+      certificationId: certificationRequests.certificationId,
+      status: certificationRequests.status,
+      trainerId: certificationRequests.trainerId,
+      checklistProgress: certificationRequests.checklistProgress,
+      notes: certificationRequests.notes,
+      requestedAt: certificationRequests.requestedAt,
+      updatedAt: certificationRequests.updatedAt,
+      userName: users.name,
+      userUsername: users.username,
+      certName: safetyCertifications.name,
+      certEquipment: safetyCertifications.equipment,
+    }).from(certificationRequests)
+      .innerJoin(users, eq(certificationRequests.userId, users.id))
+      .innerJoin(safetyCertifications, eq(certificationRequests.certificationId, safetyCertifications.id))
+      .orderBy(desc(certificationRequests.requestedAt));
+    if (filters.userId !== undefined) {
+      rows = rows.filter(r => r.userId === filters.userId);
+    }
+    if (filters.statuses && filters.statuses.length > 0) {
+      rows = rows.filter(r => filters.statuses!.includes(r.status));
+    }
+    const trainerIds = [...new Set(rows.map(r => r.trainerId).filter((id): id is number => id !== null))];
+    const trainerUsers = trainerIds.length > 0
+      ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, trainerIds))
+      : [];
+    const trainerMap: Record<number, string> = {};
+    for (const t of trainerUsers) trainerMap[t.id] = t.name;
+    return rows.map(r => ({
+      ...r,
+      trainerName: r.trainerId ? (trainerMap[r.trainerId] || `User #${r.trainerId}`) : null,
+    }));
+  }
+
+  async claimCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined> {
+    const [row] = await db.update(certificationRequests)
+      .set({ trainerId, status: 'in_progress', updatedAt: new Date() })
+      .where(and(eq(certificationRequests.id, requestId), eq(certificationRequests.status, 'pending')))
+      .returning();
+    return row;
+  }
+
+  async updateCertRequestProgress(requestId: number, checklistProgress: { id: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined> {
+    const updateData: any = { checklistProgress, updatedAt: new Date() };
+    if (notes !== undefined) updateData.notes = notes;
+    const [row] = await db.update(certificationRequests)
+      .set(updateData)
+      .where(eq(certificationRequests.id, requestId))
+      .returning();
+    return row;
+  }
+
+  async completeCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined> {
+    const [req] = await db.select().from(certificationRequests).where(eq(certificationRequests.id, requestId));
+    if (!req) return undefined;
+    const [row] = await db.update(certificationRequests)
+      .set({ status: 'completed', trainerId, updatedAt: new Date() })
+      .where(eq(certificationRequests.id, requestId))
+      .returning();
+    if (row) {
+      await this.grantCertification(req.userId, req.certificationId, trainerId);
+    }
+    return row;
+  }
+
+  async rejectCertRequest(requestId: number, trainerId: number, notes?: string): Promise<CertificationRequest | undefined> {
+    const updateData: any = { status: 'rejected', trainerId, updatedAt: new Date() };
+    if (notes !== undefined) updateData.notes = notes;
+    const [row] = await db.update(certificationRequests)
+      .set(updateData)
+      .where(eq(certificationRequests.id, requestId))
+      .returning();
+    return row;
   }
 
   async seedDatabase(): Promise<void> {

@@ -15,6 +15,7 @@ The application utilizes Vite and React 19 with TypeScript for the frontend, run
 The backend is an Express API running on port 3001, interacting with a PostgreSQL database provided by Replit. Drizzle ORM is used for database operations, ensuring a type-safe and efficient data layer.
 
 ### Key Technical Implementations and Features
+- **Safety Certification System (Backend)**: Three new DB tables (`safety_certifications`, `user_certifications`, `certification_requests`), a `Safety Trainer` role, and `requiredCertificationId` FK on tasks. Full REST API: CRUD for certifications, grant/revoke user certifications, certification request workflow (create → claim → progress → complete/reject with auto-grant), and trainer filtering. Client API methods in `services/api.ts`.
 - **Project & Task Management**: Kanban boards, task assignment, status tracking, priority setting, department-based filtering, and a "War Room" dashboard. Task creation is role-restricted, and success criteria are interactive and trackable.
 - **Time Tracking System**: Features check-in/check-out, coach approval workflows, quarter-hour rounding, a full audit trail, and bulk class time addition.
 - **FRC Scout Module**:

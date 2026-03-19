@@ -1365,6 +1365,215 @@ app.delete("/api/events/:id/team-claims", async (req, res) => {
   }
 });
 
+// ─── Safety Certifications ────────────────────────────────────────────────────
+
+app.get("/api/certifications", async (req, res) => {
+  try {
+    const certs = await storage.getCertifications();
+    res.json(certs);
+  } catch (error) {
+    console.error("Error fetching certifications:", error);
+    res.status(500).json({ error: "Failed to fetch certifications" });
+  }
+});
+
+app.get("/api/certifications/:id", async (req, res) => {
+  try {
+    const cert = await storage.getCertification(parseInt(req.params.id));
+    if (!cert) return res.status(404).json({ error: "Certification not found" });
+    res.json(cert);
+  } catch (error) {
+    console.error("Error fetching certification:", error);
+    res.status(500).json({ error: "Failed to fetch certification" });
+  }
+});
+
+app.post("/api/certifications", async (req, res) => {
+  try {
+    const { name, equipment, description, safetyGuide, checklistItems, createdBy } = req.body;
+    if (!name || !createdBy) {
+      return res.status(400).json({ error: "name and createdBy are required" });
+    }
+    const cert = await storage.createCertification({
+      name,
+      equipment: equipment || "",
+      description: description || "",
+      safetyGuide: safetyGuide || "",
+      checklistItems: checklistItems || [],
+      createdBy: parseInt(createdBy),
+    });
+    res.status(201).json(cert);
+  } catch (error) {
+    console.error("Error creating certification:", error);
+    res.status(500).json({ error: "Failed to create certification" });
+  }
+});
+
+app.put("/api/certifications/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const cert = await storage.updateCertification(id, req.body);
+    if (!cert) return res.status(404).json({ error: "Certification not found" });
+    res.json(cert);
+  } catch (error) {
+    console.error("Error updating certification:", error);
+    res.status(500).json({ error: "Failed to update certification" });
+  }
+});
+
+app.delete("/api/certifications/:id", async (req, res) => {
+  try {
+    await storage.deleteCertification(parseInt(req.params.id));
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting certification:", error);
+    res.status(500).json({ error: "Failed to delete certification" });
+  }
+});
+
+app.get("/api/certifications/:id/users", async (req, res) => {
+  try {
+    const users = await storage.getCertifiedUsers(parseInt(req.params.id));
+    res.json(users);
+  } catch (error) {
+    console.error("Error fetching certified users:", error);
+    res.status(500).json({ error: "Failed to fetch certified users" });
+  }
+});
+
+app.get("/api/certifications/:id/trainers", async (req, res) => {
+  try {
+    const trainers = await storage.getTrainersForCert(parseInt(req.params.id));
+    res.json(trainers);
+  } catch (error) {
+    console.error("Error fetching trainers:", error);
+    res.status(500).json({ error: "Failed to fetch trainers" });
+  }
+});
+
+app.get("/api/users/:id/certifications", async (req, res) => {
+  try {
+    const certs = await storage.getUserCertifications(parseInt(req.params.id));
+    res.json(certs);
+  } catch (error) {
+    console.error("Error fetching user certifications:", error);
+    res.status(500).json({ error: "Failed to fetch user certifications" });
+  }
+});
+
+app.post("/api/users/:id/certifications", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { certId, grantedBy } = req.body;
+    if (!certId || !grantedBy) {
+      return res.status(400).json({ error: "certId and grantedBy are required" });
+    }
+    const result = await storage.grantCertification(userId, parseInt(certId), parseInt(grantedBy));
+    res.status(201).json(result);
+  } catch (error) {
+    console.error("Error granting certification:", error);
+    res.status(500).json({ error: "Failed to grant certification" });
+  }
+});
+
+app.delete("/api/users/:userId/certifications/:certId", async (req, res) => {
+  try {
+    await storage.revokeCertification(parseInt(req.params.userId), parseInt(req.params.certId));
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error revoking certification:", error);
+    res.status(500).json({ error: "Failed to revoke certification" });
+  }
+});
+
+// ─── Certification Requests ────────────────────────────────────────────────────
+
+app.get("/api/cert-requests", async (req, res) => {
+  try {
+    const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
+    const statuses = req.query.statuses ? (req.query.statuses as string).split(",") : undefined;
+    const requests = await storage.getCertRequests({ userId, statuses });
+    res.json(requests);
+  } catch (error) {
+    console.error("Error fetching cert requests:", error);
+    res.status(500).json({ error: "Failed to fetch certification requests" });
+  }
+});
+
+app.post("/api/cert-requests", async (req, res) => {
+  try {
+    const { userId, certId } = req.body;
+    if (!userId || !certId) {
+      return res.status(400).json({ error: "userId and certId are required" });
+    }
+    const hasAlreadyCert = await storage.getUserCertifications(parseInt(userId));
+    if (hasAlreadyCert.some((c: any) => c.certificationId === parseInt(certId))) {
+      return res.status(409).json({ error: "User already holds this certification" });
+    }
+    const request = await storage.createCertRequest(parseInt(userId), parseInt(certId));
+    res.status(201).json(request);
+  } catch (error) {
+    console.error("Error creating cert request:", error);
+    res.status(500).json({ error: "Failed to create certification request" });
+  }
+});
+
+app.post("/api/cert-requests/:id/claim", async (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const { trainerId } = req.body;
+    if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const request = await storage.claimCertRequest(requestId, parseInt(trainerId));
+    if (!request) return res.status(409).json({ error: "Request is no longer pending" });
+    res.json(request);
+  } catch (error) {
+    console.error("Error claiming cert request:", error);
+    res.status(500).json({ error: "Failed to claim certification request" });
+  }
+});
+
+app.put("/api/cert-requests/:id/progress", async (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const { checklistProgress, notes } = req.body;
+    if (!checklistProgress) return res.status(400).json({ error: "checklistProgress is required" });
+    const request = await storage.updateCertRequestProgress(requestId, checklistProgress, notes);
+    if (!request) return res.status(404).json({ error: "Request not found" });
+    res.json(request);
+  } catch (error) {
+    console.error("Error updating cert request progress:", error);
+    res.status(500).json({ error: "Failed to update certification request progress" });
+  }
+});
+
+app.post("/api/cert-requests/:id/complete", async (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const { trainerId } = req.body;
+    if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const request = await storage.completeCertRequest(requestId, parseInt(trainerId));
+    if (!request) return res.status(404).json({ error: "Request not found" });
+    res.json(request);
+  } catch (error) {
+    console.error("Error completing cert request:", error);
+    res.status(500).json({ error: "Failed to complete certification request" });
+  }
+});
+
+app.post("/api/cert-requests/:id/reject", async (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const { trainerId, notes } = req.body;
+    if (!trainerId) return res.status(400).json({ error: "trainerId is required" });
+    const request = await storage.rejectCertRequest(requestId, parseInt(trainerId), notes);
+    if (!request) return res.status(404).json({ error: "Request not found" });
+    res.json(request);
+  } catch (error) {
+    console.error("Error rejecting cert request:", error);
+    res.status(500).json({ error: "Failed to reject certification request" });
+  }
+});
+
 app.post("/api/seed", async (req, res) => {
   try {
     await storage.seedDatabase();

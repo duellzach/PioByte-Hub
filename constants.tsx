@@ -42,4 +42,5 @@ export const ROLE_COLORS: Record<string, string> = {
   'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'Safety Trainer': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
 };
