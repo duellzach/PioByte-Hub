@@ -1936,6 +1936,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   }
 
                   const canScout = !alreadyScouted && !isOthersClaim;
+                  const ourTeamRing = isOurTeam ? ' ring-2 ring-white ring-offset-1 ring-offset-transparent' : '';
                   return (
                     <button
                       key={teamKey}
@@ -1948,7 +1949,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         setEditingMatch(null);
                         setShowMatchForm(true);
                       }}
-                      className={`px-3 py-2 rounded-xl text-center transition-all min-w-[64px] ${btnClass}`}
+                      className={`px-3 py-2 rounded-xl text-center transition-all min-w-[64px] ${btnClass}${ourTeamRing}`}
                     >
                       {label}
                     </button>

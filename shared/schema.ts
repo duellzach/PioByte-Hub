@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -302,7 +302,9 @@ export const teamClaims = pgTable("team_claims", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   userName: text("user_name").notNull(),
   claimedAt: timestamp("claimed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (t) => ({
+  uniqSlot: uniqueIndex("team_claims_slot_idx").on(t.eventId, t.matchKey, t.teamNumber),
+}));
 
 export type TeamClaim = typeof teamClaims.$inferSelect;
 export type InsertTeamClaim = typeof teamClaims.$inferInsert;

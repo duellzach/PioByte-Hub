@@ -578,21 +578,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTeamClaim(data: { eventId: number; matchKey: string; teamNumber: number; userId: number; userName: string }): Promise<TeamClaim> {
-    const existing = await db.select().from(teamClaims).where(
+    await db.delete(teamClaims).where(
       and(
         eq(teamClaims.eventId, data.eventId),
         eq(teamClaims.matchKey, data.matchKey),
-        eq(teamClaims.teamNumber, data.teamNumber),
-        eq(teamClaims.userId, data.userId)
+        eq(teamClaims.teamNumber, data.teamNumber)
       )
     );
-    if (existing.length > 0) {
-      const [row] = await db.update(teamClaims)
-        .set({ claimedAt: new Date(), userName: data.userName })
-        .where(eq(teamClaims.id, existing[0].id))
-        .returning();
-      return row;
-    }
     const [row] = await db.insert(teamClaims).values({ ...data, claimedAt: new Date() }).returning();
     return row;
   }
