@@ -231,7 +231,7 @@ export const api = {
         body: JSON.stringify({ coachId, userIds, minutes, notes, date }) 
       }),
     getAvailableTasks: (userId: number) =>
-      apiRequest<{ assignedTasks: any[]; generalTasks: any[] }>(`/time-entries/available-tasks?userId=${userId}`),
+      apiRequest<any[]>(`/time-entries/available-tasks?userId=${userId}`),
     setWorkingOn: (id: number, userId: number, taskId?: number | null, generalTaskId?: number | null) =>
       apiRequest<any>(`/time-entries/${id}/set-working-on`, { method: 'PATCH', body: JSON.stringify({ userId, taskId, generalTaskId }) }),
   },
@@ -241,7 +241,7 @@ export const api = {
     create: (name: string, description: string, createdBy: number) =>
       apiRequest<any>('/general-tasks', { method: 'POST', body: JSON.stringify({ name, description, createdBy }) }),
     update: (id: number, data: { name?: string; description?: string; active?: boolean }, updatedBy: number) =>
-      apiRequest<any>(`/general-tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ ...data, updatedBy }) }),
+      apiRequest<any>(`/general-tasks/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, updatedBy }) }),
     delete: (id: number, deletedBy: number) =>
       apiRequest<any>(`/general-tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ deletedBy }) }),
   },

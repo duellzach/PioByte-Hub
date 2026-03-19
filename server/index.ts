@@ -325,11 +325,8 @@ app.get("/api/time-entries/available-tasks", async (req, res) => {
   try {
     const userId = parseInt(req.query.userId as string);
     if (!userId) return res.status(400).json({ error: "userId required" });
-    const [assignedTasks, activeTasks] = await Promise.all([
-      storage.getAvailableTasksForUser(userId),
-      storage.getGeneralTasks(false),
-    ]);
-    res.json({ assignedTasks, generalTasks: activeTasks });
+    const assignedTasks = await storage.getAvailableTasksForUser(userId);
+    res.json(assignedTasks);
   } catch (error) {
     console.error("Error fetching available tasks:", error);
     res.status(500).json({ error: "Failed to fetch available tasks" });
@@ -580,8 +577,8 @@ app.get("/api/general-tasks", async (req, res) => {
       const requesterId = parseInt(req.query.requesterId as string);
       if (!requesterId) return res.status(400).json({ error: "requesterId required for includeArchived" });
       const actorRoles = await getUserRoles(requesterId);
-      if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-        return res.status(403).json({ error: "Only coaches and captains can view archived tasks" });
+      if (!hasAnyRole(actorRoles, ['Coach'])) {
+        return res.status(403).json({ error: "Only coaches can view archived tasks" });
       }
     }
     const items = await storage.getGeneralTasks(includeArchived);
@@ -608,7 +605,7 @@ app.post("/api/general-tasks", async (req, res) => {
   }
 });
 
-app.patch("/api/general-tasks/:id", async (req, res) => {
+app.put("/api/general-tasks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { updatedBy, ...fields } = req.body;

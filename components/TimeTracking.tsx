@@ -142,9 +142,12 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     setShowTaskPicker(true);
     setTaskPickerLoading(true);
     try {
-      const result = await api.timeEntries.getAvailableTasks(currentUserId);
-      setAvailableAssignedTasks(result.assignedTasks);
-      setAvailableGeneralTasks(result.generalTasks);
+      const [assignedTasks, genTasks] = await Promise.all([
+        api.timeEntries.getAvailableTasks(currentUserId),
+        api.generalTasks.getAll(false),
+      ]);
+      setAvailableAssignedTasks(assignedTasks);
+      setAvailableGeneralTasks(genTasks);
     } catch {
       setAvailableAssignedTasks([]);
       setAvailableGeneralTasks([]);
