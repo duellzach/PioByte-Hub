@@ -345,7 +345,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
     }
   };
 
-  const CertFormFields = () => (
+  const renderCertFormFields = () => (
     <div className="space-y-5">
       <div>
         <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Certification Name *</label>
@@ -995,7 +995,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <CertFormFields />
+              {renderCertFormFields()}
             </div>
             <div className="p-6 border-t border-slate-100 dark:border-slate-700 flex gap-3">
               <button
