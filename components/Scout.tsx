@@ -1122,13 +1122,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const robotMatches = useMemo(() => {
     if (!selectedRobot) return [];
     const raw = matchScoutsData.filter(m => m.teamNumber === selectedRobot.teamNumber);
-    const grouped = new Map<number, any[]>();
+    const grouped = new Map<string, any[]>();
     for (const m of raw) {
-      const arr = grouped.get(m.matchNumber) || [];
+      const key = `${m.matchType || 'qualification'}:${m.matchNumber}`;
+      const arr = grouped.get(key) || [];
       arr.push(m);
-      grouped.set(m.matchNumber, arr);
+      grouped.set(key, arr);
     }
-    return Array.from(grouped.entries()).map(([matchNumber, entries]) => {
+    return Array.from(grouped.entries()).map(([_key, entries]) => {
       if (entries.length === 1) return entries[0];
       const avg = (field: string) => {
         const sum = entries.reduce((s, e) => s + (e[field] || 0), 0);
@@ -1136,7 +1137,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       };
       return {
         ...entries[0],
-        matchNumber,
         coralScored: avg('coralScored'),
         algaeScored: avg('algaeScored'),
         penalties: avg('penalties'),
@@ -1424,7 +1424,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
                     <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Best Match</p>
-                    <p className="text-sm font-black text-slate-900 dark:text-white mt-1">Match {bestMatch.matchNumber} — {(bestMatch.autoFuelTotal || 0) + (bestMatch.teleopFuelTotal || 0)} total fuel</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                      {bestMatch.matchType && bestMatch.matchType !== 'qualification' ? `${bestMatch.matchType === 'elimination' ? 'Elim' : 'Practice'} ` : ''}Match {bestMatch.matchNumber} — {(bestMatch.autoFuelTotal || 0) + (bestMatch.teleopFuelTotal || 0)} total fuel
+                    </p>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
                     <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">FIRST Core Values</p>
@@ -1440,13 +1442,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Match History</h3>
                 <div className="space-y-3">
-                  {robotMatches.sort((a, b) => a.matchNumber - b.matchNumber).map(m => (
-                    <div key={m.id} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' : 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20'}`}>
+                  {robotMatches.sort((a, b) => {
+                    if (a.matchType !== b.matchType) {
+                      const order: Record<string, number> = { practice: 0, qualification: 1, elimination: 2 };
+                      return (order[a.matchType] ?? 1) - (order[b.matchType] ?? 1);
+                    }
+                    return a.matchNumber - b.matchNumber;
+                  }).map(m => (
+                    <div key={`${m.matchType}:${m.matchNumber}:${m.id}`} className={`p-4 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' : 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20'}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
                             Match {m.matchNumber}
                           </span>
+                          {m.matchType && m.matchType !== 'qualification' && (
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                              m.matchType === 'practice' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' : 'bg-purple-100 text-purple-700'
+                            }`}>{m.matchType}</span>
+                          )}
                           <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
                             {(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)} fuel
                             {m.coralScored > 0 && <span className="text-yellow-500 ml-1">{'★'.repeat(Math.min(m.coralScored || 0, 5))}</span>}
@@ -1807,7 +1820,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   ...(m.alliances?.red?.team_keys || []),
                   ...(m.alliances?.blue?.team_keys || []),
                 ].map((k: string) => parseInt(k.replace('frc', '')));
-                const scoutedTeamNums = new Set(matchScoutsData.filter((ms: any) => ms.matchNumber === m.match_number).map((ms: any) => ms.teamNumber));
+                if (allTeamNums.length === 0) return false;
+                const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                const compositeNum = isElim && m.set_number > 0
+                  ? m.set_number * 10 + (m.match_number || 1)
+                  : (m.match_number || 1);
+                const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                const scoutedTeamNums = new Set(
+                  matchScoutsData
+                    .filter((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType)
+                    .map((ms: any) => ms.teamNumber)
+                );
                 const unscoutedCount = allTeamNums.filter(n => !scoutedTeamNums.has(n)).length;
                 return unscoutedCount > 0;
               }).sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
@@ -1935,13 +1958,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     const pitScoutedNums = new Set(pitScouts.map((ps: any) => ps.teamNumber));
                     const suggestedMatches = tbaMatches
                       .filter((m: any) => {
-                        const mn = m.match_number;
-                        const isQual = m.comp_level === 'qm';
-                        const inRange = inAnyRange(mn);
+                        const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                        const isPractice = m.comp_level === 'pr';
+                        if (isPractice) return false;
+                        const mn = isElim ? 0 : m.match_number;
+                        const inRange = isElim ? true : inAnyRange(mn);
                         const unplayed = m.alliances?.red?.score === null || m.alliances?.red?.score === undefined || m.alliances?.red?.score === -1;
-                        return isQual && inRange && unplayed;
+                        const hasTeams = (m.alliances?.red?.team_keys?.length || 0) + (m.alliances?.blue?.team_keys?.length || 0) > 0;
+                        return inRange && unplayed && hasTeams;
                       })
-                      .sort((a: any, b: any) => (a.match_number || 0) - (b.match_number || 0));
+                      .sort((a: any, b: any) => {
+                        const aElim = a.comp_level !== 'qm' ? 1 : 0;
+                        const bElim = b.comp_level !== 'qm' ? 1 : 0;
+                        if (aElim !== bElim) return aElim - bElim;
+                        return (a.match_number || 0) - (b.match_number || 0);
+                      });
                     const suggestedRobots = suggestedMatches.flatMap((m: any) => {
                       const redKeys: string[] = m.alliances?.red?.team_keys || [];
                       const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
@@ -1949,19 +1980,25 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       const opponentKeys = ourAlliance === 'red' ? blueKeys : ourAlliance === 'blue' ? redKeys : [...redKeys, ...blueKeys];
                       const matchClaim = matchClaims[m.key];
                       const isClaimed = !!matchClaim;
+                      const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                      const compositeNum = isElim && m.set_number > 0
+                        ? m.set_number * 10 + (m.match_number || 1)
+                        : (m.match_number || 1);
+                      const matchType = m.comp_level === 'qm' ? 'qualification' : 'elimination';
                       return opponentKeys
                         .map((k: string) => parseInt(k.replace('frc', '')))
                         .filter(n => n !== 10991)
                         .filter(n => !pitScoutedNums.has(n))
-                        .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === m.match_number && ms.teamNumber === n))
+                        .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === n))
                         .map(n => ({
                           teamNumber: n,
-                          matchNumber: m.match_number,
+                          matchNumber: compositeNum,
                           matchLabel: getMatchLabel(m),
                           matchKey: m.key,
                           isClaimed,
                           claimedBy: isClaimed ? matchClaim.userName : null,
                           alliance: redKeys.includes(`frc${n}`) ? 'Red' : 'Blue',
+                          isElim,
                         }));
                     });
                     if (suggestedRobots.length === 0) return null;
@@ -1978,6 +2015,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800 border border-red-200 dark:border-red-700">
                                 <div className="flex items-center gap-3">
                                   <span className={`px-2 py-1 rounded-lg text-[9px] font-black text-white ${s.alliance === 'Red' ? 'bg-red-600' : 'bg-blue-600'}`}>{s.alliance}</span>
+                                  {s.isElim && (
+                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-purple-100 text-purple-700">Elim</span>
+                                  )}
                                   <div>
                                     <p className="text-xs font-black text-slate-900 dark:text-white">Team {s.teamNumber}{robot ? ` — ${robot.teamName}` : ''}</p>
                                     <p className="text-[9px] text-slate-400 font-bold">{s.matchLabel}</p>
@@ -1996,7 +2036,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   <button
                                     onClick={() => {
                                       resetMatchForm();
-                                      setMatchForm((f: any) => ({ ...f, teamNumber: s.teamNumber, matchNumber: s.matchNumber, matchType: 'qualification', alliance: s.alliance }));
+                                      setMatchForm((f: any) => ({ ...f, teamNumber: s.teamNumber, matchNumber: s.matchNumber, matchType: s.isElim ? 'elimination' : 'qualification', alliance: s.alliance }));
                                       if (!s.isClaimed) claimMatch(s.matchKey);
                                       setEditingMatch(null);
                                       setShowMatchForm(true);
