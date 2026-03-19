@@ -1536,12 +1536,17 @@ app.delete("/api/users/:userId/certifications/:certId", async (req, res) => {
 app.get("/api/cert-requests", async (req, res) => {
   try {
     const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
+    const targetUserId = req.query.targetUserId ? parseInt(req.query.targetUserId as string) : undefined;
     const statusParam = req.query.statuses ? (req.query.statuses as string).split(",") : undefined;
     let filters: { userId?: number; statuses?: string[] };
     if (requesterId) {
       const actorRoles = await getUserRoles(requesterId);
       if (hasAnyRole(actorRoles, COACH_CAPTAIN_TRAINER)) {
-        filters = { statuses: statusParam ?? ['pending', 'in_progress'] };
+        if (targetUserId) {
+          filters = { userId: targetUserId, statuses: statusParam };
+        } else {
+          filters = { statuses: statusParam ?? ['pending', 'in_progress'] };
+        }
       } else {
         filters = { userId: requesterId, statuses: statusParam };
       }

@@ -185,9 +185,10 @@ export const api = {
       apiRequest<void>(`/users/${userId}/certifications/${certId}?requesterId=${requesterId}`, { method: 'DELETE' }),
   },
   certRequests: {
-    getAll: (filters?: { requesterId?: number; statuses?: string[] }) => {
+    getAll: (filters?: { requesterId?: number; targetUserId?: number; statuses?: string[] }) => {
       const params = new URLSearchParams();
       if (filters?.requesterId !== undefined) params.set('requesterId', String(filters.requesterId));
+      if (filters?.targetUserId !== undefined) params.set('targetUserId', String(filters.targetUserId));
       if (filters?.statuses?.length) params.set('statuses', filters.statuses.join(','));
       const qs = params.toString();
       return apiRequest<any[]>(`/cert-requests${qs ? `?${qs}` : ''}`);

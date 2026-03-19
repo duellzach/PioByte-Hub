@@ -790,6 +790,8 @@ export class DatabaseStorage implements IStorage {
       userUsername: users.username,
       certName: safetyCertifications.name,
       certEquipment: safetyCertifications.equipment,
+      certChecklistItems: safetyCertifications.checklistItems,
+      certSafetyGuide: safetyCertifications.safetyGuide,
     }).from(certificationRequests)
       .innerJoin(users, eq(certificationRequests.userId, users.id))
       .innerJoin(safetyCertifications, eq(certificationRequests.certificationId, safetyCertifications.id))
@@ -809,6 +811,13 @@ export class DatabaseStorage implements IStorage {
     return rows.map(r => ({
       ...r,
       trainerName: r.trainerId ? (trainerMap[r.trainerId] || `User #${r.trainerId}`) : null,
+      certification: {
+        id: r.certificationId,
+        name: r.certName,
+        equipment: r.certEquipment,
+        checklistItems: r.certChecklistItems || [],
+        safetyGuide: r.certSafetyGuide || '',
+      },
     }));
   }
 

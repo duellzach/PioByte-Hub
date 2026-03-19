@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2 } from 'lucide-react';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award } from 'lucide-react';
 import { DEPARTMENT_COLORS, ROLES, DEPARTMENTS } from '../constants';
 import { api } from '../services/api';
 
@@ -29,11 +29,35 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [timeEditForm, setTimeEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
   const [auditEntry, setAuditEntry] = useState<TimeEntry | null>(null);
   const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
+  const [perfCertHistory, setPerfCertHistory] = useState<any[]>([]);
+  const [perfHeldCerts, setPerfHeldCerts] = useState<any[]>([]);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
+  const isDeptHead = useMemo(() => state.currentUser?.roles.includes(Role.DepartmentHead), [state.currentUser]);
   
   const canEditUsers = isCoach || isCaptain;
+  const canViewCertHistory = isCoach || isCaptain || isDeptHead;
+
+  useEffect(() => {
+    if (!selectedUserForStats || !canViewCertHistory || !state.currentUser) {
+      setPerfCertHistory([]);
+      setPerfHeldCerts([]);
+      return;
+    }
+    const uid = Number(selectedUserForStats.id);
+    const requesterId = Number(state.currentUser.id);
+    Promise.all([
+      api.certRequests.getAll({ requesterId, targetUserId: uid, statuses: ['completed', 'rejected'] }),
+      api.certifications.getForUser(uid),
+    ]).then(([history, held]) => {
+      setPerfCertHistory(history || []);
+      setPerfHeldCerts(held || []);
+    }).catch(() => {
+      setPerfCertHistory([]);
+      setPerfHeldCerts([]);
+    });
+  }, [selectedUserForStats, canViewCertHistory, state.currentUser]);
 
   const filteredUsers = state.users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -695,6 +719,62 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                               ))}
                               {getUserTimeEntries(selectedUserForStats.id).length === 0 && (
                                 <div className="py-8 text-center text-slate-400 dark:text-slate-500 font-bold uppercase">No time entries yet</div>
+                              )}
+                            </div>
+                          </section>
+                        )}
+
+                        {canViewCertHistory && (
+                          <section>
+                            <h3 className="text-[10px] md:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                              <Award className="text-red-600" size={14} /> Certification History
+                            </h3>
+
+                            {perfHeldCerts.length > 0 && (
+                              <div className="mb-4">
+                                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-2">Currently Certified</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {perfHeldCerts.map((c: any) => (
+                                    <span key={c.certId || c.certificationId} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-xl text-[10px] font-black uppercase tracking-wide">
+                                      <ShieldCheck size={11} /> {c.certName || c.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="space-y-2 max-h-64 overflow-auto">
+                              {perfCertHistory.map((req: any) => {
+                                const isPass = req.status === 'completed';
+                                return (
+                                  <div key={req.id} className={`flex items-center justify-between p-3 md:p-4 rounded-xl border transition-all ${isPass ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40'}`}>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className={`p-1.5 rounded-lg flex-shrink-0 ${isPass ? 'bg-green-100 dark:bg-green-900/40 text-green-600' : 'bg-red-100 dark:bg-red-900/40 text-red-500'}`}>
+                                        {isPass ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{req.certification?.name || req.certName}</p>
+                                        {req.certification?.equipment && (
+                                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold truncate">{req.certification.equipment}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right flex-shrink-0 ml-3">
+                                      <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${isPass ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'}`}>
+                                        {isPass ? 'Passed' : 'Failed'}
+                                      </span>
+                                      {req.updatedAt && (
+                                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-1">{formatDate(req.updatedAt)}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {perfCertHistory.length === 0 && perfHeldCerts.length === 0 && (
+                                <div className="py-8 text-center text-slate-400 dark:text-slate-500 font-bold uppercase">No certification history</div>
+                              )}
+                              {perfCertHistory.length === 0 && perfHeldCerts.length > 0 && (
+                                <div className="py-4 text-center text-slate-400 dark:text-slate-500 font-bold uppercase text-xs">No past attempts recorded</div>
                               )}
                             </div>
                           </section>
