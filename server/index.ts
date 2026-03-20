@@ -1895,6 +1895,9 @@ app.put("/api/resources/:id", async (req, res) => {
     if (data.category && !(RESOURCE_CATEGORIES as readonly string[]).includes(data.category)) {
       return res.status(400).json({ error: `category must be one of: ${RESOURCE_CATEGORIES.join(', ')}` });
     }
+    if ('pinned' in data && !isCoach) {
+      return res.status(403).json({ error: "Only coaches can pin or unpin resources" });
+    }
     const updated = await storage.updateResource(id, data);
     res.json(updated);
   } catch (error) {
