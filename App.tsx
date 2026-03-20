@@ -144,7 +144,7 @@ const App: React.FC = () => {
         if (interval) { clearInterval(interval); interval = null; }
       } else {
         fetchData();
-        interval = setInterval(fetchData, 15000);
+        if (!interval) { interval = setInterval(fetchData, 15000); }
       }
     };
 
@@ -205,7 +205,7 @@ const App: React.FC = () => {
         if (interval) { clearInterval(interval); interval = null; }
       } else {
         fetchAlerts();
-        interval = setInterval(fetchAlerts, 10000);
+        if (!interval) { interval = setInterval(fetchAlerts, 10000); }
       }
     };
 
