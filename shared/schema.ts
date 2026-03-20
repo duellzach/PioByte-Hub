@@ -378,10 +378,16 @@ export const calendarEvents = pgTable("calendar_events", {
   endDate: text("end_date"),
   startTime: text("start_time"),
   endTime: text("end_time"),
-  type: text("type").notNull().default("practice"),
+  type: text("type").notNull().default("shop"),
   location: text("location").notNull().default(""),
   createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  recurrenceType: text("recurrence_type"),
+  recurrenceEndsOn: text("recurrence_ends_on"),
+  parentEventId: integer("parent_event_id"),
+  instanceDate: text("instance_date"),
+  deletedDates: text("deleted_dates"),
+  attending: boolean("attending").notNull().default(true),
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;

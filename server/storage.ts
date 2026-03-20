@@ -172,6 +172,7 @@ export interface IStorage {
   createCalendarEvent(data: InsertCalendarEvent): Promise<CalendarEvent>;
   updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: number): Promise<void>;
+  patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   seedCalendarEvents(createdBy: number): Promise<void>;
 
   getResources(category?: string): Promise<Resource[]>;
@@ -991,15 +992,23 @@ export class DatabaseStorage implements IStorage {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
   }
 
+  async patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined> {
+    const [row] = await db.update(calendarEvents)
+      .set({ deletedDates: JSON.stringify(deletedDates) })
+      .where(eq(calendarEvents.id, id))
+      .returning();
+    return row;
+  }
+
   async seedCalendarEvents(createdBy: number): Promise<void> {
     const existing = await db.select().from(calendarEvents);
     if (existing.length > 0) return;
     const seeds = [
-      { title: 'Team Practice', startDate: '2026-01-06', type: 'practice', location: 'Build Room', description: 'Biweekly practice session' },
-      { title: 'Team Practice', startDate: '2026-01-10', type: 'practice', location: 'Build Room', description: 'Weekly practice session' },
-      { title: 'San Diego Regional', startDate: '2026-03-05', endDate: '2026-03-08', type: 'competition', location: 'San Diego, CA', description: 'Week 1 Regional' },
-      { title: 'LA Regional', startDate: '2026-03-19', endDate: '2026-03-22', type: 'competition', location: 'Los Angeles, CA', description: 'Week 3 Regional' },
-      { title: 'CHS District Championship', startDate: '2026-04-09', endDate: '2026-04-12', type: 'competition', location: 'Virginia', description: 'District Championship' },
+      { title: 'Shop Session', startDate: '2026-01-06', type: 'shop', location: 'Build Room', description: 'Biweekly shop session' },
+      { title: 'Shop Session', startDate: '2026-01-10', type: 'shop', location: 'Build Room', description: 'Weekly shop session' },
+      { title: 'San Diego Regional', startDate: '2026-03-05', endDate: '2026-03-08', type: 'competition', location: 'San Diego, CA', description: 'Week 1 Regional', attending: true },
+      { title: 'LA Regional', startDate: '2026-03-19', endDate: '2026-03-22', type: 'competition', location: 'Los Angeles, CA', description: 'Week 3 Regional', attending: true },
+      { title: 'CHS District Championship', startDate: '2026-04-09', endDate: '2026-04-12', type: 'competition', location: 'Virginia', description: 'District Championship', attending: true },
       { title: 'Strategy Meeting', startDate: '2026-03-01', type: 'meeting', location: 'Build Room', description: '' },
       { title: 'Robot Bag Deadline', startDate: '2026-02-18', type: 'other', location: '', description: 'Robot must be competition-ready' },
     ];
