@@ -5454,6 +5454,10 @@ body {
     padding-bottom: 1.5rem;
   }
 
+  .md\:pb-6 {
+    padding-bottom: 1.5rem;
+  }
+
   .md\:pl-16 {
     padding-left: 4rem;
   }

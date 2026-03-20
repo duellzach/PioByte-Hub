@@ -42,6 +42,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [editForm, setEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
   const [showHistory, setShowHistory] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [showNotCheckedIn, setShowNotCheckedIn] = useState(false);
+  const [showAllEntries, setShowAllEntries] = useState(false);
 
   const [compEvents, setCompEvents] = useState<any[]>([]);
   const [selectedCompEventId, setSelectedCompEventId] = useState<number | null>(null);
@@ -1275,42 +1277,67 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoach && notCheckedInUsers.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-xl flex items-center justify-center">
-              <Users size={20} />
-            </div>
-            <div>
-              <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Not Checked In</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">{notCheckedInUsers.length} students available</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {notCheckedInUsers.map(user => (
-              <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center font-black text-sm text-slate-600 dark:text-slate-300 flex-shrink-0">
-                    {user.name[0]}
-                  </div>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{user.name.split(' ')[0]}</p>
-                </div>
-                <button
-                  onClick={() => handleCoachCheckIn(user.id)}
-                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex-shrink-0 shadow-lg shadow-green-600/20"
-                  title="Check In"
-                >
-                  <LogIn size={14} />
-                </button>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
+          <button
+            onClick={() => setShowNotCheckedIn(v => !v)}
+            className="w-full flex items-center justify-between p-4 md:p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Users size={18} />
               </div>
-            ))}
-          </div>
+              <div className="text-left">
+                <h3 className="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Not Checked In</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">{notCheckedInUsers.length} students available</p>
+              </div>
+            </div>
+            {showNotCheckedIn ? <ChevronUp size={18} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={18} className="text-slate-400 flex-shrink-0" />}
+          </button>
+
+          {showNotCheckedIn && (
+            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {notCheckedInUsers.map(user => (
+                <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center font-black text-sm text-slate-600 dark:text-slate-300 flex-shrink-0">
+                      {user.name[0]}
+                    </div>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{user.name.split(' ')[0]}</p>
+                  </div>
+                  <button
+                    onClick={() => handleCoachCheckIn(user.id)}
+                    className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex-shrink-0 shadow-lg shadow-green-600/20"
+                    title="Check In"
+                  >
+                    <LogIn size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {isCoach && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
-          <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">All Time Entries</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
+          <button
+            onClick={() => setShowAllEntries(v => !v)}
+            className="w-full flex items-center justify-between p-4 md:p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl flex items-center justify-center flex-shrink-0">
+                <History size={18} />
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">All Time Entries</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">{state.timeEntries.length} total records</p>
+              </div>
+            </div>
+            {showAllEntries ? <ChevronUp size={18} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={18} className="text-slate-400 flex-shrink-0" />}
+          </button>
+
+          {showAllEntries && (
+          <div className="px-4 md:px-6 pb-4 md:pb-6">
           <div className="space-y-2 max-h-96 overflow-auto">
             {state.timeEntries.map(entry => (
               <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 md:p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 hover:border-slate-200 dark:hover:border-slate-500 transition-all">
@@ -1353,6 +1380,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               <p className="text-center text-slate-400 dark:text-slate-500 py-8 font-bold">No time entries recorded yet</p>
             )}
           </div>
+          </div>
+          )}
         </div>
       )}
 
