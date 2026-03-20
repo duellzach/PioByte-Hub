@@ -26,6 +26,12 @@ The backend is an Express API running on port 3001, interacting with a PostgreSQ
     - **AI Integration**: "Copy for AI" function generates comprehensive scouting reports for external AI analysis tools like ChatGPT, Gemini, or Claude.
     - **Scout Workflow**: Match claiming system for scouts, unscouted match/robot tracking with quick-entry buttons.
 - **User Management**: Role-based access control (Coach, Captain, Scrum Master, Department Head, Team Member), user muting capabilities for coaches, and department assignments.
+- **Task Dependency Chain**: Tasks can declare dependencies on other tasks in the same project. Status change to "In Progress" (both via modal select and drag-and-drop in KanbanBoard) is blocked if unmet dependencies exist, with an alert listing the blocking tasks. TaskCard shows a "Waiting on deps" badge + grey border when blocked by unmet deps. Dep picker in TaskModal right panel allows searching/toggling dep tasks with status chips and remove buttons.
+- **War Room Enhancements**: Blocked tasks section now renders separately with a red ring and pulsing dot, hidden when empty. Task names use `line-clamp-2` (not truncated). Blocked cards show `blockedReason` in italic.
+- **Announcement Toast**: When a coach/captain posts an announcement, a dark toast notification slides up from the bottom of the screen for 6 seconds, showing scope and message text.
+- **Team Sort by Department**: Team Management page now sorts users alphabetically by primary department first, then by name within each department.
+- **Calendar Page** (`/calendar`): Month-view calendar and list view showing practices, competition events, meetings, and deadlines. Recurring events (weekly/biweekly) auto-expand per month. Clicking a date shows event detail sidebar with an upcoming events list.
+- **Resources Page** (`/resources`): Searchable and filterable hub of FRC-relevant external links (TBA, Nexus, WPILib, Chief Delphi, Statbotics, etc.) organized by category (FRC Official, Programming, Technical, Strategy, Design, Community, Media). Pinned resources appear at top.
 - **General Features**: Real-time notifications, dark mode toggle, PWA support with service worker caching, and client-side image compression for photo uploads.
 
 ## External Dependencies

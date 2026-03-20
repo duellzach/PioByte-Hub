@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown } from 'lucide-react';
+import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 import { api } from '../services/api';
@@ -50,6 +50,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const [certPickerSearch, setCertPickerSearch] = useState('');
   const [showCertPicker, setShowCertPicker] = useState(false);
   const certPickerRef = useRef<HTMLDivElement>(null);
+  const [depSearch, setDepSearch] = useState('');
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -92,6 +93,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     }
     return filtered;
   }, [users, editedTask.departments, assigneeSearch]);
+
+  const candidateDeps = useMemo(() => {
+    return allTasks.filter(t =>
+      t.projectId === editedTask.projectId &&
+      t.id !== editedTask.id &&
+      !(t.dependencies || []).includes(editedTask.id)
+    );
+  }, [allTasks, editedTask.projectId, editedTask.id]);
+
+  const depTasks = useMemo(() => {
+    return (editedTask.dependencies || [])
+      .map(depId => allTasks.find(t => t.id === depId))
+      .filter(Boolean) as Task[];
+  }, [editedTask.dependencies, allTasks]);
+
+  const allDepsComplete = depTasks.length > 0 && depTasks.every(t => t.status === TaskStatus.Complete);
 
   const logActivity = (action: string) => {
     const newActivity: Activity = {
@@ -469,6 +486,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 value={editedTask.status}
                 onChange={(e) => {
                     const newStatus = e.target.value as TaskStatus;
+                    if (newStatus === TaskStatus.InProgress && (editedTask.dependencies || []).length > 0) {
+                      const unmetDeps = (editedTask.dependencies || []).filter(depId => {
+                        const dep = allTasks.find(t => t.id === depId);
+                        return dep && dep.status !== TaskStatus.Complete;
+                      });
+                      if (unmetDeps.length > 0) {
+                        const names = unmetDeps.map(depId => allTasks.find(t => t.id === depId)?.title || `Task #${depId}`);
+                        window.alert(`Cannot start — the following must be completed first:\n• ${names.join('\n• ')}`);
+                        return;
+                      }
+                    }
                     setEditedTask({...editedTask, status: newStatus});
                     logActivity(`Status changed to ${newStatus.toUpperCase()}`);
                 }}
@@ -760,6 +788,76 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 </div>
               );
             })()}
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1 flex items-center gap-2">
+                <Link2 size={12} /> Depends On
+                {allDepsComplete && <CheckCircle size={10} className="text-green-500 ml-auto" />}
+                {depTasks.length > 0 && !allDepsComplete && (
+                  <span className="ml-auto text-[7px] font-black text-amber-500 uppercase tracking-wider">Unmet</span>
+                )}
+              </label>
+
+              {depTasks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {depTasks.map(dep => (
+                    <span key={dep.id} className="inline-flex items-center gap-1 pl-2 pr-1 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg max-w-full">
+                      <span className="text-[8px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 max-w-[70px] truncate">{dep.title}</span>
+                      <span className={`flex-shrink-0 text-[6px] font-black px-1 py-0.5 rounded uppercase ${STATUS_COLORS[dep.status]}`}>{dep.status}</span>
+                      <button
+                        onClick={() => setEditedTask({...editedTask, dependencies: (editedTask.dependencies || []).filter(id => id !== dep.id)})}
+                        className="flex-shrink-0 text-slate-300 dark:text-slate-500 hover:text-red-600 ml-0.5 transition-colors"
+                      >
+                        <X size={8} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="relative mb-2">
+                <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={depSearch}
+                  onChange={(e) => setDepSearch(e.target.value)}
+                  placeholder="Search tasks to depend on..."
+                  className="w-full pl-8 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-medium outline-none focus:border-red-600 transition-colors dark:text-white"
+                />
+              </div>
+              <div className="space-y-1 max-h-36 overflow-auto kanban-scroll">
+                {candidateDeps
+                  .filter(t => !depSearch.trim() || t.title.toLowerCase().includes(depSearch.toLowerCase()))
+                  .map(dep => {
+                    const isSelected = (editedTask.dependencies || []).includes(dep.id);
+                    return (
+                      <button
+                        key={dep.id}
+                        onClick={() => {
+                          const newDeps = isSelected
+                            ? (editedTask.dependencies || []).filter(id => id !== dep.id)
+                            : [...(editedTask.dependencies || []), dep.id];
+                          setEditedTask({...editedTask, dependencies: newDeps});
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[9px] font-black border-2 transition-all text-left uppercase tracking-tight ${
+                          isSelected
+                            ? 'bg-slate-950 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-600'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <span className="truncate flex-1">{dep.title}</span>
+                        <span className={`flex-shrink-0 text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${isSelected ? 'bg-white/20 text-white' : STATUS_COLORS[dep.status]}`}>
+                          {dep.status}
+                        </span>
+                      </button>
+                    );
+                  })
+                }
+                {candidateDeps.filter(t => !depSearch.trim() || t.title.toLowerCase().includes(depSearch.toLowerCase())).length === 0 && (
+                  <p className="text-center text-slate-400 dark:text-slate-500 text-xs py-3 font-medium">No tasks available in this project</p>
+                )}
+              </div>
+            </div>
 
             <div className="pt-8 border-t border-slate-200 dark:border-slate-700">
                 <button 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS, DEPARTMENT_COLORS } from '../constants';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2 } from 'lucide-react';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
 import { api } from '../services/api';
@@ -118,6 +118,29 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     return map;
   }, [projectTasks]);
 
+  const tasksWithUnmetDeps = useMemo(() => {
+    const set = new Set<string>();
+    projectTasks.forEach(task => {
+      if ((task.dependencies || []).length > 0) {
+        const hasUnmet = (task.dependencies || []).some(depId => {
+          const dep = state.tasks.find(t => t.id === depId);
+          return dep && dep.status !== TaskStatus.Complete;
+        });
+        if (hasUnmet) set.add(task.id);
+      }
+    });
+    return set;
+  }, [projectTasks, state.tasks]);
+
+  const getUnmetDepNames = (task: Task): string[] => {
+    return (task.dependencies || [])
+      .filter(depId => {
+        const dep = state.tasks.find(t => t.id === depId);
+        return dep && dep.status !== TaskStatus.Complete;
+      })
+      .map(depId => state.tasks.find(t => t.id === depId)?.title || `Task #${depId}`);
+  };
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     e.dataTransfer.setData('taskId', taskId);
   };
@@ -130,6 +153,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     const taskId = e.dataTransfer.getData('taskId');
     const task = state.tasks.find(t => t.id === taskId);
     if (task && task.status !== newStatus) {
+      if (newStatus === TaskStatus.InProgress) {
+        const unmetNames = getUnmetDepNames(task);
+        if (unmetNames.length > 0) {
+          window.alert(`Cannot start — the following must be completed first:\n• ${unmetNames.join('\n• ')}`);
+          return;
+        }
+      }
       if (newStatus === TaskStatus.Blocked) {
         setBlockingTask({ id: taskId, newStatus });
       } else {
@@ -291,6 +321,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   key={task.id} 
                   task={task} 
                   certName={task.requiredCertificationId ? certifications.find(c => c.id === task.requiredCertificationId)?.name : undefined}
+                  hasUnmetDeps={tasksWithUnmetDeps.has(task.id)}
                   onClick={() => setSelectedTask(task)}
                   onToggleHelp={(e) => toggleHelp(task, e)}
                   onDragStart={(e) => handleDragStart(e, task.id)}
@@ -328,6 +359,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                         key={task.id} 
                         task={task} 
                         certName={task.requiredCertificationId ? certifications.find(c => c.id === task.requiredCertificationId)?.name : undefined}
+                        hasUnmetDeps={tasksWithUnmetDeps.has(task.id)}
                         onClick={() => setSelectedTask(task)}
                         onToggleHelp={(e) => toggleHelp(task, e)}
                         onDragStart={(e) => handleDragStart(e, task.id)}
@@ -541,10 +573,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 const TaskCard: React.FC<{ 
     task: Task; 
     certName?: string;
+    hasUnmetDeps?: boolean;
     onClick: () => void; 
     onToggleHelp: (e: React.MouseEvent) => void;
     onDragStart: (e: React.DragEvent) => void 
-}> = ({ task, certName, onClick, onToggleHelp, onDragStart }) => {
+}> = ({ task, certName, hasUnmetDeps, onClick, onToggleHelp, onDragStart }) => {
     const primaryDept = task.departments[0] as Department | undefined;
     const deptBorder = primaryDept ? DEPT_BORDER_COLORS[primaryDept] : '';
     return (
@@ -553,7 +586,7 @@ const TaskCard: React.FC<{
             draggable
             onDragStart={onDragStart}
             className={`group bg-white dark:bg-slate-700 p-2.5 md:p-3 rounded-lg md:rounded-xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-grab active:cursor-grabbing relative overflow-hidden ${deptBorder} ${
-                task.helpRequested ? 'border-red-600 shadow-red-600/5' : 'border-slate-100 dark:border-slate-600 hover:border-red-600/30'
+                task.helpRequested ? 'border-red-600 shadow-red-600/5' : hasUnmetDeps ? 'border-slate-300 dark:border-slate-500 bg-slate-50/80 dark:bg-slate-700/60' : 'border-slate-100 dark:border-slate-600 hover:border-red-600/30'
             }`}
         >
             {task.helpRequested && (
@@ -575,11 +608,18 @@ const TaskCard: React.FC<{
             <h4 className="text-[10px] md:text-xs font-black text-slate-900 dark:text-white leading-tight mb-1.5 uppercase tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
                 {task.title}
             </h4>
-            {certName && (
-                <div className="flex items-center gap-1 mb-1.5">
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded text-[6px] md:text-[7px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
-                        🛡 Requires: {certName}
-                    </span>
+            {(certName || hasUnmetDeps) && (
+                <div className="flex items-center flex-wrap gap-1 mb-1.5">
+                    {certName && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded text-[6px] md:text-[7px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
+                            🛡 Requires: {certName}
+                        </span>
+                    )}
+                    {hasUnmetDeps && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-[6px] md:text-[7px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+                            <Link2 size={7} /> Waiting on deps
+                        </span>
+                    )}
                 </div>
             )}
             <div className="flex items-center justify-between">

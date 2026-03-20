@@ -59,13 +59,20 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     });
   }, [selectedUserForStats, canViewCertHistory, state.currentUser]);
 
-  const filteredUsers = state.users.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
-      u.username.toLowerCase().includes(search.toLowerCase());
-    const matchesDept = deptFilter === 'All' || u.departments.includes(deptFilter);
-    const matchesRole = roleFilter === 'All' || u.roles.includes(roleFilter);
-    return matchesSearch && matchesDept && matchesRole;
-  });
+  const filteredUsers = state.users
+    .filter(u => {
+      const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
+        u.username.toLowerCase().includes(search.toLowerCase());
+      const matchesDept = deptFilter === 'All' || u.departments.includes(deptFilter);
+      const matchesRole = roleFilter === 'All' || u.roles.includes(roleFilter);
+      return matchesSearch && matchesDept && matchesRole;
+    })
+    .sort((a, b) => {
+      const deptA = a.departments[0] || 'zzz';
+      const deptB = b.departments[0] || 'zzz';
+      if (deptA !== deptB) return deptA.localeCompare(deptB);
+      return a.name.localeCompare(b.name);
+    });
 
   const getUserStats = (userId: string) => {
     const userTasks = state.tasks.filter(t => t.assignees.includes(userId));
