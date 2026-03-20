@@ -617,9 +617,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       </div>
 
       {compEvents.length > 0 && (
-        <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-400 rounded-l-2xl" />
-          <div className="p-4 md:p-5 pl-5 md:pl-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 border-l-4 border-l-violet-400 p-4 md:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <Trophy size={15} className="text-violet-500" />
@@ -770,9 +768,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 )}
 
                 {memberRows.map(({ user, openSession, pendingSession, latestApproved, displayStatus }) => (
-                  <div key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
+                  <div key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 px-1 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${
                         displayStatus === 'checked_in' ? 'bg-violet-500 text-white' :
                         displayStatus === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
                         displayStatus === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
@@ -781,8 +779,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                         {(user.name || user.username || 'U')[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">{user.name || user.username}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{user.name || user.username}</p>
+                        <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                           {openSession ? `Since ${formatTime(openSession.checkInAt)}` :
                            pendingSession ? `${formatTime(pendingSession.checkInAt)} → ${pendingSession.checkOutAt ? formatTime(pendingSession.checkOutAt) : '?'}` :
                            latestApproved ? `${formatDuration(latestApproved.roundedMinutes)} approved` :
@@ -868,7 +866,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </div>
             );
           })()}
-          </div>
         </div>
       )}
 
@@ -1023,10 +1020,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </button>
               {isCoach && (
                 <button
-                  onClick={() => setShowBulkAdd(!showBulkAdd)}
+                  onClick={() => setShowBulkAdd(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all"
                 >
-                  <Plus size={13} /> {showBulkAdd ? 'Hide Bulk Add' : 'Bulk Add Time'}
+                  <Plus size={13} /> Bulk Add Time
                 </button>
               )}
             </div>
@@ -1034,9 +1031,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
           {isCoach && showBulkAdd && (
             <div className="space-y-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Quick Select by Role</label>
-                <div className="flex flex-wrap gap-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Quick Select by Role</label>
+                <button onClick={() => setShowBulkAdd(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Close"><X size={14} /></button>
+              </div>
+              <div className="flex flex-wrap gap-2">
                   {[Role.ClassMember, Role.TeamMember, Role.DepartmentHead, Role.TeamCaptain, Role.ScrumMaster].map(role => {
                     const usersWithRole = state.users.filter(u => u.roles.includes(role));
                     const allSelected = usersWithRole.length > 0 && usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
@@ -1057,7 +1056,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       </button>
                     );
                   })}
-                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1143,16 +1141,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded-md uppercase">{pendingApprovals.length} pending</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {pendingApprovals.map(entry => (
-              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-200 dark:bg-slate-600 rounded-xl flex items-center justify-center font-black text-slate-600 dark:text-slate-300">
+              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center font-black text-xs text-slate-600 dark:text-slate-300 flex-shrink-0">
                     {getUserName(entry.userId)[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                    <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                       {formatDate(entry.checkInAt)} • {formatTime(entry.checkInAt)}
                       {entry.checkOutAt && ` - ${formatTime(entry.checkOutAt)}`}
                     </p>
@@ -1204,17 +1202,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-md uppercase">{checkedInStudents.length} active</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {checkedInStudents.map(entry => (
-              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-green-200 dark:bg-green-900/40 rounded-xl flex items-center justify-center font-black text-green-700 dark:text-green-300">
+              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center font-black text-xs text-green-700 dark:text-green-300 flex-shrink-0">
                     {getUserName(entry.userId)[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                      Checked in at {formatTime(entry.checkInAt)} • {formatDate(entry.checkInAt)}
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                    <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
+                      Since {formatTime(entry.checkInAt)} • {formatDate(entry.checkInAt)}
                     </p>
                   </div>
                 </div>
