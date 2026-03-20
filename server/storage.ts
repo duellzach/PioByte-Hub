@@ -174,6 +174,13 @@ export interface IStorage {
   deleteCalendarEvent(id: number): Promise<void>;
   seedCalendarEvents(createdBy: number): Promise<void>;
 
+  getResources(category?: string): Promise<Resource[]>;
+  getResource(id: number): Promise<Resource | undefined>;
+  createResource(data: InsertResource): Promise<Resource>;
+  updateResource(id: number, data: Partial<InsertResource>): Promise<Resource | undefined>;
+  deleteResource(id: number): Promise<void>;
+  seedResources(addedBy: number): Promise<void>;
+
   seedDatabase(): Promise<void>;
 }
 
