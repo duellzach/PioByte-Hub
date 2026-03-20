@@ -336,7 +336,7 @@ const StatusColumn: React.FC<{
               </span>
               <span className="text-[6px] md:text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
             </div>
-            <h5 className={`text-[9px] md:text-[10px] font-black leading-tight uppercase ${
+            <h5 className={`text-[9px] md:text-[10px] font-black leading-tight uppercase break-words ${
               isBlocked ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white'
             }`}>{task.title}</h5>
             {isBlocked && task.blockedReason && (
@@ -359,19 +359,19 @@ const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
     {livePulse.map((pulse: any, idx) => {
       if (pulse.type === 'announcement') {
         return (
-          <div key={`ann-${pulse.id}`} className="p-3 md:p-4 2xl:p-6 rounded-xl 2xl:rounded-2xl border-2 border-red-600/30 bg-red-600/10">
-            <div className="flex items-center gap-2 md:gap-3 mb-2">
-              <div className="w-8 h-8 2xl:w-10 2xl:h-10 bg-red-600 rounded-lg 2xl:rounded-xl flex items-center justify-center text-white">
+          <div key={`ann-${pulse.id}`} className="p-3 md:p-4 2xl:p-6 rounded-xl 2xl:rounded-2xl border-2 border-red-600/30 bg-red-600/10 overflow-hidden">
+            <div className="flex items-center gap-2 md:gap-3 mb-2 min-w-0">
+              <div className="w-8 h-8 2xl:w-10 2xl:h-10 bg-red-600 rounded-lg 2xl:rounded-xl flex items-center justify-center text-white flex-shrink-0">
                 <Megaphone size={14} />
               </div>
-              <div>
-                <p className="text-[9px] 2xl:text-[10px] font-black text-white uppercase">{pulse.userName}</p>
-                <p className="text-[7px] 2xl:text-[8px] font-bold text-red-500 uppercase tracking-widest">
+              <div className="min-w-0">
+                <p className="text-[9px] 2xl:text-[10px] font-black text-white uppercase truncate">{pulse.userName}</p>
+                <p className="text-[7px] 2xl:text-[8px] font-bold text-red-500 uppercase tracking-widest truncate">
                   {pulse.scope === 'Global' ? 'GLOBAL' : pulse.targetDepartment}
                 </p>
               </div>
             </div>
-            <p className="text-[10px] 2xl:text-sm font-black text-white leading-relaxed uppercase italic line-clamp-2">
+            <p className="text-[10px] 2xl:text-sm font-black text-white leading-relaxed uppercase italic line-clamp-2 break-words">
               "{pulse.text}"
             </p>
           </div>
@@ -382,23 +382,23 @@ const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
       const isComplete = pulse.action.toUpperCase().includes('COMPLETE');
       
       return (
-        <div key={`act-${idx}`} className={`p-3 2xl:p-5 rounded-xl 2xl:rounded-2xl border transition-all ${
+        <div key={`act-${idx}`} className={`p-3 2xl:p-5 rounded-xl 2xl:rounded-2xl border transition-all overflow-hidden ${
           isSOSActive ? 'bg-red-600 border-red-400' : 
           isComplete ? 'bg-green-950/20 border-green-900/30' : 
           'bg-white/5 border-white/5'
         }`}>
-          <div className="flex items-center gap-2 mb-2">
-            <div className={`w-6 h-6 2xl:w-8 2xl:h-8 rounded-lg flex items-center justify-center ${
+          <div className="flex items-center gap-2 mb-2 min-w-0">
+            <div className={`w-6 h-6 2xl:w-8 2xl:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
               isSOSActive ? 'bg-white text-red-600' : isComplete ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400'
             }`}>
               {isSOSActive ? <LifeBuoy size={12} /> : isComplete ? <CheckCircle2 size={12} /> : <Activity size={12} />}
             </div>
-            <p className="text-[9px] 2xl:text-[10px] font-black uppercase text-white">{pulse.userName}</p>
+            <p className="text-[9px] 2xl:text-[10px] font-black uppercase text-white truncate min-w-0">{pulse.userName}</p>
           </div>
-          <p className={`text-[9px] 2xl:text-[11px] font-black uppercase tracking-tight line-clamp-1 ${isSOSActive ? 'text-white' : 'text-slate-300'}`}>
+          <p className={`text-[9px] 2xl:text-[11px] font-black uppercase tracking-tight line-clamp-2 break-words ${isSOSActive ? 'text-white' : 'text-slate-300'}`}>
             {pulse.action}
           </p>
-          <p className="text-[8px] 2xl:text-[9px] font-bold uppercase text-red-500/80 line-clamp-1">
+          <p className="text-[8px] 2xl:text-[9px] font-bold uppercase text-red-500/80 line-clamp-1 break-words">
             {pulse.taskTitle}
           </p>
         </div>
