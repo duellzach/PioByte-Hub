@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS, DEPARTMENT_COLORS } from '../constants';
 import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2 } from 'lucide-react';
+import { getUnmetDepNames } from '../utils/deps';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
 import { api } from '../services/api';
@@ -132,15 +133,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     return set;
   }, [projectTasks, state.tasks]);
 
-  const getUnmetDepNames = (task: Task): string[] => {
-    return (task.dependencies || [])
-      .filter(depId => {
-        const dep = state.tasks.find(t => t.id === depId);
-        return dep && dep.status !== TaskStatus.Complete;
-      })
-      .map(depId => state.tasks.find(t => t.id === depId)?.title || `Task #${depId}`);
-  };
-
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     e.dataTransfer.setData('taskId', taskId);
   };
@@ -154,7 +146,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     const task = state.tasks.find(t => t.id === taskId);
     if (task && task.status !== newStatus) {
       if (newStatus === TaskStatus.InProgress) {
-        const unmetNames = getUnmetDepNames(task);
+        const unmetNames = getUnmetDepNames(task, state.tasks);
         if (unmetNames.length > 0) {
           window.alert(`Cannot start — the following must be completed first:\n• ${unmetNames.join('\n• ')}`);
           return;

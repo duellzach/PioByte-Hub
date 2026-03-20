@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
+import { getUnmetDepNames } from '../utils/deps';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 import { api } from '../services/api';
@@ -486,14 +487,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 value={editedTask.status}
                 onChange={(e) => {
                     const newStatus = e.target.value as TaskStatus;
-                    if (newStatus === TaskStatus.InProgress && (editedTask.dependencies || []).length > 0) {
-                      const unmetDeps = (editedTask.dependencies || []).filter(depId => {
-                        const dep = allTasks.find(t => t.id === depId);
-                        return dep && dep.status !== TaskStatus.Complete;
-                      });
-                      if (unmetDeps.length > 0) {
-                        const names = unmetDeps.map(depId => allTasks.find(t => t.id === depId)?.title || `Task #${depId}`);
-                        window.alert(`Cannot start — the following must be completed first:\n• ${names.join('\n• ')}`);
+                    if (newStatus === TaskStatus.InProgress) {
+                      const unmetNames = getUnmetDepNames(editedTask, allTasks);
+                      if (unmetNames.length > 0) {
+                        window.alert(`Cannot start — the following must be completed first:\n• ${unmetNames.join('\n• ')}`);
                         return;
                       }
                     }
