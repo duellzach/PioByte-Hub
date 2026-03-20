@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, BookOpen, Zap, Code2, Trophy, Cpu, Globe, ChevronRight, Plus, Edit2, Trash2, X, Loader2, ShieldCheck, Check } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, BookOpen, Zap, Code2, Trophy, Cpu, Globe, ChevronRight, Plus, Edit2, Trash2, X, Loader2, ShieldCheck, Check, Tag } from 'lucide-react';
 import { api } from '../services/api';
 
 interface ResourceItem {
@@ -18,19 +18,30 @@ interface ResourcesProps {
   users: any[];
 }
 
-const CATEGORIES = ['Design', 'Software', 'Competition', 'Training', 'Vendor', 'Other'] as const;
-type Category = typeof CATEGORIES[number];
-
 const CAT_META: Record<string, { icon: React.ReactNode; color: string }> = {
-  Competition: { icon: <Trophy size={12} />, color: 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' },
-  Software:    { icon: <Code2 size={12} />,  color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' },
-  Vendor:      { icon: <Cpu size={12} />,    color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
-  Design:      { icon: <Zap size={12} />,    color: 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' },
+  Competition: { icon: <Trophy size={12} />,     color: 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' },
+  Software:    { icon: <Code2 size={12} />,       color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' },
+  Vendor:      { icon: <Cpu size={12} />,         color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
+  Design:      { icon: <Zap size={12} />,         color: 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' },
   Training:    { icon: <ShieldCheck size={12} />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' },
-  Other:       { icon: <Globe size={12} />,  color: 'text-slate-600 bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
+  Other:       { icon: <Globe size={12} />,       color: 'text-slate-600 bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
 };
 
-const EMPTY_FORM = { title: '', url: '', description: '', category: 'Competition' as Category, pinned: false };
+const FALLBACK_COLORS = [
+  'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800',
+  'text-orange-600 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800',
+  'text-pink-600 bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800',
+  'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800',
+  'text-teal-600 bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800',
+];
+
+function getCatMeta(cat: string, allCats: string[]): { icon: React.ReactNode; color: string } {
+  if (CAT_META[cat]) return CAT_META[cat];
+  const idx = allCats.filter(c => !CAT_META[c]).indexOf(cat);
+  return { icon: <Tag size={12} />, color: FALLBACK_COLORS[idx % FALLBACK_COLORS.length] };
+}
+
+const EMPTY_FORM = { title: '', url: '', description: '', category: '', pinned: false };
 
 const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const [items, setItems] = useState<ResourceItem[]>([]);
@@ -45,6 +56,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const [formError, setFormError] = useState('');
 
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null);
+  const catInputRef = useRef<HTMLInputElement>(null);
 
   const isCoach = currentUser?.roles?.includes('Coach');
 
@@ -69,6 +81,8 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  const availableCategories: string[] = Array.from(new Set(items.map(r => r.category))).sort();
+
   const filtered = items.filter(r => {
     const q = search.toLowerCase().trim();
     const matchesSearch = !q ||
@@ -84,14 +98,15 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
 
   const openAdd = () => {
     setEditTarget(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, category: availableCategories[0] || '' });
     setFormError('');
     setShowForm(true);
+    setTimeout(() => catInputRef.current?.focus(), 50);
   };
 
   const openEdit = (r: ResourceItem) => {
     setEditTarget(r);
-    setForm({ title: r.title, url: r.url, description: r.description, category: r.category as Category, pinned: r.pinned });
+    setForm({ title: r.title, url: r.url, description: r.description, category: r.category, pinned: r.pinned });
     setFormError('');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -107,14 +122,16 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const handleSave = async () => {
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
     if (!form.url.trim()) { setFormError('URL is required.'); return; }
+    if (!form.category.trim()) { setFormError('Category is required.'); return; }
     const url = form.url.trim().match(/^https?:\/\//) ? form.url.trim() : `https://${form.url.trim()}`;
+    const category = form.category.trim();
     setSaving(true);
     setFormError('');
     try {
       if (editTarget) {
-        await api.resources.update(editTarget.id, parseInt(currentUser.id), { ...form, url });
+        await api.resources.update(editTarget.id, parseInt(currentUser.id), { ...form, url, category });
       } else {
-        await api.resources.create(parseInt(currentUser.id), { ...form, url });
+        await api.resources.create(parseInt(currentUser.id), { ...form, url, category });
       }
       closeForm();
       await load();
@@ -197,7 +214,45 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
               />
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+                Category *
+                <span className="ml-1 normal-case font-medium text-slate-400">(pick existing or type a new one)</span>
+              </label>
+              <input
+                ref={catInputRef}
+                list="resource-categories"
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                placeholder="e.g. Software, Scouting, Safety..."
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+              />
+              <datalist id="resource-categories">
+                {availableCategories.map(cat => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
+              {availableCategories.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {availableCategories.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, category: cat }))}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all border ${
+                        form.category === cat
+                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
+                          : `${getCatMeta(cat, availableCategories).color} hover:opacity-80`
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
               <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Description</label>
               <input
                 value={form.description}
@@ -205,26 +260,6 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 placeholder="Short description of this resource..."
                 className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
               />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Category</label>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, category: cat }))}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
-                      form.category === cat
-                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {isCoach && (
@@ -280,21 +315,23 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {['All', ...CATEGORIES].map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
-              activeCategory === cat
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
-            }`}
-          >
-            {cat === 'All' ? 'All Resources' : cat}
-          </button>
-        ))}
-      </div>
+      {availableCategories.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {['All', ...availableCategories].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                activeCategory === cat
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                  : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
+              }`}
+            >
+              {cat === 'All' ? 'All Resources' : cat}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center py-16">
@@ -313,6 +350,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                     key={r.id}
                     resource={r}
                     addedByName={getUserName(r.addedBy)}
+                    allCategories={availableCategories}
                     canEdit={canEdit(r)}
                     isCoach={isCoach}
                     onEdit={() => openEdit(r)}
@@ -335,6 +373,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                     key={r.id}
                     resource={r}
                     addedByName={getUserName(r.addedBy)}
+                    allCategories={availableCategories}
                     canEdit={canEdit(r)}
                     isCoach={isCoach}
                     onEdit={() => openEdit(r)}
@@ -411,6 +450,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
 interface ResourceCardProps {
   resource: ResourceItem;
   addedByName: string;
+  allCategories: string[];
   canEdit: boolean;
   isCoach: boolean;
   onEdit: () => void;
@@ -418,8 +458,8 @@ interface ResourceCardProps {
   onPinToggle: () => void;
 }
 
-const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, canEdit, isCoach, onEdit, onDelete, onPinToggle }) => {
-  const cat = CAT_META[resource.category] || CAT_META.Other;
+const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, allCategories, canEdit, isCoach, onEdit, onDelete, onPinToggle }) => {
+  const meta = getCatMeta(resource.category, allCategories);
 
   return (
     <div className="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-red-600/40 hover:shadow-lg hover:shadow-red-600/5 transition-all flex flex-col">
@@ -458,8 +498,8 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, canE
         className="flex flex-col flex-1"
       >
         <div className="flex items-start gap-2 mb-2 pr-16">
-          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${cat.color}`}>
-            {cat.icon}
+          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${meta.color}`}>
+            {meta.icon}
             {resource.category}
           </div>
           {resource.pinned && <Zap size={9} className="text-red-600 flex-shrink-0 mt-1.5" fill="currentColor" />}
@@ -480,7 +520,9 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, canE
           <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Added by</span>
           <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">{addedByName}</span>
           <span className="text-[9px] text-slate-300 dark:text-slate-600">·</span>
-          <span className="text-[9px] text-slate-400 dark:text-slate-500">{new Date(resource.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}</span>
+          <span className="text-[9px] text-slate-400 dark:text-slate-500">
+            {new Date(resource.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}
+          </span>
         </div>
       </a>
     </div>

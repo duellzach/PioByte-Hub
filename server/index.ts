@@ -1862,17 +1862,13 @@ app.get("/api/resources", async (req, res) => {
   }
 });
 
-const RESOURCE_CATEGORIES = ['Competition', 'Software', 'Vendor', 'Design', 'Training', 'Other'] as const;
-
 app.post("/api/resources", async (req, res) => {
   try {
     const { requesterId, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     if (!data.title?.trim()) return res.status(400).json({ error: "Title is required" });
     if (!data.url?.trim()) return res.status(400).json({ error: "URL is required" });
-    if (data.category && !(RESOURCE_CATEGORIES as readonly string[]).includes(data.category)) {
-      return res.status(400).json({ error: `category must be one of: ${RESOURCE_CATEGORIES.join(', ')}` });
-    }
+    if (!data.category?.trim()) return res.status(400).json({ error: "Category is required" });
     const resource = await storage.createResource({ ...data, addedBy: parseInt(requesterId) });
     res.status(201).json(resource);
   } catch (error) {
@@ -1892,9 +1888,6 @@ app.put("/api/resources/:id", async (req, res) => {
     const isOwner = existing.addedBy === parseInt(requesterId);
     const isCoach = hasAnyRole(actorRoles, ['Coach']);
     if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach can edit resources" });
-    if (data.category && !(RESOURCE_CATEGORIES as readonly string[]).includes(data.category)) {
-      return res.status(400).json({ error: `category must be one of: ${RESOURCE_CATEGORIES.join(', ')}` });
-    }
     if ('pinned' in data && !isCoach) {
       return res.status(403).json({ error: "Only coaches can pin or unpin resources" });
     }
