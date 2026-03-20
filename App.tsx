@@ -81,6 +81,7 @@ const App: React.FC = () => {
           id: String(t.id), 
           projectId: String(t.projectId),
           assignees: (t.assignees || []).map(String),
+          contributors: (t.contributors || []).map(String),
           dependencies: (t.dependencies || []).map(String),
           createdAt: new Date(t.createdAt).getTime(),
           completedAt: t.completedAt ? new Date(t.completedAt).getTime() : undefined
@@ -183,6 +184,7 @@ const App: React.FC = () => {
     }
     taskData.projectId = parseInt(taskData.projectId);
     taskData.assignees = taskData.assignees.map(Number);
+    taskData.contributors = (taskData.contributors || []).map(Number);
     taskData.dependencies = taskData.dependencies.map(Number);
     await api.tasks.update(parseInt(updatedTask.id), taskData);
     
@@ -370,6 +372,7 @@ const App: React.FC = () => {
                   if (taskData.status === TaskStatus.Complete) taskData.completedAt = new Date().toISOString();
                   taskData.projectId = parseInt(taskData.projectId);
                   taskData.assignees = taskData.assignees.map(Number);
+                  taskData.contributors = (taskData.contributors || []).map(Number);
                   taskData.dependencies = taskData.dependencies.map(Number);
                   delete taskData.id;
                   await api.tasks.create(taskData);

@@ -740,7 +740,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               if (contributorUsers.length === 0) return null;
               return (
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Session Contributors</label>
+                  <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Contributors</label>
                   <div className="space-y-2">
                     {contributorUsers.map(u => (
                       <div
