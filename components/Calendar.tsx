@@ -23,11 +23,11 @@ interface CalendarProps {
 const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode; label: string }> = {
   practice: { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', icon: <Wrench size={10} />, label: 'Practice' },
   competition: { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', icon: <Trophy size={10} />, label: 'Competition' },
-  meeting: { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', icon: <CalendarDays size={10} />, label: 'Meeting' },
-  deadline: { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', icon: <Flag size={10} />, label: 'Deadline' },
+  meeting: { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', icon: <CalendarDays size={10} />, label: 'Meeting' },
+  other: { bg: 'bg-slate-100 dark:bg-slate-700/60', text: 'text-slate-600 dark:text-slate-300', icon: <Flag size={10} />, label: 'Other' },
 };
 
-const EVENT_TYPES = ['practice', 'competition', 'meeting', 'deadline'];
+const EVENT_TYPES = ['practice', 'competition', 'meeting', 'other'];
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -107,7 +107,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     return [...events]
       .filter(ev => ev.startDate >= now)
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
-      .slice(0, 12);
+      .slice(0, 5);
   }, [events]);
 
   const prevMonth = () => {

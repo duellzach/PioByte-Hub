@@ -994,7 +994,7 @@ export class DatabaseStorage implements IStorage {
       { title: 'LA Regional', startDate: '2026-03-19', endDate: '2026-03-22', type: 'competition', location: 'Los Angeles, CA', description: 'Week 3 Regional' },
       { title: 'CHS District Championship', startDate: '2026-04-09', endDate: '2026-04-12', type: 'competition', location: 'Virginia', description: 'District Championship' },
       { title: 'Strategy Meeting', startDate: '2026-03-01', type: 'meeting', location: 'Build Room', description: '' },
-      { title: 'Robot Bag Deadline', startDate: '2026-02-18', type: 'deadline', location: '', description: 'Robot must be competition-ready' },
+      { title: 'Robot Bag Deadline', startDate: '2026-02-18', type: 'other', location: '', description: 'Robot must be competition-ready' },
     ];
     for (const s of seeds) {
       await db.insert(calendarEvents).values({ ...s, createdBy } as InsertCalendarEvent);
