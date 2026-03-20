@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -384,7 +384,7 @@ export const calendarEvents = pgTable("calendar_events", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   recurrenceType: text("recurrence_type"),
   recurrenceEndsOn: text("recurrence_ends_on"),
-  parentEventId: integer("parent_event_id").references((): any => calendarEvents.id, { onDelete: 'cascade' }),
+  parentEventId: integer("parent_event_id").references((): AnyPgColumn => calendarEvents.id, { onDelete: 'cascade' }),
   instanceDate: text("instance_date"),
   deletedDates: text("deleted_dates"),
   attending: boolean("attending").notNull().default(true),

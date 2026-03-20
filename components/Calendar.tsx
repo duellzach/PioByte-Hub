@@ -121,7 +121,6 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent | VirtualInstance; x: number; y: number } | null>(null);
-  const [recurringAction, setRecurringAction] = useState<{ instance: VirtualInstance; action: 'ask' | 'edit' } | null>(null);
   const [tbaModal, setTbaModal] = useState(false);
   const [tbaLoading, setTbaLoading] = useState(false);
   const [tbaEvents, setTbaEvents] = useState<any[]>([]);
@@ -301,7 +300,6 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       await api.calendar.patchDeletedDates(parent.id, parseInt(currentUser.id), newDeleted);
       await fetchEvents();
       setChipPopover(null);
-      setRecurringAction(null);
     } catch (e) {
       console.error('Failed to delete occurrence:', e);
     }
@@ -311,11 +309,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     if (!confirm(`Delete all occurrences of "${ev.title}"?`)) return;
     try {
       await api.calendar.delete(ev.id, parseInt(currentUser.id));
-      const exceptions = events.filter(e => e.parentEventId === ev.id);
-      await Promise.all(exceptions.map(ex => api.calendar.delete(ex.id, parseInt(currentUser.id))));
       await fetchEvents();
       setChipPopover(null);
-      setRecurringAction(null);
     } catch (e) {
       console.error('Failed to delete all occurrences:', e);
     }
@@ -345,7 +340,6 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       });
       await fetchEvents();
       setChipPopover(null);
-      setRecurringAction(null);
       openEdit(newException);
     } catch (e) {
       console.error('Failed to create exception occurrence:', e);
@@ -559,13 +553,10 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                             {isCoachOrCaptain && evStart === selectedDate && (
                               <div className="flex gap-1">
                                 {isRecurring ? (
-                                  <button
-                                    onClick={() => setRecurringAction({ instance: ev as VirtualInstance, action: 'ask' })}
-                                    className="p-1 rounded hover:bg-black/10 transition-colors text-[8px] font-black uppercase"
-                                    title="Manage occurrence"
-                                  >
-                                    <Pencil size={10} />
-                                  </button>
+                                  <>
+                                    <button onClick={() => handleEditThisOccurrence(ev as VirtualInstance)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Edit this occurrence"><Pencil size={10} /></button>
+                                    <button onClick={() => handleDeleteThisOccurrence(ev as VirtualInstance)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Delete this occurrence"><Trash2 size={10} /></button>
+                                  </>
                                 ) : (
                                   <>
                                     <button onClick={() => openEdit(ev as CalendarEvent)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Edit"><Pencil size={10} /></button>
