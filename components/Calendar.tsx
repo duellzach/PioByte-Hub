@@ -56,6 +56,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent; x: number; y: number } | null>(null);
 
   const isCoachOrCaptain = currentUser?.roles?.includes('Coach') || currentUser?.roles?.includes('Team Captain');
 
@@ -71,6 +72,16 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   }, []);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  useEffect(() => {
+    if (!chipPopover) return;
+    const close = (e: MouseEvent) => {
+      const el = document.getElementById('chip-popover');
+      if (el && !el.contains(e.target as Node)) setChipPopover(null);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [chipPopover]);
 
   const daysInMonth = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -149,6 +160,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const handleSave = async () => {
     if (!form.title.trim()) { setError('Title is required'); return; }
     if (!form.startDate) { setError('Start date is required'); return; }
+    if (form.endDate && form.endDate < form.startDate) { setError('End date cannot be before start date'); return; }
+    if (form.startTime && form.endTime && !form.endDate && form.endTime < form.startTime) { setError('End time cannot be before start time'); return; }
     setSaving(true);
     setError('');
     try {
@@ -278,9 +291,13 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                         {dayEvents.slice(0, 2).map((ev, i) => {
                           const style = s(ev.type);
                           return (
-                            <div key={`${ev.id}-${i}`} className={`w-full px-1 py-0.5 rounded text-[7px] font-black truncate ${isSelected ? 'bg-white/20 text-white dark:text-slate-900' : `${style.bg} ${style.text}`}`}>
+                            <button
+                              key={`${ev.id}-${i}`}
+                              onClick={e => { e.stopPropagation(); const r = (e.target as HTMLElement).getBoundingClientRect(); setChipPopover({ event: ev, x: r.left, y: r.bottom + 4 }); }}
+                              className={`w-full text-left px-1 py-0.5 rounded text-[7px] font-black truncate ${isSelected ? 'bg-white/20 text-white dark:text-slate-900' : `${style.bg} ${style.text}`} hover:opacity-80 transition-opacity`}
+                            >
                               {ev.title}
-                            </div>
+                            </button>
                           );
                         })}
                         {dayEvents.length > 2 && (
@@ -446,6 +463,68 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
           </div>
         </div>
       )}
+
+      {chipPopover && (() => {
+        const ev = chipPopover.event;
+        const style = s(ev.type);
+        const leftPct = chipPopover.x / window.innerWidth;
+        const xPos = leftPct > 0.6 ? 'right' : 'left';
+        return (
+          <div
+            id="chip-popover"
+            className="fixed z-[400] w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            style={{ top: Math.min(chipPopover.y, window.innerHeight - 260), [xPos]: xPos === 'left' ? chipPopover.x : window.innerWidth - chipPopover.x - 256 }}
+          >
+            <div className={`p-3 ${style.bg}`}>
+              <div className={`flex items-center justify-between ${style.text}`}>
+                <div className="flex items-center gap-1.5">
+                  {style.icon}
+                  <span className="text-[9px] font-black uppercase tracking-widest">{style.label}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {isCoachOrCaptain && (
+                    <>
+                      <button
+                        onClick={() => { setChipPopover(null); openEdit(ev); }}
+                        className="p-1 rounded hover:bg-black/10 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={10} />
+                      </button>
+                      <button
+                        onClick={() => { setChipPopover(null); handleDelete(ev); }}
+                        className="p-1 rounded hover:bg-black/10 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setChipPopover(null)} className="p-1 rounded hover:bg-black/10 transition-colors">
+                    <X size={10} />
+                  </button>
+                </div>
+              </div>
+              <p className={`text-sm font-black mt-1 ${style.text}`}>{ev.title}</p>
+            </div>
+            <div className="p-3 space-y-1.5">
+              <div className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                {new Date(ev.startDate + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                {ev.endDate && ev.endDate !== ev.startDate && (
+                  <span> – {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}</span>
+                )}
+              </div>
+              {ev.startTime && (
+                <div className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">
+                  {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
+                </div>
+              )}
+              {ev.location && <div className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">{ev.location}</div>}
+              {ev.description && <div className="text-[9px] text-slate-400 dark:text-slate-500 italic leading-relaxed">{ev.description}</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[300] p-4 animate-in fade-in duration-200">
