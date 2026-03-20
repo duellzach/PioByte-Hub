@@ -6,6 +6,12 @@ import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
 import { ROLE_COLORS } from '../constants';
 import { Counter, StarRating, RatingSlider, TagInput } from './scout/shared';
+import RobotDashboard from './scout/RobotDashboard';
+import PitScoutForm from './scout/PitScoutForm';
+import MatchScoutForm from './scout/MatchScoutForm';
+import ScoutQR from './scout/ScoutQR';
+import PitDisplay from './scout/PitDisplay';
+import ScoutEventList from './scout/ScoutEventList';
 
 interface ScoutProps {
   currentUser: any;
@@ -1134,6 +1140,28 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   }, [selectedRobot]);
 
   if (selectedRobot && activeEvent) {
+    return (
+      <RobotDashboard
+        selectedRobot={selectedRobot}
+        activeEvent={activeEvent}
+        robotMatches={robotMatches}
+        crossEventMatches={crossEventMatches}
+        tbaYearEvents={tbaYearEvents}
+        tbaYearStatuses={tbaYearStatuses}
+        tbaYearLoading={tbaYearLoading}
+        geminiModal={geminiModal}
+        copiedGemini={copiedGemini}
+        onBack={() => setSelectedRobot(null)}
+        onEditPit={openEditPit}
+        onDeletePit={handleDeletePitScout}
+        onGenerateAIReport={generateRobotAIReport}
+        onSetGeminiModal={setGeminiModal}
+        onSetCopiedGemini={setCopiedGemini}
+      />
+    );
+  }
+
+  if (selectedRobot && activeEvent && false) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex items-center gap-4">
@@ -2317,6 +2345,30 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
           </div>
         ) : activeTab === 'qr' ? (
+          <ScoutQR
+            matchScoutsData={matchScoutsData}
+            pitScouts={pitScouts}
+            selectedMatchIds={selectedMatchIds}
+            setSelectedMatchIds={setSelectedMatchIds}
+            selectedRobotIds={selectedRobotIds}
+            setSelectedRobotIds={setSelectedRobotIds}
+            qrData={qrData}
+            qrChunkIndex={qrChunkIndex}
+            setQrChunkIndex={setQrChunkIndex}
+            onGenerateQR={generateQR}
+            scanning={scanning}
+            importPreview={importPreview}
+            importResult={importResult}
+            scannedChunks={scannedChunks}
+            scannerContainerRef={scannerContainerRef}
+            onStartScanner={startScanner}
+            onStopScanner={stopScanner}
+            onConfirmImport={confirmImport}
+            setImportPreview={setImportPreview}
+            setScannedChunks={setScannedChunks}
+            setImportResult={setImportResult}
+          />
+        ) : activeTab === 'qr_DEAD' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
               <div className="flex items-center gap-3">
@@ -2554,6 +2606,37 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             </div>
           </div>
         ) : activeTab === 'display' ? (
+          <PitDisplay
+            pitSubTab={pitSubTab}
+            setPitSubTab={setPitSubTab}
+            pitDisplayAlerts={pitDisplayAlerts}
+            dismissedPitAlertIds={dismissedPitAlertIds}
+            onDismissPitAlert={dismissPitAlert}
+            nexusData={nexusData}
+            nexusLoading={nexusLoading}
+            nexusError={nexusError}
+            nexusCountdown={nexusCountdown || null}
+            onFetchNexusData={fetchNexusData}
+            onFetchTbaData={fetchTbaData}
+            tbaMatches={tbaMatches}
+            tbaLoading={tbaLoading}
+            tbaRecord={tbaRecord}
+            tbaRankings={tbaRankings}
+            pitScouts={pitScouts}
+            matchScoutsData={matchScoutsData}
+            activeEvent={activeEvent}
+            isCoachOrCaptain={isCoachOrCaptain}
+            dismissedBreaks={dismissedBreaks}
+            setDismissedBreaks={setDismissedBreaks}
+            dismissedAnnouncements={dismissedAnnouncements}
+            setDismissedAnnouncements={setDismissedAnnouncements}
+            dismissedParts={dismissedParts}
+            setDismissedParts={setDismissedParts}
+            onOpenRobotByNumber={openRobotByNumber}
+            onSetSelectedRobot={setSelectedRobot}
+            onGenerateGeminiReport={generateGeminiReport}
+          />
+        ) : activeTab === 'display_DEAD' ? (
           <div className="space-y-6 md:space-y-8">
 
             {/* Sub-tab toggle */}
@@ -3604,7 +3687,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         ) : null}
 
-        {showPitForm && (
+        <PitScoutForm
+          show={showPitForm}
+          editingPit={editingPit}
+          pitForm={pitForm}
+          setPitForm={setPitForm}
+          onClose={() => { setShowPitForm(false); setEditingPit(null); }}
+          onSave={handleSavePitScout}
+          compressImage={compressImage}
+        />
+
+        {false && showPitForm && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
               <div className="flex justify-between items-start mb-6 md:mb-8">
@@ -3827,7 +3920,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         )}
 
-        {showMatchForm && (
+        <MatchScoutForm
+          show={showMatchForm}
+          editingMatch={editingMatch}
+          matchForm={matchForm}
+          setMatchForm={setMatchForm}
+          onClose={() => { setShowMatchForm(false); setEditingMatch(null); }}
+          onSave={handleSaveMatchScout}
+          pitScouts={pitScouts}
+          activeTeamClaimRef={activeTeamClaimRef}
+          onUnclaim={unclaimTeam}
+        />
+
+        {false && showMatchForm && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
               <div className="flex justify-between items-start mb-6 md:mb-8">
@@ -4006,6 +4111,39 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     );
   }
 
+  return (
+    <ScoutEventList
+      events={events}
+      isCoachOrCaptain={isCoachOrCaptain}
+      eventCounts={eventCounts}
+      showEventForm={showEventForm}
+      showEventSettings={showEventSettings}
+      activeEvent={activeEvent}
+      eventForm={eventForm}
+      setEventForm={setEventForm}
+      eventSettingsForm={eventSettingsForm}
+      setEventSettingsForm={setEventSettingsForm}
+      nexusTestStatus={nexusTestStatus}
+      nexusTestMsg={nexusTestMsg}
+      nexusToast={nexusToast}
+      geminiModal={geminiModal}
+      copiedGemini={copiedGemini}
+      onCreateEvent={() => setShowEventForm(true)}
+      onEnterEvent={setActiveEvent}
+      onDeleteEvent={handleDeleteEvent}
+      onTestNexus={handleTestNexus}
+      onSaveEventSettings={handleSaveEventSettings}
+      onCloseEventSettings={() => setShowEventSettings(false)}
+      onCreateEventSubmit={handleCreateEvent}
+      onCloseEventForm={() => setShowEventForm(false)}
+      onDismissNexusToast={() => setNexusToast(null)}
+      onSetGeminiModal={setGeminiModal}
+      onSetCopiedGemini={setCopiedGemini}
+    />
+  );
+
+  // DEAD CODE — event list inline return (kept for reference)
+  // eslint-disable-next-line no-unreachable
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

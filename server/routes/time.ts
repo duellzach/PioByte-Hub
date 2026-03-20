@@ -1,0 +1,400 @@
+import { Router } from "express";
+import { storage } from "../storage";
+import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+
+const router = Router();
+
+router.get("/time-entries", async (req, res) => {
+  try {
+    const entries = await storage.getTimeEntries();
+    for (const entry of entries) {
+      if (entry.checkOutAt && entry.roundedMinutes != null && entry.checkOutConfirmedBy && entry.status !== 'completed') {
+        await storage.updateTimeEntry(entry.id, { status: 'completed' });
+        entry.status = 'completed';
+      } else if (entry.checkOutAt && entry.status === 'checked_in') {
+        await storage.updateTimeEntry(entry.id, { status: 'pending_check_out' });
+        entry.status = 'pending_check_out';
+      }
+    }
+    res.json(entries);
+  } catch (error) {
+    console.error("Error fetching time entries:", error);
+    res.status(500).json({ error: "Failed to fetch time entries" });
+  }
+});
+
+router.get("/time-entries/available-tasks", async (req, res) => {
+  try {
+    const userId = parseInt(req.query.userId as string);
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    const assignedTasks = await storage.getAvailableTasksForUser(userId);
+    res.json(assignedTasks);
+  } catch (error) {
+    console.error("Error fetching available tasks:", error);
+    res.status(500).json({ error: "Failed to fetch available tasks" });
+  }
+});
+
+router.get("/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    res.json(entry);
+  } catch (error) {
+    console.error("Error fetching time entry:", error);
+    res.status(500).json({ error: "Failed to fetch time entry" });
+  }
+});
+
+router.post("/time-entries/check-in", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const openEntry = await storage.getOpenTimeEntry(userId);
+    if (openEntry) {
+      return res.status(400).json({ error: "User already has an open time entry" });
+    }
+    const entry = await storage.createTimeEntry({
+      userId,
+      checkInAt: new Date(),
+      status: "pending_check_in",
+    });
+    await storage.createTimeEntryAudit({
+      entryId: entry.id,
+      actorId: userId,
+      actionType: "check_in",
+      newValues: { checkInAt: entry.checkInAt },
+    });
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error("Error checking in:", error);
+    res.status(500).json({ error: "Failed to check in" });
+  }
+});
+
+router.post("/time-entries/:id/check-out", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { userId, taskHandoffNote, markTaskComplete } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    if (entry.checkOutAt) return res.status(400).json({ error: "Already checked out" });
+
+    const checkOutAt = new Date();
+    const updateData: any = { checkOutAt, status: "pending_check_out" };
+    if (taskHandoffNote !== undefined) updateData.taskHandoffNote = taskHandoffNote;
+
+    const updated = await storage.updateTimeEntry(id, updateData);
+    await storage.createTimeEntryAudit({
+      entryId: id,
+      actorId: userId,
+      actionType: "check_out",
+      previousValues: { checkOutAt: null },
+      newValues: { checkOutAt },
+    });
+
+    if (entry.workingOnTaskId) {
+      const task = await storage.getTask(entry.workingOnTaskId);
+      if (task) {
+        const currentContributors: number[] = Array.isArray(task.contributors) ? task.contributors : [];
+        if (!currentContributors.includes(entry.userId)) {
+          const updatedContributors: number[] = [...currentContributors, entry.userId];
+          await storage.updateTask(entry.workingOnTaskId, { contributors: updatedContributors });
+        }
+        if (markTaskComplete) {
+          await storage.updateTask(entry.workingOnTaskId, {
+            status: 'Complete',
+            completedAt: new Date(),
+          });
+        }
+      }
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error checking out:", error);
+    res.status(500).json({ error: "Failed to check out" });
+  }
+});
+
+router.post("/time-entries/:id/confirm", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId, confirmType } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+
+    let updates: any = {};
+    let newStatus = entry.status;
+    let roundedMinutes = entry.roundedMinutes;
+
+    if (confirmType === "check_in") {
+      updates.checkInConfirmedBy = coachId;
+      updates.checkInConfirmedAt = new Date();
+      if (entry.checkOutAt) {
+        newStatus = "pending_check_out";
+      } else {
+        newStatus = "checked_in";
+      }
+    } else if (confirmType === "check_out") {
+      updates.checkOutConfirmedBy = coachId;
+      updates.checkOutConfirmedAt = new Date();
+      newStatus = "completed";
+      if (entry.checkInAt && entry.checkOutAt) {
+        const duration = new Date(entry.checkOutAt).getTime() - new Date(entry.checkInAt).getTime();
+        const minutes = Math.floor(duration / 60000);
+        roundedMinutes = roundToQuarterHour(minutes);
+        updates.roundedMinutes = roundedMinutes;
+      }
+    }
+    updates.status = newStatus;
+
+    const updated = await storage.updateTimeEntry(id, updates);
+    await storage.createTimeEntryAudit({
+      entryId: id,
+      actorId: coachId,
+      actionType: `confirm_${confirmType}`,
+      previousValues: { status: entry.status },
+      newValues: { status: newStatus, roundedMinutes },
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error confirming:", error);
+    res.status(500).json({ error: "Failed to confirm" });
+  }
+});
+
+router.put("/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId, checkInAt, checkOutAt, notes } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+
+    const previousValues: any = {};
+    const newValues: any = {};
+    const updates: any = {};
+
+    if (checkInAt !== undefined) {
+      previousValues.checkInAt = entry.checkInAt;
+      newValues.checkInAt = checkInAt;
+      updates.checkInAt = new Date(checkInAt);
+    }
+    if (checkOutAt !== undefined) {
+      previousValues.checkOutAt = entry.checkOutAt;
+      newValues.checkOutAt = checkOutAt;
+      updates.checkOutAt = checkOutAt ? new Date(checkOutAt) : null;
+    }
+    if (notes !== undefined) {
+      previousValues.notes = entry.notes;
+      newValues.notes = notes;
+      updates.notes = notes;
+    }
+
+    if (updates.checkInAt || updates.checkOutAt) {
+      const inTime = updates.checkInAt || entry.checkInAt;
+      const outTime = updates.checkOutAt || entry.checkOutAt;
+      if (inTime && outTime) {
+        const duration = new Date(outTime).getTime() - new Date(inTime).getTime();
+        const minutes = Math.floor(duration / 60000);
+        const newRounded = roundToQuarterHour(minutes);
+        const deltaMinutes = newRounded - (entry.roundedMinutes || 0);
+        updates.roundedMinutes = newRounded;
+        newValues.roundedMinutes = newRounded;
+
+        await storage.createTimeEntryAudit({
+          entryId: id,
+          actorId: coachId,
+          actionType: "edit",
+          previousValues,
+          newValues,
+          deltaMinutes,
+        });
+      }
+    } else if (notes !== undefined) {
+      await storage.createTimeEntryAudit({
+        entryId: id,
+        actorId: coachId,
+        actionType: "edit_notes",
+        previousValues,
+        newValues,
+      });
+    }
+
+    const updated = await storage.updateTimeEntry(id, updates);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating time entry:", error);
+    res.status(500).json({ error: "Failed to update time entry" });
+  }
+});
+
+router.get("/time-entries/:id/audit", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const audit = await storage.getTimeEntryAudit(id);
+    res.json(audit);
+  } catch (error) {
+    console.error("Error fetching audit:", error);
+    res.status(500).json({ error: "Failed to fetch audit" });
+  }
+});
+
+router.delete("/time-entries/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { coachId } = req.body;
+    const entry = await storage.getTimeEntry(id);
+    if (entry) {
+      await storage.createTimeEntryAudit({
+        entryId: id,
+        actorId: coachId,
+        actionType: "delete",
+        previousValues: entry,
+      });
+    }
+    await storage.deleteTimeEntry(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting time entry:", error);
+    res.status(500).json({ error: "Failed to delete time entry" });
+  }
+});
+
+router.patch("/time-entries/:id/set-working-on", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { userId, taskId, generalTaskId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    if (taskId != null && generalTaskId != null) {
+      return res.status(400).json({ error: "Cannot set both taskId and generalTaskId" });
+    }
+    const entry = await storage.getTimeEntry(id);
+    if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    if (entry.userId !== parseInt(userId)) {
+      return res.status(403).json({ error: "Cannot modify another user's time entry" });
+    }
+    const updated = await storage.setWorkingOn(id, taskId ?? null, generalTaskId ?? null);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error setting working-on:", error);
+    res.status(500).json({ error: "Failed to update working task" });
+  }
+});
+
+router.post("/time-entries/bulk-add", async (req, res) => {
+  try {
+    const { coachId, userIds, minutes, notes, date } = req.body;
+    const results = [];
+
+    const checkInAt = date ? new Date(date) : new Date();
+    checkInAt.setHours(9, 0, 0, 0);
+    const checkOutAt = new Date(checkInAt.getTime() + minutes * 60000);
+    const roundedMinutes = roundToQuarterHour(minutes);
+
+    for (const userId of userIds) {
+      const entry = await storage.createTimeEntry({
+        userId,
+        checkInAt,
+        checkOutAt,
+        checkInConfirmedBy: coachId,
+        checkInConfirmedAt: new Date(),
+        checkOutConfirmedBy: coachId,
+        checkOutConfirmedAt: new Date(),
+        status: "completed",
+        roundedMinutes,
+        notes: notes || `Class time - ${roundedMinutes} minutes`,
+      });
+
+      await storage.createTimeEntryAudit({
+        entryId: entry.id,
+        actorId: coachId,
+        actionType: "bulk_add",
+        newValues: { minutes: roundedMinutes, notes: entry.notes },
+      });
+
+      results.push(entry);
+    }
+
+    res.status(201).json(results);
+  } catch (error) {
+    console.error("Error bulk adding time:", error);
+    res.status(500).json({ error: "Failed to bulk add time" });
+  }
+});
+
+router.get("/general-tasks", async (req, res) => {
+  try {
+    const includeArchived = req.query.includeArchived === 'true';
+    if (includeArchived) {
+      const requesterId = parseInt(req.query.requesterId as string);
+      if (!requesterId) return res.status(400).json({ error: "requesterId required for includeArchived" });
+      const actorRoles = await getUserRoles(requesterId);
+      if (!hasAnyRole(actorRoles, ['Coach'])) {
+        return res.status(403).json({ error: "Only coaches can view archived tasks" });
+      }
+    }
+    const items = await storage.getGeneralTasks(includeArchived);
+    res.json(items);
+  } catch (error) {
+    console.error("Error fetching general tasks:", error);
+    res.status(500).json({ error: "Failed to fetch general tasks" });
+  }
+});
+
+router.post("/general-tasks", async (req, res) => {
+  try {
+    const { name, description, createdBy } = req.body;
+    if (!name || !createdBy) return res.status(400).json({ error: "name and createdBy required" });
+    const actorRoles = await getUserRoles(parseInt(createdBy));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only coaches and captains can create general tasks" });
+    }
+    const task = await storage.createGeneralTask({ name, description: description || '', active: true, createdBy: parseInt(createdBy) });
+    res.json(task);
+  } catch (error) {
+    console.error("Error creating general task:", error);
+    res.status(500).json({ error: "Failed to create general task" });
+  }
+});
+
+router.put("/general-tasks/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { updatedBy, ...fields } = req.body;
+    if (!updatedBy) return res.status(400).json({ error: "updatedBy required" });
+    const actorRoles = await getUserRoles(parseInt(updatedBy));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only coaches and captains can edit general tasks" });
+    }
+    const sanitized: any = {};
+    if (fields.name !== undefined) sanitized.name = fields.name;
+    if (fields.description !== undefined) sanitized.description = fields.description || '';
+    if (fields.active !== undefined) sanitized.active = fields.active;
+    const updated = await storage.updateGeneralTask(id, sanitized);
+    if (!updated) return res.status(404).json({ error: "General task not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating general task:", error);
+    res.status(500).json({ error: "Failed to update general task" });
+  }
+});
+
+router.delete("/general-tasks/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { deletedBy } = req.body;
+    if (!deletedBy) return res.status(400).json({ error: "deletedBy required" });
+    const actorRoles = await getUserRoles(parseInt(deletedBy));
+    if (!hasAnyRole(actorRoles, ['Coach'])) {
+      return res.status(403).json({ error: "Only coaches can permanently delete general tasks" });
+    }
+    await storage.deleteGeneralTask(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting general task:", error);
+    res.status(500).json({ error: "Failed to delete general task" });
+  }
+});
+
+export default router;
