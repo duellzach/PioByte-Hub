@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD } from "../helpers";
 
 const router = Router();
 
@@ -40,7 +40,8 @@ router.put("/resources/:id", async (req, res) => {
     const actorRoles = await getUserRoles(parseInt(requesterId));
     const isOwner = existing.addedBy === parseInt(requesterId);
     const isCoach = hasAnyRole(actorRoles, ['Coach']);
-    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach can edit resources" });
+    const isPrivileged = hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD);
+    if (!isOwner && !isPrivileged) return res.status(403).json({ error: "Only the creator, a coach, captain, or department head can edit resources" });
     if ('pinned' in data && !isCoach) {
       return res.status(403).json({ error: "Only coaches can pin or unpin resources" });
     }
@@ -67,8 +68,8 @@ router.delete("/resources/:id", async (req, res) => {
     if (!existing) return res.status(404).json({ error: "Resource not found" });
     const actorRoles = await getUserRoles(requesterId);
     const isOwner = existing.addedBy === requesterId;
-    const isCoach = hasAnyRole(actorRoles, ['Coach']);
-    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach can delete resources" });
+    const isPrivileged = hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD);
+    if (!isOwner && !isPrivileged) return res.status(403).json({ error: "Only the creator, a coach, captain, or department head can delete resources" });
     await storage.deleteResource(id);
     res.status(204).send();
   } catch (error) {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole, COACH_CAPTAIN, tbaFetch, TBA_KEY } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, tbaFetch, TBA_KEY } from "../helpers";
 
 const router = Router();
 
@@ -19,8 +19,8 @@ router.post("/calendar", async (req, res) => {
     const { requesterId, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can create calendar events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can create calendar events" });
     }
     const event = await storage.createCalendarEvent({ ...data, createdBy: parseInt(requesterId) });
     res.status(201).json(event);
@@ -36,8 +36,8 @@ router.put("/calendar/:id", async (req, res) => {
     const { requesterId, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can edit calendar events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can edit calendar events" });
     }
     const event = await storage.updateCalendarEvent(id, data);
     if (!event) return res.status(404).json({ error: "Calendar event not found" });
@@ -54,8 +54,8 @@ router.delete("/calendar/:id", async (req, res) => {
     const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(requesterId);
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can delete calendar events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can delete calendar events" });
     }
     await storage.deleteCalendarEvent(id);
     res.status(204).send();
@@ -71,8 +71,8 @@ router.patch("/calendar/:id/deleted-dates", async (req, res) => {
     const { requesterId, deletedDates } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can modify calendar events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can modify calendar events" });
     }
     if (!Array.isArray(deletedDates)) return res.status(400).json({ error: "deletedDates must be an array" });
     const event = await storage.patchCalendarEventDeletedDates(id, deletedDates);
@@ -90,8 +90,8 @@ router.get("/calendar/tba-preview", async (req, res) => {
     const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(requesterId);
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can import events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can import events" });
     }
     const data = await tbaFetch("/team/frc10991/events/2026");
     const events = Array.isArray(data) ? data : [];
@@ -114,8 +114,8 @@ router.post("/calendar/tba-import", async (req, res) => {
     const { requesterId, events: eventsToImport } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Captains can import events" });
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can import events" });
     }
     if (!Array.isArray(eventsToImport)) return res.status(400).json({ error: "events must be an array" });
     const existing = await storage.getCalendarEvents();

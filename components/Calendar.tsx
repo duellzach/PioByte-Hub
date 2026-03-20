@@ -128,7 +128,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [tbaImporting, setTbaImporting] = useState(false);
   const [tbaError, setTbaError] = useState('');
 
-  const isCoachOrCaptain = currentUser?.roles?.includes('Coach') || currentUser?.roles?.includes('Team Captain');
+  const isCoachOrCaptain = currentUser?.roles?.some(r => ['Coach', 'Team Captain', 'Department Head'].includes(r));
 
   const fetchEvents = useCallback(async () => {
     try {

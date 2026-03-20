@@ -59,9 +59,10 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const catInputRef = useRef<HTMLInputElement>(null);
 
   const isCoach = currentUser?.roles?.includes('Coach');
+  const isPrivilegedUser = currentUser?.roles?.some(r => ['Coach', 'Team Captain', 'Department Head'].includes(r));
 
   const canEdit = (r: ResourceItem) =>
-    isCoach || (currentUser && r.addedBy === parseInt(currentUser.id));
+    isPrivilegedUser || (currentUser && r.addedBy === parseInt(currentUser.id));
 
   const getUserName = (id: number) => {
     const u = users.find((u: any) => parseInt(u.id) === id);

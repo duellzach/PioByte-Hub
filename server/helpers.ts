@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 
 export const COACH_CAPTAIN = ['Coach', 'Team Captain'];
+export const COACH_CAPTAIN_DEPT_HEAD = ['Coach', 'Team Captain', 'Department Head'];
 export const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', 'Safety Trainer'];
 export const TRAINER_COACH = ['Safety Trainer', 'Coach'];
 
