@@ -807,6 +807,10 @@ video {
   margin-left: -2rem;
 }
 
+.mb-0 {
+  margin-bottom: 0px;
+}
+
 .mb-0\.5 {
   margin-bottom: 0.125rem;
 }
@@ -1634,6 +1638,11 @@ video {
   border-radius: 0.75rem;
 }
 
+.rounded-l-2xl {
+  border-top-left-radius: 1rem;
+  border-bottom-left-radius: 1rem;
+}
+
 .rounded-t-3xl {
   border-top-left-radius: 1.5rem;
   border-top-right-radius: 1.5rem;
@@ -2357,6 +2366,11 @@ video {
   background-color: rgb(237 233 254 / var(--tw-bg-opacity, 1));
 }
 
+.bg-violet-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(167 139 250 / var(--tw-bg-opacity, 1));
+}
+
 .bg-violet-50 {
   --tw-bg-opacity: 1;
   background-color: rgb(245 243 255 / var(--tw-bg-opacity, 1));
@@ -2375,10 +2389,6 @@ video {
 .bg-white {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
-}
-
-.bg-white\/10 {
-  background-color: rgb(255 255 255 / 0.1);
 }
 
 .bg-white\/20 {
@@ -2663,6 +2673,10 @@ video {
 
 .pl-3 {
   padding-left: 0.75rem;
+}
+
+.pl-5 {
+  padding-left: 1.25rem;
 }
 
 .pl-8 {
@@ -4137,11 +4151,6 @@ body {
   border-color: rgb(139 92 246 / var(--tw-border-opacity, 1));
 }
 
-.focus\:border-violet-600:focus {
-  --tw-border-opacity: 1;
-  border-color: rgb(124 58 237 / var(--tw-border-opacity, 1));
-}
-
 .focus\:bg-white:focus {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
@@ -4991,6 +5000,10 @@ body {
   background-color: rgb(51 65 85 / 0.5);
 }
 
+.dark\:hover\:bg-violet-900\/40:hover:is(.dark *) {
+  background-color: rgb(76 29 149 / 0.4);
+}
+
 .dark\:hover\:text-amber-400:hover:is(.dark *) {
   --tw-text-opacity: 1;
   color: rgb(251 191 36 / var(--tw-text-opacity, 1));
@@ -5019,6 +5032,11 @@ body {
 .dark\:hover\:text-slate-300:hover:is(.dark *) {
   --tw-text-opacity: 1;
   color: rgb(203 213 225 / var(--tw-text-opacity, 1));
+}
+
+.dark\:hover\:text-violet-300:hover:is(.dark *) {
+  --tw-text-opacity: 1;
+  color: rgb(196 181 253 / var(--tw-text-opacity, 1));
 }
 
 .dark\:hover\:text-white:hover:is(.dark *) {
@@ -5256,6 +5274,10 @@ body {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .md\:gap-1 {
+    gap: 0.25rem;
+  }
+
   .md\:gap-2 {
     gap: 0.5rem;
   }
@@ -5274,10 +5296,6 @@ body {
 
   .md\:gap-8 {
     gap: 2rem;
-  }
-
-  .md\:gap-1 {
-    gap: 0.25rem;
   }
 
   .md\:space-y-10 > :not([hidden]) ~ :not([hidden]) {
@@ -5462,12 +5480,12 @@ body {
     padding-bottom: 1.5rem;
   }
 
-  .md\:pb-6 {
-    padding-bottom: 1.5rem;
-  }
-
   .md\:pl-16 {
     padding-left: 4rem;
+  }
+
+  .md\:pl-6 {
+    padding-left: 1.5rem;
   }
 
   .md\:pr-6 {

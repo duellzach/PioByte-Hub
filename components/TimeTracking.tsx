@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Calendar, Timer, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 
@@ -506,152 +506,130 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const selectedCompEvent = compEvents.find(e => e.id === selectedCompEventId);
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Time Clock</h2>
-              <p className="text-[10px] md:text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Track your hours</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Hours</p>
-              <p className="text-2xl md:text-3xl font-black text-red-600">{formatDuration(totalHours)}</p>
-            </div>
+    <div className="space-y-4 animate-in fade-in duration-500">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Clock size={15} className="text-slate-400" />
+            <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Time Clock</h2>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              Week — <span className="text-slate-700 dark:text-slate-200 font-black">{formatDuration(myEntries.filter(e => { const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000; return new Date(e.checkInAt).getTime() > weekAgo && e.roundedMinutes; }).reduce((acc, e) => acc + (e.roundedMinutes || 0), 0))}</span>
+            </span>
+            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              Sessions — <span className="text-slate-700 dark:text-slate-200 font-black">{myEntries.filter(e => e.status === 'completed').length}</span>
+            </span>
+            <span className="px-2.5 py-1 bg-red-50 dark:bg-red-900/20 rounded-lg text-[10px] font-black text-red-600 dark:text-red-400">
+              Total — {formatDuration(totalHours)}
+            </span>
+          </div>
+        </div>
 
-          {myOpenEntry ? (
-            <div className="bg-green-50 dark:bg-green-900/30 border-2 border-green-200 dark:border-green-700 rounded-xl md:rounded-2xl p-4 md:p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
-                  <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 text-white rounded-xl md:rounded-2xl flex items-center justify-center animate-pulse shrink-0">
-                    <Clock size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs md:text-sm font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
-                    <p className="text-[10px] md:text-xs text-green-600 dark:text-green-400 font-bold">
-                      Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
-                    </p>
-                    {myOpenEntry.workingOnTaskTitle && (
-                      <p className="text-[9px] md:text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                        <Briefcase size={9} /> {myOpenEntry.workingOnTaskTitle}
-                      </p>
-                    )}
-                    {myOpenEntry.workingOnGeneralTaskName && (
-                      <p className="text-[9px] md:text-[10px] text-violet-600 dark:text-violet-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                        <ListChecks size={9} /> {myOpenEntry.workingOnGeneralTaskName}
-                      </p>
-                    )}
-                    {myOpenEntry.status === 'pending_check_in' && (
-                      <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation</p>
-                    )}
-                  </div>
+        {myOpenEntry ? (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center animate-pulse shrink-0">
+                  <Clock size={15} />
                 </div>
-                <button
-                  onClick={openCheckoutModal}
-                  disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
-                  className={`shrink-0 flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${
-                    myOpenEntry.status === 'pending_check_in' 
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
-                      : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
-                  }`}
-                >
-                  <LogOut size={16} /> Check Out
-                </button>
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
+                  <p className="text-[10px] text-green-600 dark:text-green-400 font-bold">
+                    Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
+                  </p>
+                  {myOpenEntry.workingOnTaskTitle && (
+                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-0.5 flex items-center gap-1 truncate">
+                      <Briefcase size={9} /> {myOpenEntry.workingOnTaskTitle}
+                    </p>
+                  )}
+                  {myOpenEntry.workingOnGeneralTaskName && (
+                    <p className="text-[9px] text-violet-600 dark:text-violet-400 font-bold mt-0.5 flex items-center gap-1 truncate">
+                      <ListChecks size={9} /> {myOpenEntry.workingOnGeneralTaskName}
+                    </p>
+                  )}
+                  {myOpenEntry.status === 'pending_check_in' && (
+                    <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation</p>
+                  )}
+                </div>
               </div>
+              <button
+                onClick={openCheckoutModal}
+                disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                  myOpenEntry.status === 'pending_check_in' 
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
+                    : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
+                }`}
+              >
+                <LogOut size={14} /> Check Out
+              </button>
             </div>
-          ) : (
-            <button
-              onClick={handleCheckIn}
-              disabled={checkInLoading}
-              className="w-full flex items-center justify-center gap-3 py-4 md:py-6 bg-green-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all uppercase tracking-widest text-sm md:text-base mb-6 disabled:opacity-70"
-            >
-              {checkInLoading ? <Loader2 size={20} className="animate-spin" /> : <LogIn size={20} />}
-              Check In
-            </button>
-          )}
-
-          <button 
-            onClick={() => setShowHistory(!showHistory)}
-            className="w-full flex items-center justify-between p-3 md:p-4 bg-slate-50 dark:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-widest"
+          </div>
+        ) : (
+          <button
+            onClick={handleCheckIn}
+            disabled={checkInLoading}
+            className="w-full flex items-center justify-center gap-3 py-4 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all uppercase tracking-widest text-sm mb-4 disabled:opacity-70"
           >
-            <span>My Time History</span>
-            {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {checkInLoading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
+            Check In
           </button>
+        )}
 
-          {showHistory && (
-            <div className="mt-4 space-y-3 max-h-64 overflow-auto">
-              {myEntries.slice(0, 20).map(entry => (
-                <div key={entry.id} className="flex items-center justify-between p-3 md:p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
-                  <div>
-                    <p className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100">{formatDate(entry.checkInAt)}</p>
-                    <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-bold">
-                      {formatTime(entry.checkInAt)} - {entry.checkOutAt ? formatTime(entry.checkOutAt) : 'In Progress'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 md:gap-3">
-                    {entry.status === 'completed' && entry.roundedMinutes && (
-                      <span className="text-xs md:text-sm font-black text-green-600 dark:text-green-400">{formatDuration(entry.roundedMinutes)}</span>
-                    )}
-                    <span className={`text-[8px] md:text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
-                      entry.status === 'completed' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
-                      entry.status === 'checked_in' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
-                      'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
-                    }`}>
-                      {entry.status.replace('_', ' ')}
-                    </span>
-                  </div>
+        <button 
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl text-slate-500 dark:text-slate-400 font-bold text-xs uppercase tracking-widest"
+        >
+          <span>My Time History</span>
+          {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        {showHistory && (
+          <div className="mt-3 space-y-2 max-h-64 overflow-auto">
+            {myEntries.slice(0, 20).map(entry => (
+              <div key={entry.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                <div>
+                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">{formatDate(entry.checkInAt)}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    {formatTime(entry.checkInAt)} - {entry.checkOutAt ? formatTime(entry.checkOutAt) : 'In Progress'}
+                  </p>
                 </div>
-              ))}
-              {myEntries.length === 0 && (
-                <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No time entries yet</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-slate-950 rounded-2xl md:rounded-[32px] p-6 md:p-8 text-white">
-          <div className="flex items-center gap-3 mb-6">
-            <Timer size={20} className="text-red-500" />
-            <h3 className="text-base md:text-lg font-black uppercase tracking-tight">Quick Stats</h3>
+                <div className="flex items-center gap-2">
+                  {entry.status === 'completed' && entry.roundedMinutes && (
+                    <span className="text-xs font-black text-green-600 dark:text-green-400">{formatDuration(entry.roundedMinutes)}</span>
+                  )}
+                  <span className={`text-[8px] font-black px-2 py-1 rounded-lg uppercase ${
+                    entry.status === 'completed' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                    entry.status === 'checked_in' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
+                    'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                  }`}>
+                    {entry.status.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {myEntries.length === 0 && (
+              <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">No time entries yet</p>
+            )}
           </div>
-          <div className="space-y-4">
-            <div className="bg-white/10 rounded-xl p-4">
-              <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-1">This Week</p>
-              <p className="text-2xl font-black">{formatDuration(
-                myEntries
-                  .filter(e => {
-                    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                    return new Date(e.checkInAt).getTime() > weekAgo && e.roundedMinutes;
-                  })
-                  .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0)
-              )}</p>
-            </div>
-            <div className="bg-white/10 rounded-xl p-4">
-              <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-1">Sessions</p>
-              <p className="text-2xl font-black">{myEntries.filter(e => e.status === 'completed').length}</p>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {compEvents.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-violet-200 dark:border-violet-700 p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-xl flex items-center justify-center">
-                <Trophy size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Competition Attendance</h3>
-                <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold uppercase tracking-widest">Track your time at competition</p>
-              </div>
+        <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-400 rounded-l-2xl" />
+          <div className="p-4 md:p-5 pl-5 md:pl-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Trophy size={15} className="text-violet-500" />
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Competition Attendance</h3>
             </div>
             {compEvents.length > 1 && (
               <select
                 value={selectedCompEventId || ''}
                 onChange={(e) => setSelectedCompEventId(parseInt(e.target.value))}
-                className="p-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-bold outline-none focus:border-violet-600 dark:text-white"
+                className="p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-bold outline-none focus:border-violet-500 dark:text-white"
               >
                 {compEvents.map(e => (
                   <option key={e.id} value={e.id}>{e.name}</option>
@@ -661,9 +639,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </div>
 
           {selectedCompEvent && (
-            <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-              <MapPin size={12} className="text-slate-400 flex-shrink-0" />
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">
+            <div className="flex items-center gap-2 mb-4 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+              <MapPin size={11} className="text-slate-400 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate">
                 {selectedCompEvent.name}{selectedCompEvent.location ? ` • ${selectedCompEvent.location}` : ''}
               </span>
             </div>
@@ -695,11 +673,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       </button>
                     )}
                     {openCheckin && (
-                      <div className="bg-violet-50 dark:bg-violet-900/20 border-2 border-violet-200 dark:border-violet-700 rounded-xl p-4 md:p-5">
+                      <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center animate-pulse">
-                              <Trophy size={18} />
+                            <div className="w-8 h-8 bg-violet-500 text-white rounded-lg flex items-center justify-center animate-pulse">
+                              <Trophy size={15} />
                             </div>
                             <div>
                               <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">At Competition</p>
@@ -718,7 +696,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       </div>
                     )}
                     {pendingCheckin && (
-                      <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-700 rounded-xl p-4 text-center">
+                      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 text-center">
                         <p className="text-xs font-black text-orange-700 dark:text-orange-300 uppercase">Checked Out — Awaiting Coach Approval</p>
                         <p className="text-[10px] text-orange-500 font-bold mt-1">
                           {formatTime(pendingCheckin.checkInAt)} – {pendingCheckin.checkOutAt ? formatTime(pendingCheckin.checkOutAt) : ''}
@@ -890,6 +868,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </div>
             );
           })()}
+          </div>
         </div>
       )}
 
@@ -1029,38 +1008,32 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoachOrCaptain && (
-        <div className="mb-4">
-          <button
-            onClick={() => { setShowGenTaskSettings(true); loadGenTasks(); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-violet-700 transition-all shadow-lg shadow-violet-600/20"
-          >
-            <ListChecks size={14} /> Manage General Tasks
-          </button>
-        </div>
-      )}
-
-      {isCoach && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-blue-200 dark:border-blue-700 p-6 md:p-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
-                <Users size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Bulk Add Time</h3>
-                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest">Add class time for multiple members</p>
-              </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-0">
+            <div className="flex items-center gap-2">
+              <Users size={15} className="text-slate-400" />
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Coach Tools</h3>
             </div>
-            <button
-              onClick={() => setShowBulkAdd(!showBulkAdd)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all"
-            >
-              <Plus size={14} /> {showBulkAdd ? 'Hide' : 'Add Time'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { setShowGenTaskSettings(true); loadGenTasks(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs uppercase hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:text-violet-700 dark:hover:text-violet-300 transition-all"
+              >
+                <ListChecks size={13} /> Manage Tasks
+              </button>
+              {isCoach && (
+                <button
+                  onClick={() => setShowBulkAdd(!showBulkAdd)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={13} /> {showBulkAdd ? 'Hide Bulk Add' : 'Bulk Add Time'}
+                </button>
+              )}
+            </div>
           </div>
 
-          {showBulkAdd && (
-            <div className="space-y-4">
+          {isCoach && showBulkAdd && (
+            <div className="space-y-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
               <div>
                 <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Quick Select by Role</label>
                 <div className="flex flex-wrap gap-2">
@@ -1163,15 +1136,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoach && pendingApprovals.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-orange-200 dark:border-orange-700 p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center">
-              <AlertCircle size={20} />
-            </div>
-            <div>
-              <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Pending Approvals</h3>
-              <p className="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-widest">{pendingApprovals.length} entries need confirmation</p>
-            </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle size={15} className="text-orange-500" />
+            <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pending Approvals</h3>
+            <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded-md uppercase">{pendingApprovals.length} pending</span>
           </div>
 
           <div className="space-y-3">
@@ -1228,15 +1197,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoach && checkedInStudents.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-green-200 dark:border-green-700 p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center">
-              <Clock size={20} />
-            </div>
-            <div>
-              <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Currently Checked In</h3>
-              <p className="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-widest">{checkedInStudents.length} students working</p>
-            </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock size={15} className="text-green-500" />
+            <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Currently Checked In</h3>
+            <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-md uppercase">{checkedInStudents.length} active</span>
           </div>
 
           <div className="space-y-3">
@@ -1277,25 +1242,21 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoach && notCheckedInUsers.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
           <button
             onClick={() => setShowNotCheckedIn(v => !v)}
-            className="w-full flex items-center justify-between p-4 md:p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Users size={18} />
-              </div>
-              <div className="text-left">
-                <h3 className="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Not Checked In</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">{notCheckedInUsers.length} students available</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <Users size={15} className="text-slate-400 flex-shrink-0" />
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Not Checked In</h3>
+              <span className="text-[9px] font-black px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-md uppercase">{notCheckedInUsers.length}</span>
             </div>
-            {showNotCheckedIn ? <ChevronUp size={18} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={18} className="text-slate-400 flex-shrink-0" />}
+            {showNotCheckedIn ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
           </button>
 
           {showNotCheckedIn && (
-            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 animate-in slide-in-from-top-1 fade-in duration-200">
+            <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 animate-in slide-in-from-top-1 fade-in duration-200">
               {notCheckedInUsers.map(user => (
                 <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1319,25 +1280,21 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       )}
 
       {isCoach && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
           <button
             onClick={() => setShowAllEntries(v => !v)}
-            className="w-full flex items-center justify-between p-4 md:p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl flex items-center justify-center flex-shrink-0">
-                <History size={18} />
-              </div>
-              <div className="text-left">
-                <h3 className="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">All Time Entries</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">{state.timeEntries.length} total records</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <History size={15} className="text-slate-400 flex-shrink-0" />
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">All Time Entries</h3>
+              <span className="text-[9px] font-black px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-md uppercase">{state.timeEntries.length}</span>
             </div>
-            {showAllEntries ? <ChevronUp size={18} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={18} className="text-slate-400 flex-shrink-0" />}
+            {showAllEntries ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
           </button>
 
           {showAllEntries && (
-          <div className="px-4 md:px-6 pb-4 md:pb-6 animate-in slide-in-from-top-1 fade-in duration-200">
+          <div className="px-4 pb-4 animate-in slide-in-from-top-1 fade-in duration-200">
           <div className="space-y-2 max-h-96 overflow-auto">
             {state.timeEntries.map(entry => (
               <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 md:p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 hover:border-slate-200 dark:hover:border-slate-500 transition-all">
