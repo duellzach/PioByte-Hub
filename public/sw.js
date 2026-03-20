@@ -1,9 +1,9 @@
-const CACHE_NAME = 'piobyte-hub-v1';
+const CACHE_NAME = 'piobyte-hub-v2';
 
 const PRECACHE_URLS = [
   '/',
   '/index.html',
-  '/index.css',
+  '/tailwind.css',
 ];
 
 self.addEventListener('install', (event) => {
