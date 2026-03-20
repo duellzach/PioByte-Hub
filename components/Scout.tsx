@@ -2771,3 +2771,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       onSetCopiedGemini={setCopiedGemini}
     />
   );
+
+};
+
+export default Scout;
