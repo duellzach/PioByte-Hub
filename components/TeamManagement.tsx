@@ -74,6 +74,22 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
       return a.name.localeCompare(b.name);
     });
 
+  const groupedUsers = useMemo(() => {
+    const groups: Record<string, User[]> = {};
+    filteredUsers.forEach(user => {
+      const dept = user.departments[0] || 'Unassigned';
+      if (!groups[dept]) groups[dept] = [];
+      groups[dept].push(user);
+    });
+    return Object.keys(groups)
+      .sort((a, b) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+      })
+      .map(dept => ({ dept, users: groups[dept] }));
+  }, [filteredUsers]);
+
   const getUserStats = (userId: string) => {
     const userTasks = state.tasks.filter(t => t.assignees.includes(userId));
     const completedTasks = userTasks.filter(t => t.status === TaskStatus.Complete);
@@ -276,8 +292,20 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8">
-            {filteredUsers.map(user => {
+        <div className="space-y-8 md:space-y-12">
+          {groupedUsers.length === 0 && (
+            <div className="text-center py-16 text-slate-400 dark:text-slate-500 font-black uppercase text-xs tracking-widest">No members found</div>
+          )}
+          {groupedUsers.map(({ dept, users: deptUsers }) => (
+            <div key={dept}>
+              <div className="flex items-center gap-3 mb-4 md:mb-6">
+                <div className="w-1 h-6 bg-red-600 rounded-full flex-shrink-0" />
+                <h2 className="text-xs md:text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">{dept}</h2>
+                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase">{deptUsers.length} member{deptUsers.length !== 1 ? 's' : ''}</span>
+                <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8">
+            {deptUsers.map(user => {
                 const stats = getUserStats(user.id);
                 const userIsCoach = user.roles.includes(Role.Coach);
                 return (
@@ -399,6 +427,9 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     </div>
                 );
             })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {showPasswordModal && (

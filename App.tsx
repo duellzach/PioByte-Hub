@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppState, User, Project, Task, Role, Department, TaskStatus, Priority, Notification, Announcement, TimeEntry } from './types';
 import Layout from './components/Layout';
@@ -48,7 +48,8 @@ const App: React.FC = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('piobyte_dark_mode') === 'true');
   const [globalAlerts, setGlobalAlerts] = useState<any[]>([]);
-  const [annToast, setAnnToast] = useState<{ text: string; scope: string; dept?: string } | null>(null);
+  const [annToast, setAnnToast] = useState<{ text: string; scope: string; dept?: string; authorName?: string } | null>(null);
+  const lastShownAnnRef = useRef<string | null>(localStorage.getItem('lastSeenAnnouncementId'));
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<number>>(() => {
     try {
       const stored = sessionStorage.getItem('piobyte_dismissed_alerts');
@@ -128,6 +129,38 @@ const App: React.FC = () => {
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!annToast) return;
+    const timer = setTimeout(() => setAnnToast(null), 8000);
+    return () => clearTimeout(timer);
+  }, [annToast]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !state.currentUser || !state.announcements.length) return;
+    const sorted = [...state.announcements].sort((a, b) => b.timestamp - a.timestamp);
+    const latest = sorted[0];
+    if (!latest) return;
+    if (lastShownAnnRef.current === null) {
+      lastShownAnnRef.current = latest.id;
+      localStorage.setItem('lastSeenAnnouncementId', latest.id);
+      return;
+    }
+    if (latest.id === lastShownAnnRef.current) return;
+    lastShownAnnRef.current = latest.id;
+    localStorage.setItem('lastSeenAnnouncementId', latest.id);
+    if (latest.authorId === state.currentUser.id) return;
+    const isGlobal = latest.scope === 'Global';
+    const isDeptMatch = state.currentUser.departments.some((d: string) => d === latest.targetDepartment);
+    if (!isGlobal && !isDeptMatch) return;
+    const author = state.users.find((u: any) => u.id === latest.authorId);
+    setAnnToast({
+      text: latest.text,
+      scope: latest.scope || 'Global',
+      dept: latest.targetDepartment,
+      authorName: author?.name || 'Team',
+    });
+  }, [state.announcements, state.currentUser, isLoggedIn, state.users]);
 
   const fetchAlerts = useCallback(async () => {
     if (!isLoggedIn) return;
@@ -241,8 +274,7 @@ const App: React.FC = () => {
     delete data.id;
     await api.announcements.create(data);
     await fetchData();
-    setAnnToast({ text: ann.text, scope: ann.scope || 'Global', dept: ann.targetDepartment });
-    setTimeout(() => setAnnToast(null), 6000);
+    setAnnToast({ text: ann.text, scope: ann.scope || 'Global', dept: ann.targetDepartment, authorName: 'You' });
   };
 
   const handleLogin = async (username: string, password?: string) => {
@@ -468,16 +500,27 @@ const App: React.FC = () => {
         <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
 
         {annToast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-sm w-full px-4">
-            <div className="bg-slate-950 border border-white/10 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
+          <div className="fixed bottom-6 right-6 z-[400] animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-sm w-full">
+            <div className="bg-slate-950 dark:bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
               <div className="flex-shrink-0 w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center">
-                <Zap size={14} className="text-white" />
+                <Bell size={14} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-0.5">
                   {annToast.scope === 'Global' ? 'Global Announcement' : `${annToast.dept} Announcement`}
                 </p>
-                <p className="text-xs font-bold text-white leading-snug line-clamp-3">{annToast.text}</p>
+                {annToast.authorName && (
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">{annToast.authorName}</p>
+                )}
+                <p className="text-xs font-bold text-white leading-snug line-clamp-3">
+                  {annToast.text.length > 100 ? `${annToast.text.slice(0, 100)}\u2026` : annToast.text}
+                </p>
+                <button
+                  onClick={() => { window.location.hash = '#/'; setAnnToast(null); }}
+                  className="mt-2 text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest transition-colors"
+                >
+                  View &rarr;
+                </button>
               </div>
               <button onClick={() => setAnnToast(null)} className="flex-shrink-0 text-slate-500 hover:text-white transition-colors mt-0.5">
                 <X size={14} />
