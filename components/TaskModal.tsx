@@ -28,6 +28,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     effort: 1,
     departments: [],
     assignees: [],
+    contributors: [],
     successCriteria: [],
     attachments: [],
     comments: [],

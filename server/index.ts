@@ -394,10 +394,11 @@ app.post("/api/time-entries/:id/check-out", async (req, res) => {
     if (entry.workingOnTaskId) {
       const task = await storage.getTask(entry.workingOnTaskId);
       if (task) {
-        const currentContributors: number[] = (task.contributors as number[]) || [];
+        const currentContributors: number[] = Array.isArray(task.contributors) ? task.contributors : [];
         if (!currentContributors.includes(entry.userId)) {
+          const updatedContributors: number[] = [...currentContributors, entry.userId];
           await storage.updateTask(entry.workingOnTaskId, {
-            contributors: [...currentContributors, entry.userId] as any,
+            contributors: updatedContributors,
           });
         }
         if (markTaskComplete) {
