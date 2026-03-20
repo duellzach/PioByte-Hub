@@ -1790,6 +1790,67 @@ app.post("/api/seed", async (req, res) => {
   }
 });
 
+app.get("/api/calendar", async (req, res) => {
+  try {
+    const events = await storage.getCalendarEvents();
+    res.json(events);
+  } catch (error) {
+    console.error("Error fetching calendar events:", error);
+    res.status(500).json({ error: "Failed to fetch calendar events" });
+  }
+});
+
+app.post("/api/calendar", async (req, res) => {
+  try {
+    const { requesterId, ...data } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can create calendar events" });
+    }
+    const event = await storage.createCalendarEvent({ ...data, createdBy: parseInt(requesterId) });
+    res.status(201).json(event);
+  } catch (error) {
+    console.error("Error creating calendar event:", error);
+    res.status(500).json({ error: "Failed to create calendar event" });
+  }
+});
+
+app.put("/api/calendar/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { requesterId, ...data } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can edit calendar events" });
+    }
+    const event = await storage.updateCalendarEvent(id, data);
+    if (!event) return res.status(404).json({ error: "Calendar event not found" });
+    res.json(event);
+  } catch (error) {
+    console.error("Error updating calendar event:", error);
+    res.status(500).json({ error: "Failed to update calendar event" });
+  }
+});
+
+app.delete("/api/calendar/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(requesterId);
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can delete calendar events" });
+    }
+    await storage.deleteCalendarEvent(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting calendar event:", error);
+    res.status(500).json({ error: "Failed to delete calendar event" });
+  }
+});
+
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {
     res.sendFile(path.join(__dirname, "../dist/index.html"));
@@ -1797,6 +1858,15 @@ if (isProduction) {
 }
 
 const PORT = isProduction ? 5000 : 3001;
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on port ${PORT}`);
+  try {
+    const allUsers = await storage.getUsers();
+    if (allUsers.length > 0) {
+      const coachOrCaptain = allUsers.find(u => (u.roles as string[]).some(r => ['Coach', 'Team Captain'].includes(r)));
+      if (coachOrCaptain) await storage.seedCalendarEvents(coachOrCaptain.id);
+    }
+  } catch (e) {
+    console.warn("Calendar seed skipped:", e);
+  }
 });

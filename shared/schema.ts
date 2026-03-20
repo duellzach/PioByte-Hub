@@ -369,3 +369,20 @@ export type UserCertification = typeof userCertifications.$inferSelect;
 export type InsertUserCertification = typeof userCertifications.$inferInsert;
 export type CertificationRequest = typeof certificationRequests.$inferSelect;
 export type InsertCertificationRequest = typeof certificationRequests.$inferInsert;
+
+export const calendarEvents = pgTable("calendar_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date"),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  type: text("type").notNull().default("practice"),
+  location: text("location").notNull().default(""),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;

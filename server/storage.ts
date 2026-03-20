@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -166,6 +166,13 @@ export interface IStorage {
   updateCertRequestProgress(requestId: number, checklistProgress: { id: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined>;
   completeCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined>;
   rejectCertRequest(requestId: number, trainerId: number, notes?: string): Promise<CertificationRequest | undefined>;
+
+  getCalendarEvents(): Promise<CalendarEvent[]>;
+  getCalendarEvent(id: number): Promise<CalendarEvent | undefined>;
+  createCalendarEvent(data: InsertCalendarEvent): Promise<CalendarEvent>;
+  updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
+  deleteCalendarEvent(id: number): Promise<void>;
+  seedCalendarEvents(createdBy: number): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -946,6 +953,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(certificationRequests.id, requestId))
       .returning();
     return row;
+  }
+
+  async getCalendarEvents(): Promise<CalendarEvent[]> {
+    return db.select().from(calendarEvents).orderBy(calendarEvents.startDate);
+  }
+
+  async getCalendarEvent(id: number): Promise<CalendarEvent | undefined> {
+    const [row] = await db.select().from(calendarEvents).where(eq(calendarEvents.id, id));
+    return row;
+  }
+
+  async createCalendarEvent(data: InsertCalendarEvent): Promise<CalendarEvent> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.insert(calendarEvents).values(sanitized).returning();
+    return row;
+  }
+
+  async updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.update(calendarEvents).set(sanitized).where(eq(calendarEvents.id, id)).returning();
+    return row;
+  }
+
+  async deleteCalendarEvent(id: number): Promise<void> {
+    await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async seedCalendarEvents(createdBy: number): Promise<void> {
+    const existing = await db.select().from(calendarEvents);
+    if (existing.length > 0) return;
+    const seeds = [
+      { title: 'Team Practice', startDate: '2026-01-06', type: 'practice', location: 'Build Room', description: 'Biweekly practice session' },
+      { title: 'Team Practice', startDate: '2026-01-10', type: 'practice', location: 'Build Room', description: 'Weekly practice session' },
+      { title: 'San Diego Regional', startDate: '2026-03-05', endDate: '2026-03-08', type: 'competition', location: 'San Diego, CA', description: 'Week 1 Regional' },
+      { title: 'LA Regional', startDate: '2026-03-19', endDate: '2026-03-22', type: 'competition', location: 'Los Angeles, CA', description: 'Week 3 Regional' },
+      { title: 'CHS District Championship', startDate: '2026-04-09', endDate: '2026-04-12', type: 'competition', location: 'Virginia', description: 'District Championship' },
+      { title: 'Strategy Meeting', startDate: '2026-03-01', type: 'meeting', location: 'Build Room', description: '' },
+      { title: 'Robot Bag Deadline', startDate: '2026-02-18', type: 'deadline', location: '', description: 'Robot must be competition-ready' },
+    ];
+    for (const s of seeds) {
+      await db.insert(calendarEvents).values({ ...s, createdBy } as InsertCalendarEvent);
+    }
   }
 
   async seedDatabase(): Promise<void> {

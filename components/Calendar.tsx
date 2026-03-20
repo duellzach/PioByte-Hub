@@ -1,73 +1,76 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Flag, Repeat } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Flag, Plus, X, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { api } from '../services/api';
 
 interface CalendarEvent {
-  id: string;
+  id: number;
   title: string;
-  date: string;
-  endDate?: string;
-  type: 'practice' | 'competition' | 'meeting' | 'deadline';
-  location?: string;
-  notes?: string;
-  recurring?: 'weekly' | 'biweekly';
+  description: string;
+  startDate: string;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  type: string;
+  location: string;
+  createdBy: number;
+  createdAt: string;
 }
 
-const SEED_EVENTS: CalendarEvent[] = [
-  { id: 'p1', title: 'Team Practice', date: '2026-01-06', type: 'practice', location: 'Build Room', recurring: 'biweekly' },
-  { id: 'p2', title: 'Team Practice', date: '2026-01-10', type: 'practice', location: 'Build Room', recurring: 'weekly' },
-  { id: 'c1', title: 'San Diego Regional', date: '2026-03-05', endDate: '2026-03-08', type: 'competition', location: 'San Diego, CA', notes: 'Week 1 Regional' },
-  { id: 'c2', title: 'LA Regional', date: '2026-03-19', endDate: '2026-03-22', type: 'competition', location: 'Los Angeles, CA', notes: 'Week 3 Regional' },
-  { id: 'c3', title: 'CHS District Championship', date: '2026-04-09', endDate: '2026-04-12', type: 'competition', location: 'Virginia', notes: 'District Championship' },
-  { id: 'm1', title: 'Strategy Meeting', date: '2026-03-01', type: 'meeting', location: 'Build Room' },
-  { id: 'd1', title: 'Robot Bag Deadline', date: '2026-02-18', type: 'deadline', notes: 'Robot must be competition-ready' },
-];
+interface CalendarProps {
+  currentUser?: any;
+}
 
-const TYPE_STYLES: Record<CalendarEvent['type'], { bg: string; text: string; icon: React.ReactNode; label: string }> = {
+const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode; label: string }> = {
   practice: { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', icon: <Wrench size={10} />, label: 'Practice' },
   competition: { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', icon: <Trophy size={10} />, label: 'Competition' },
   meeting: { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', icon: <CalendarDays size={10} />, label: 'Meeting' },
   deadline: { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', icon: <Flag size={10} />, label: 'Deadline' },
 };
 
+const EVENT_TYPES = ['practice', 'competition', 'meeting', 'deadline'];
+
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-function expandRecurring(events: CalendarEvent[], year: number, month: number): CalendarEvent[] {
-  const expanded: CalendarEvent[] = [];
-  const monthStart = new Date(year, month, 1);
-  const monthEnd = new Date(year, month + 1, 0);
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  startDate: '',
+  endDate: '',
+  startTime: '',
+  endTime: '',
+  type: 'practice',
+  location: '',
+};
 
-  events.forEach(ev => {
-    if (!ev.recurring) {
-      expanded.push(ev);
-      return;
-    }
-    const seed = new Date(ev.date);
-    const intervalDays = ev.recurring === 'weekly' ? 7 : 14;
-    let cur = new Date(seed);
-    while (cur <= monthEnd) {
-      if (cur >= monthStart) {
-        expanded.push({
-          ...ev,
-          id: `${ev.id}-${cur.toISOString().slice(0,10)}`,
-          date: cur.toISOString().slice(0,10),
-          recurring: undefined,
-        });
-      }
-      cur = new Date(cur.getTime() + intervalDays * 86400000);
-    }
-  });
-  return expanded;
-}
-
-const Calendar: React.FC = () => {
+const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [view, setView] = useState<'month' | 'list'>('month');
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const allEvents = useMemo(() => expandRecurring(SEED_EVENTS, year, month), [year, month]);
+  const isCoachOrCaptain = currentUser?.roles?.includes('Coach') || currentUser?.roles?.includes('Team Captain');
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const data = await api.calendar.getAll();
+      setEvents(data);
+    } catch (e) {
+      console.error('Failed to fetch calendar events:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
   const daysInMonth = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -80,30 +83,38 @@ const Calendar: React.FC = () => {
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
-    allEvents.forEach(ev => {
-      if (!map[ev.date]) map[ev.date] = [];
-      map[ev.date].push(ev);
+    events.forEach(ev => {
+      const key = ev.startDate;
+      if (!map[key]) map[key] = [];
+      if (!map[key].find(e => e.id === ev.id)) map[key].push(ev);
       if (ev.endDate) {
-        let cur = new Date(ev.date);
-        const end = new Date(ev.endDate);
+        let cur = new Date(ev.startDate + 'T12:00:00');
+        const end = new Date(ev.endDate + 'T12:00:00');
         cur.setDate(cur.getDate() + 1);
         while (cur <= end) {
-          const key = cur.toISOString().slice(0,10);
-          if (!map[key]) map[key] = [];
-          map[key].push({ ...ev, id: `${ev.id}-cont-${key}` });
+          const k = cur.toISOString().slice(0, 10);
+          if (!map[k]) map[k] = [];
+          map[k].push(ev);
           cur.setDate(cur.getDate() + 1);
         }
       }
     });
     return map;
-  }, [allEvents]);
+  }, [events]);
+
+  const upcomingEvents = useMemo(() => {
+    const now = new Date().toISOString().slice(0, 10);
+    return [...events]
+      .filter(ev => ev.startDate >= now)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))
+      .slice(0, 12);
+  }, [events]);
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear(y => y - 1); }
     else setMonth(m => m - 1);
     setSelectedDate(null);
   };
-
   const nextMonth = () => {
     if (month === 11) { setMonth(0); setYear(y => y + 1); }
     else setMonth(m => m + 1);
@@ -112,22 +123,87 @@ const Calendar: React.FC = () => {
 
   const selectedEvents = selectedDate ? (eventsByDate[selectedDate] || []) : [];
 
-  const upcomingEvents = useMemo(() => {
-    const now = new Date().toISOString().slice(0,10);
-    return SEED_EVENTS
-      .filter(ev => ev.date >= now)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 12);
-  }, []);
+  const openAdd = (date?: string) => {
+    setEditingEvent(null);
+    setForm({ ...EMPTY_FORM, startDate: date || '' });
+    setError('');
+    setShowModal(true);
+  };
+
+  const openEdit = (ev: CalendarEvent) => {
+    setEditingEvent(ev);
+    setForm({
+      title: ev.title,
+      description: ev.description || '',
+      startDate: ev.startDate,
+      endDate: ev.endDate || '',
+      startTime: ev.startTime || '',
+      endTime: ev.endTime || '',
+      type: ev.type,
+      location: ev.location || '',
+    });
+    setError('');
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.title.trim()) { setError('Title is required'); return; }
+    if (!form.startDate) { setError('Start date is required'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        startDate: form.startDate,
+        endDate: form.endDate || null,
+        startTime: form.startTime || null,
+        endTime: form.endTime || null,
+        type: form.type,
+        location: form.location.trim(),
+      };
+      if (editingEvent) {
+        await api.calendar.update(editingEvent.id, parseInt(currentUser.id), payload);
+      } else {
+        await api.calendar.create(parseInt(currentUser.id), payload);
+      }
+      await fetchEvents();
+      setShowModal(false);
+    } catch (e: any) {
+      setError(e.message || 'Failed to save event');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (ev: CalendarEvent) => {
+    if (!confirm(`Delete "${ev.title}"?`)) return;
+    try {
+      await api.calendar.delete(ev.id, parseInt(currentUser.id));
+      await fetchEvents();
+    } catch (e) {
+      console.error('Failed to delete event:', e);
+    }
+  };
+
+  const s = (type: string) => TYPE_STYLES[type] || TYPE_STYLES['practice'];
 
   return (
     <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-300 overflow-auto pb-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Calendar</h1>
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-0.5">Season Schedule & Events</p>
         </div>
         <div className="flex items-center gap-2">
+          {isCoachOrCaptain && (
+            <button
+              onClick={() => openAdd()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+            >
+              <Plus size={12} /> Add Event
+            </button>
+          )}
           <button
             onClick={() => setView('month')}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${view === 'month' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
@@ -151,7 +227,11 @@ const Calendar: React.FC = () => {
         ))}
       </div>
 
-      {view === 'month' ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={32} className="animate-spin text-slate-400" />
+        </div>
+      ) : view === 'month' ? (
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-700">
@@ -165,7 +245,6 @@ const Calendar: React.FC = () => {
                 <ChevronRight size={18} className="text-slate-600 dark:text-slate-300" />
               </button>
             </div>
-
             <div className="p-3">
               <div className="grid grid-cols-7 mb-1">
                 {DAYS.map(d => (
@@ -175,9 +254,9 @@ const Calendar: React.FC = () => {
               <div className="grid grid-cols-7 gap-0.5">
                 {daysInMonth.map((day, idx) => {
                   if (!day) return <div key={idx} />;
-                  const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   const dayEvents = eventsByDate[dateStr] || [];
-                  const isToday = dateStr === today.toISOString().slice(0,10);
+                  const isToday = dateStr === today.toISOString().slice(0, 10);
                   const isSelected = dateStr === selectedDate;
                   return (
                     <button
@@ -196,10 +275,10 @@ const Calendar: React.FC = () => {
                         'text-slate-700 dark:text-slate-200'
                       }`}>{day}</span>
                       <div className="space-y-0.5">
-                        {dayEvents.slice(0, 2).map(ev => {
-                          const s = TYPE_STYLES[ev.type];
+                        {dayEvents.slice(0, 2).map((ev, i) => {
+                          const style = s(ev.type);
                           return (
-                            <div key={ev.id} className={`w-full px-1 py-0.5 rounded text-[7px] font-black truncate ${isSelected ? 'bg-white/20 text-white dark:text-slate-900' : `${s.bg} ${s.text}`}`}>
+                            <div key={`${ev.id}-${i}`} className={`w-full px-1 py-0.5 rounded text-[7px] font-black truncate ${isSelected ? 'bg-white/20 text-white dark:text-slate-900' : `${style.bg} ${style.text}`}`}>
                               {ev.title}
                             </div>
                           );
@@ -218,24 +297,57 @@ const Calendar: React.FC = () => {
           <div className="lg:w-72 xl:w-80 space-y-4">
             {selectedDate && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
-                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
-                  {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                  </h3>
+                  {isCoachOrCaptain && (
+                    <button
+                      onClick={() => openAdd(selectedDate)}
+                      className="p-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 transition-all"
+                      title="Add event on this day"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  )}
+                </div>
                 {selectedEvents.length === 0 ? (
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase text-center py-4">No events</p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedEvents.map(ev => {
-                      const s = TYPE_STYLES[ev.type];
+                    {selectedEvents.map((ev, i) => {
+                      const style = s(ev.type);
                       return (
-                        <div key={ev.id} className={`p-3 rounded-xl ${s.bg}`}>
-                          <div className={`flex items-center gap-1.5 mb-1 ${s.text}`}>
-                            {s.icon}
-                            <span className="text-[9px] font-black uppercase tracking-wider">{s.label}</span>
+                        <div key={`${ev.id}-${i}`} className={`p-3 rounded-xl ${style.bg}`}>
+                          <div className={`flex items-center justify-between mb-1 ${style.text}`}>
+                            <div className="flex items-center gap-1.5">
+                              {style.icon}
+                              <span className="text-[9px] font-black uppercase tracking-wider">{style.label}</span>
+                            </div>
+                            {isCoachOrCaptain && ev.startDate === selectedDate && (
+                              <div className="flex gap-1">
+                                <button onClick={() => openEdit(ev)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Edit">
+                                  <Pencil size={10} />
+                                </button>
+                                <button onClick={() => handleDelete(ev)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Delete">
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <p className={`text-xs font-black ${s.text}`}>{ev.title}</p>
+                          <p className={`text-xs font-black ${style.text}`}>{ev.title}</p>
+                          {ev.startTime && (
+                            <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                              {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
+                            </p>
+                          )}
                           {ev.location && <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">{ev.location}</p>}
-                          {ev.notes && <p className="text-[9px] text-slate-400 dark:text-slate-500 italic mt-0.5">{ev.notes}</p>}
+                          {ev.description && <p className="text-[9px] text-slate-400 dark:text-slate-500 italic mt-0.5">{ev.description}</p>}
+                          {ev.endDate && ev.endDate !== ev.startDate && (
+                            <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase mt-0.5">
+                              Through {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
@@ -250,21 +362,20 @@ const Calendar: React.FC = () => {
                 {upcomingEvents.length === 0 ? (
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase text-center py-3">Nothing upcoming</p>
                 ) : upcomingEvents.map(ev => {
-                  const s = TYPE_STYLES[ev.type];
-                  const d = new Date(ev.date + 'T12:00:00');
+                  const style = s(ev.type);
+                  const d = new Date(ev.startDate + 'T12:00:00');
                   return (
                     <div key={ev.id} className="flex items-start gap-2.5">
                       <div className="flex-shrink-0 text-center w-10">
                         <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short', timeZone: 'America/Los_Angeles' })}</div>
                         <div className="text-base font-black text-slate-900 dark:text-white leading-none">{d.getDate()}</div>
                       </div>
-                      <div className={`flex-1 p-2 rounded-xl ${s.bg}`}>
-                        <div className={`flex items-center gap-1 mb-0.5 ${s.text}`}>
-                          {s.icon}
-                          <span className="text-[8px] font-black uppercase">{s.label}</span>
-                          {ev.recurring && <Repeat size={8} className="ml-auto opacity-60" />}
+                      <div className={`flex-1 p-2 rounded-xl ${style.bg}`}>
+                        <div className={`flex items-center gap-1 mb-0.5 ${style.text}`}>
+                          {style.icon}
+                          <span className="text-[8px] font-black uppercase">{style.label}</span>
                         </div>
-                        <p className={`text-[10px] font-black ${s.text}`}>{ev.title}</p>
+                        <p className={`text-[10px] font-black ${style.text}`}>{ev.title}</p>
                         {ev.location && <p className="text-[9px] text-slate-500 dark:text-slate-400">{ev.location}</p>}
                       </div>
                     </div>
@@ -283,37 +394,178 @@ const Calendar: React.FC = () => {
             {upcomingEvents.length === 0 ? (
               <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm font-bold uppercase">No upcoming events</div>
             ) : upcomingEvents.map(ev => {
-              const s = TYPE_STYLES[ev.type];
-              const d = new Date(ev.date + 'T12:00:00');
+              const style = s(ev.type);
+              const d = new Date(ev.startDate + 'T12:00:00');
               return (
-                <div key={ev.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                <div key={ev.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
                   <div className="flex-shrink-0 w-12 text-center">
                     <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short', timeZone: 'America/Los_Angeles' })}</div>
                     <div className="text-xl font-black text-slate-900 dark:text-white leading-none">{d.getDate()}</div>
                     <div className="text-[8px] font-black text-slate-400 dark:text-slate-500">{d.toLocaleDateString([], { weekday: 'short', timeZone: 'America/Los_Angeles' })}</div>
                   </div>
-                  <div className={`w-1 self-stretch rounded-full ${s.text.replace('text-', 'bg-').split(' ')[0]}`} />
+                  <div className={`w-1 self-stretch rounded-full ${style.text.replace('text-', 'bg-').split(' ')[0]}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${s.bg} ${s.text} text-[8px] font-black uppercase mb-1`}>
-                      {s.icon} {s.label}
+                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${style.bg} ${style.text} text-[8px] font-black uppercase mb-1`}>
+                      {style.icon} {style.label}
                     </div>
                     <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{ev.title}</p>
+                    {ev.startTime && (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                        {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
+                      </p>
+                    )}
                     {ev.location && <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{ev.location}</p>}
-                    {ev.notes && <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">{ev.notes}</p>}
-                    {ev.endDate && (
+                    {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">{ev.description}</p>}
+                    {ev.endDate && ev.endDate !== ev.startDate && (
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase mt-0.5">
                         Through {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                       </p>
                     )}
                   </div>
-                  {ev.recurring && (
-                    <div className="flex-shrink-0 text-slate-300 dark:text-slate-600" title={`Repeats ${ev.recurring}`}>
-                      <Repeat size={14} />
+                  {isCoachOrCaptain && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEdit(ev)}
+                        className="p-1.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg hover:text-slate-800 dark:hover:text-white transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(ev)}
+                        className="p-1.5 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-lg hover:bg-red-100 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   )}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[300] p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-4 border-red-600 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                  <CalendarDays size={18} className="text-red-600" />
+                  {editingEvent ? 'Edit Event' : 'Add Event'}
+                </h2>
+                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">
+                  {editingEvent ? 'Update calendar event' : 'Add to season calendar'}
+                </p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Title *</label>
+                <input
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  placeholder="Event title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Type</label>
+                <div className="flex gap-2 flex-wrap">
+                  {EVENT_TYPES.map(t => {
+                    const style = TYPE_STYLES[t];
+                    const isActive = form.type === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setForm(f => ({ ...f, type: t }))}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase transition-all ${isActive ? `${style.bg} ${style.text} ring-2 ring-current` : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                        {style.icon} {style.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Start Date *</label>
+                  <input
+                    type="date"
+                    value={form.startDate}
+                    onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={form.endDate}
+                    onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={form.startTime}
+                    onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={form.endTime}
+                    onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Location</label>
+                <input
+                  value={form.location}
+                  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  placeholder="Location or venue"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Notes</label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm resize-none h-20"
+                  placeholder="Additional notes"
+                />
+              </div>
+
+              {error && <p className="text-red-600 text-xs font-bold">{error}</p>}
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : (editingEvent ? 'Update Event' : 'Add Event')}
+              </button>
+            </div>
           </div>
         </div>
       )}

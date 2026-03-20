@@ -206,6 +206,15 @@ export const api = {
     reject: (requestId: number, trainerId: number, notes?: string) =>
       apiRequest<any>(`/cert-requests/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ trainerId, notes }) }),
   },
+  calendar: {
+    getAll: () => apiRequest<any[]>('/calendar'),
+    create: (requesterId: number, data: any) =>
+      apiRequest<any>('/calendar', { method: 'POST', body: JSON.stringify({ ...data, requesterId }) }),
+    update: (id: number, requesterId: number, data: any) =>
+      apiRequest<any>(`/calendar/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, requesterId }) }),
+    delete: (id: number, requesterId: number) =>
+      apiRequest<void>(`/calendar/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
+  },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
   changePassword: (userId: number, currentPassword: string, newPassword: string) =>
