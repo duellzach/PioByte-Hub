@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
-import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS } from '../constants';
+import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS, DEPARTMENT_COLORS } from '../constants';
 import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck } from 'lucide-react';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
@@ -58,25 +58,46 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     return accessibleProjects.find(p => !p.archived)?.id || accessibleProjects[0]?.id || '';
   }, [accessibleProjects]);
 
-  const [activeProjectId, setActiveProjectId] = useState<string>(firstAccessibleProject);
+  const [activeBoardKey, setActiveBoardKeyRaw] = useState<string>(() => {
+    return localStorage.getItem('piobyte_last_board_id') || '';
+  });
+
+  const selectBoard = (key: string) => {
+    setActiveBoardKeyRaw(key);
+    localStorage.setItem('piobyte_last_board_id', key);
+  };
 
   React.useEffect(() => {
-    if (!accessibleProjects.find(p => p.id === activeProjectId)) {
-      setActiveProjectId(firstAccessibleProject);
+    const isDeptBoard = activeBoardKey.startsWith('dept:');
+    const isValidProject = accessibleProjects.find(p => p.id === activeBoardKey);
+    if (!activeBoardKey || (!isDeptBoard && !isValidProject)) {
+      selectBoard(firstAccessibleProject);
     }
-  }, [accessibleProjects, activeProjectId, firstAccessibleProject]);
+  }, [accessibleProjects, activeBoardKey, firstAccessibleProject]);
 
-  const activeProject = useMemo(() => state.projects.find(p => p.id === activeProjectId), [state.projects, activeProjectId]);
+  const activeProject = useMemo(() => {
+    if (activeBoardKey.startsWith('dept:')) return undefined;
+    return state.projects.find(p => p.id === activeBoardKey);
+  }, [state.projects, activeBoardKey]);
 
-  const canCreateTask = hasLeaderRole || activeProject?.allowAllTaskCreation;
+  const canCreateTask = hasLeaderRole || (!activeBoardKey.startsWith('dept:') && activeProject?.allowAllTaskCreation);
+
+  const isDeptBoard = activeBoardKey.startsWith('dept:');
+  const activeDept = isDeptBoard ? activeBoardKey.slice(5) as Department : null;
 
   const projectTasks = useMemo(() => {
-    let tasks = state.tasks.filter(t => t.projectId === activeProjectId);
+    if (isDeptBoard && activeDept) {
+      return state.tasks.filter(t => {
+        const project = state.projects.find(p => p.id === t.projectId);
+        return !project?.archived && t.departments.includes(activeDept);
+      });
+    }
+    let tasks = state.tasks.filter(t => t.projectId === activeBoardKey);
     if (deptFilter !== 'All') {
       tasks = tasks.filter(t => t.departments.includes(deptFilter));
     }
     return tasks;
-  }, [state.tasks, activeProjectId, deptFilter]);
+  }, [state.tasks, state.projects, activeBoardKey, deptFilter, isDeptBoard, activeDept]);
 
   const helpWantedTasks = useMemo(() => {
     return state.tasks.filter(t => t.helpRequested && !state.projects.find(p => p.id === t.projectId)?.archived);
@@ -143,7 +164,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
       showInWarRoom: true
     };
     onAddProject(newProject);
-    setActiveProjectId(newId);
+    selectBoard(newId);
     setNewProjectName('');
     setNewProjectDesc('');
     setShowNewProjectModal(false);
@@ -184,13 +205,16 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
           {view === 'board' && (
             <>
               <select 
-                value={activeProjectId} 
-                onChange={(e) => setActiveProjectId(e.target.value)}
+                value={activeBoardKey} 
+                onChange={(e) => selectBoard(e.target.value)}
                 className="flex-1 min-w-0 sm:flex-none sm:min-w-[160px] md:min-w-[200px] px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 font-bold text-sm text-slate-800 dark:text-white shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
               >
-                {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                <optgroup label="Archived" className="dark:bg-slate-800">
-                    {accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                <optgroup label="Projects">
+                  {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {isCoachOrCaptain && accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name} [Archived]</option>)}
+                </optgroup>
+                <optgroup label="Department Boards">
+                  {DEPARTMENTS.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
                 </optgroup>
               </select>
               <button 
@@ -209,14 +233,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                     <Settings size={16} />
                 </button>
               )}
-              <select 
-                value={deptFilter} 
-                onChange={(e) => setDeptFilter(e.target.value as Department | 'All')}
-                className="hidden sm:block px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
-              >
-                <option value="All">All Depts</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+              {!isDeptBoard && (
+                <select 
+                  value={deptFilter} 
+                  onChange={(e) => setDeptFilter(e.target.value as Department | 'All')}
+                  className="hidden sm:block px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
+                >
+                  <option value="All">All Depts</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              )}
+              {isDeptBoard && activeDept && (
+                <span className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border ${DEPARTMENT_COLORS[activeDept]}`}>
+                  ⬡ {activeDept} Board
+                </span>
+              )}
             </>
           )}
 
@@ -445,7 +476,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         <TaskModal 
           task={selectedTask || {
             id: Math.random().toString(36).substr(2, 9),
-            projectId: activeProjectId,
+            projectId: isDeptBoard ? (accessibleProjects.find(p => !p.archived)?.id || '') : activeBoardKey,
             title: '',
             description: '',
             status: TaskStatus.NotStarted,
@@ -479,7 +510,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
           onSaveWithoutClose={(task) => {
               if (selectedTask) onUpdateTask(task);
           }}
-          onDelete={onDeleteTask}
+          onDelete={(taskId) => {
+              setSelectedTask(null);
+              setShowAddModal(false);
+              onDeleteTask(taskId);
+          }}
         />
       )}
 
@@ -507,12 +542,14 @@ const TaskCard: React.FC<{
     onToggleHelp: (e: React.MouseEvent) => void;
     onDragStart: (e: React.DragEvent) => void 
 }> = ({ task, certName, onClick, onToggleHelp, onDragStart }) => {
+    const primaryDept = task.departments[0] as Department | undefined;
+    const deptBorder = primaryDept ? DEPT_BORDER_COLORS[primaryDept] : '';
     return (
         <div 
             onClick={onClick}
             draggable
             onDragStart={onDragStart}
-            className={`group bg-white dark:bg-slate-700 p-2.5 md:p-3 rounded-lg md:rounded-xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-grab active:cursor-grabbing relative overflow-hidden ${
+            className={`group bg-white dark:bg-slate-700 p-2.5 md:p-3 rounded-lg md:rounded-xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-grab active:cursor-grabbing relative overflow-hidden ${deptBorder} ${
                 task.helpRequested ? 'border-red-600 shadow-red-600/5' : 'border-slate-100 dark:border-slate-600 hover:border-red-600/30'
             }`}
         >
