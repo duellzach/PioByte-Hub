@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award } from 'lucide-react';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList } from 'lucide-react';
 import { DEPARTMENT_COLORS, ROLES, DEPARTMENTS } from '../constants';
 import { api } from '../services/api';
 
@@ -31,6 +31,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
   const [perfCertHistory, setPerfCertHistory] = useState<any[]>([]);
   const [perfHeldCerts, setPerfHeldCerts] = useState<any[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
@@ -176,6 +177,58 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return state.users.find(u => u.id === userId)?.name || 'Unknown';
   };
 
+  const summaryRows = useMemo(() => {
+    return state.users
+      .slice()
+      .sort((a, b) => {
+        const dA = a.departments[0] || 'zzz';
+        const dB = b.departments[0] || 'zzz';
+        if (dA !== dB) return dA.localeCompare(dB);
+        return a.name.localeCompare(b.name);
+      })
+      .map(user => {
+        const stats = getUserStats(user.id);
+        const minutes = getUserTotalMinutes(user.id);
+        return {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          departments: user.departments.join(', ') || '—',
+          roles: user.roles.join(', ') || '—',
+          completed: stats.completed,
+          effort: stats.effort,
+          active: stats.active,
+          hoursLogged: (minutes / 60).toFixed(1),
+          muted: !!user.muted,
+        };
+      });
+  }, [state.users, state.tasks, state.timeEntries]);
+
+  const exportTeamCSV = () => {
+    const headers = ['Name', 'Username', 'Departments', 'Roles', 'Tasks Completed', 'Effort Points', 'Active Tasks', 'Hours Logged', 'Status'];
+    const rows = summaryRows.map(r => [
+      r.name,
+      r.username,
+      r.departments,
+      r.roles,
+      r.completed,
+      r.effort,
+      r.active,
+      r.hoursLogged,
+      r.muted ? 'Muted' : 'Active',
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `team-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDeleteConfirm = () => {
     if (userToDelete) {
       onDeleteUser(userToDelete.id);
@@ -249,6 +302,15 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         <Lock size={16} />
                         <span className="hidden sm:inline">Change Password</span>
                     </button>
+                    {isCoach && (
+                      <button
+                        onClick={() => setShowSummary(v => !v)}
+                        className={`flex items-center justify-center gap-2 px-4 md:px-6 py-3 md:py-5 font-black rounded-xl md:rounded-[32px] shadow-lg transition-all uppercase tracking-widest text-[10px] md:text-xs ${showSummary ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                        <LayoutList size={16} />
+                        <span className="hidden sm:inline">Summary</span>
+                      </button>
+                    )}
                     {canEditUsers && (
                       <button 
                           onClick={() => setIsAdding(true)}
@@ -291,6 +353,81 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                 )}
             </div>
         </div>
+
+        {isCoach && showSummary && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in duration-300">
+            <div className="flex items-center justify-between px-5 py-4 border-b-2 border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <LayoutList size={16} className="text-red-600" />
+                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Team Summary</span>
+                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">{summaryRows.length} members</span>
+              </div>
+              <button
+                onClick={exportTeamCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-700 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-[10px]"
+              >
+                <Download size={13} />
+                Export CSV
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Name</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Department</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Roles</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Done</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Effort</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Active</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Hrs Logged</th>
+                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryRows.map((row, idx) => (
+                    <tr
+                      key={row.id}
+                      className={`border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40 dark:bg-slate-800/20'}`}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-[10px] flex-shrink-0">
+                            {row.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-black text-slate-900 dark:text-white text-[11px]">{row.name}</div>
+                            <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">@{row.username}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.departments}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[150px] truncate" title={row.roles}>{row.roles}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[11px]">{row.completed}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-black text-[11px]">{row.effort}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-[11px] ${row.active > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>{row.active}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-black text-[11px] px-2 py-1">{row.hoursLogged}h</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {row.muted
+                          ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-black text-[9px] uppercase tracking-wider"><VolumeX size={10} />Muted</span>
+                          : <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[9px] uppercase tracking-wider"><Check size={10} />Active</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-8 md:space-y-12">
           {groupedUsers.length === 0 && (
