@@ -5276,6 +5276,10 @@ body {
     gap: 2rem;
   }
 
+  .md\:gap-1 {
+    gap: 0.25rem;
+  }
+
   .md\:space-y-10 > :not([hidden]) ~ :not([hidden]) {
     --tw-space-y-reverse: 0;
     margin-top: calc(2.5rem * calc(1 - var(--tw-space-y-reverse)));
@@ -5602,8 +5606,27 @@ body {
     flex-direction: row;
   }
 
+  .lg\:gap-1 {
+    gap: 0.25rem;
+  }
+
   .lg\:p-6 {
     padding: 1.5rem;
+  }
+
+  .lg\:px-3 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .lg\:py-2\.5 {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .lg\:py-3 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
   }
 }
 
