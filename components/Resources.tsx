@@ -18,7 +18,7 @@ interface ResourcesProps {
   users: any[];
 }
 
-const CATEGORIES = ['Competition', 'Software', 'Vendor', 'Design', 'Training', 'Other'] as const;
+const CATEGORIES = ['Design', 'Software', 'Competition', 'Training', 'Vendor', 'Other'] as const;
 type Category = typeof CATEGORIES[number];
 
 const CAT_META: Record<string, { icon: React.ReactNode; color: string }> = {

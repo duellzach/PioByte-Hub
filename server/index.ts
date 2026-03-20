@@ -1898,7 +1898,13 @@ app.put("/api/resources/:id", async (req, res) => {
     if ('pinned' in data && !isCoach) {
       return res.status(403).json({ error: "Only coaches can pin or unpin resources" });
     }
-    const updated = await storage.updateResource(id, data);
+    const allowedFields: Record<string, any> = {};
+    if (data.title !== undefined) allowedFields.title = data.title;
+    if (data.url !== undefined) allowedFields.url = data.url;
+    if (data.description !== undefined) allowedFields.description = data.description;
+    if (data.category !== undefined) allowedFields.category = data.category;
+    if (isCoach && data.pinned !== undefined) allowedFields.pinned = data.pinned;
+    const updated = await storage.updateResource(id, allowedFields);
     res.json(updated);
   } catch (error) {
     console.error("Error updating resource:", error);
