@@ -276,42 +276,15 @@ const ProjectRow: React.FC<{
       </button>
       
       {expanded && (
-        <div className="p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0 space-y-2 md:space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
+        <div className="p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
+          <div className={`grid grid-cols-1 gap-2 md:gap-3 ${tasks[TaskStatus.Blocked].length > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
             <StatusColumn status={TaskStatus.Backlog} tasks={tasks[TaskStatus.Backlog]} onTaskClick={onTaskClick} label="Backlog" />
             <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />
             <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" />
+            {tasks[TaskStatus.Blocked].length > 0 && (
+              <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" />
+            )}
           </div>
-          {tasks[TaskStatus.Blocked].length > 0 && (
-            <div className="rounded-lg md:rounded-xl 2xl:rounded-2xl border-2 border-red-500 dark:border-red-600 bg-red-50/60 dark:bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.15)] p-2 md:p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-                <span className="text-[8px] font-black text-red-600 dark:text-red-500 uppercase tracking-widest">
-                  Blocked — {tasks[TaskStatus.Blocked].length} task{tasks[TaskStatus.Blocked].length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
-                {tasks[TaskStatus.Blocked].map(task => (
-                  <button
-                    key={task.id}
-                    onClick={() => onTaskClick(task)}
-                    className="w-full text-left bg-white dark:bg-slate-800 px-2 py-1.5 md:px-3 md:py-2 rounded-lg border-2 border-red-300 dark:border-red-700 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all"
-                  >
-                    <div className="flex justify-between items-center mb-0.5">
-                      <span className={`text-[6px] md:text-[7px] font-black px-1 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
-                        {task.priority}
-                      </span>
-                      <span className="text-[6px] md:text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
-                    </div>
-                    <h5 className="text-[9px] md:text-[10px] font-black text-red-700 dark:text-red-400 leading-tight uppercase line-clamp-2">{task.title}</h5>
-                    {task.blockedReason && (
-                      <p className="text-[7px] md:text-[8px] font-medium text-red-500 dark:text-red-400 italic mt-0.5 line-clamp-1">"{task.blockedReason}"</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -323,42 +296,63 @@ const StatusColumn: React.FC<{
   tasks: Task[]; 
   onTaskClick: (t: Task) => void;
   label: string;
-}> = ({ status, tasks, onTaskClick, label }) => (
-  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll">
-    <div className="flex items-center gap-2 mb-2 sm:hidden">
-      <div className={`w-2 h-2 rounded-full ${
-        status === TaskStatus.Backlog ? 'bg-purple-400' :
-        status === TaskStatus.NotStarted ? 'bg-slate-300 dark:bg-slate-600' : 
-        status === TaskStatus.InProgress ? 'bg-red-600' : 'bg-black dark:bg-slate-400'
-      }`} />
-      <span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase">{label}</span>
-    </div>
-    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
-      {tasks.map(task => (
-        <button 
-          key={task.id}
-          onClick={() => onTaskClick(task)}
-          className={`w-full text-left bg-white dark:bg-slate-700 px-2 py-1.5 md:px-3 md:py-2 rounded-lg border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
-            task.helpRequested ? 'border-red-600 dark:border-red-500' : 'border-slate-100 dark:border-slate-600 hover:border-red-600/30'
-          }`}
-        >
-          <div className="flex justify-between items-center mb-0.5">
-            <span className={`text-[6px] md:text-[7px] font-black px-1 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
-              {task.priority}
-            </span>
-            <span className="text-[6px] md:text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
+}> = ({ status, tasks, onTaskClick, label }) => {
+  const isBlocked = status === TaskStatus.Blocked;
+  return (
+    <div className={`rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll ${
+      isBlocked
+        ? 'bg-red-50/60 dark:bg-red-950/20 border-2 border-red-500 dark:border-red-600 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+        : 'bg-slate-50 dark:bg-slate-700/50'
+    }`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+          isBlocked ? 'bg-red-600 animate-pulse' :
+          status === TaskStatus.Backlog ? 'bg-purple-400' :
+          status === TaskStatus.NotStarted ? 'bg-slate-300 dark:bg-slate-600' :
+          'bg-red-600'
+        }`} />
+        <span className={`text-[8px] font-black uppercase tracking-widest ${
+          isBlocked ? 'text-red-600 dark:text-red-500' : 'text-slate-500 dark:text-slate-400'
+        }`}>
+          {isBlocked ? `Blocked — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}` : label}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
+        {tasks.map(task => (
+          <button 
+            key={task.id}
+            onClick={() => onTaskClick(task)}
+            className={`w-full text-left bg-white dark:bg-slate-800 px-2 py-1.5 md:px-3 md:py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-[1.01] transition-all ${
+              isBlocked
+                ? 'border-2 border-red-300 dark:border-red-700 ring-2 ring-red-500 ring-offset-1 dark:ring-offset-red-950'
+                : task.helpRequested
+                  ? 'border border-red-600 dark:border-red-500'
+                  : 'border border-slate-100 dark:border-slate-600 hover:border-red-600/30'
+            }`}
+          >
+            <div className="flex justify-between items-center mb-0.5">
+              <span className={`text-[6px] md:text-[7px] font-black px-1 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority]}`}>
+                {task.priority}
+              </span>
+              <span className="text-[6px] md:text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
+            </div>
+            <h5 className={`text-[9px] md:text-[10px] font-black leading-tight uppercase ${
+              isBlocked ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white'
+            }`}>{task.title}</h5>
+            {isBlocked && task.blockedReason && (
+              <p className="text-[7px] md:text-[8px] font-medium text-red-500 dark:text-red-400 italic mt-0.5">"{task.blockedReason}"</p>
+            )}
+          </button>
+        ))}
+        {tasks.length === 0 && (
+          <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase italic col-span-full">
+            Empty
           </div>
-          <h5 className="text-[9px] md:text-[10px] font-black text-slate-900 dark:text-white leading-tight uppercase line-clamp-2">{task.title}</h5>
-        </button>
-      ))}
-      {tasks.length === 0 && (
-        <div className="flex items-center justify-center h-12 text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase italic col-span-full">
-          Empty
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
   <>
