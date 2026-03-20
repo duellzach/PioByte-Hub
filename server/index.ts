@@ -391,11 +391,22 @@ app.post("/api/time-entries/:id/check-out", async (req, res) => {
       newValues: { checkOutAt },
     });
 
-    if (markTaskComplete && entry.workingOnTaskId) {
-      await storage.updateTask(entry.workingOnTaskId, {
-        status: 'Complete',
-        completedAt: new Date(),
-      });
+    if (entry.workingOnTaskId) {
+      const task = await storage.getTask(entry.workingOnTaskId);
+      if (task) {
+        const currentContributors: number[] = (task.contributors as number[]) || [];
+        if (!currentContributors.includes(entry.userId)) {
+          await storage.updateTask(entry.workingOnTaskId, {
+            contributors: [...currentContributors, entry.userId] as any,
+          });
+        }
+        if (markTaskComplete) {
+          await storage.updateTask(entry.workingOnTaskId, {
+            status: 'Complete',
+            completedAt: new Date(),
+          });
+        }
+      }
     }
 
     res.json(updated);

@@ -101,6 +101,7 @@ export interface Task {
   effort?: number;
   departments: Department[];
   assignees: string[];
+  contributors: string[];
   successCriteria: SuccessCriterion[];
   attachments: Attachment[];
   comments: Comment[];
@@ -158,6 +159,7 @@ export interface AvailableTask {
   status: TaskStatus;
   priority: Priority;
   effort: number;
+  isAssigned: boolean;
 }
 
 export interface GeneralTask {

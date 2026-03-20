@@ -61,6 +61,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [taskPickerLoading, setTaskPickerLoading] = useState(false);
   const [availableAssignedTasks, setAvailableAssignedTasks] = useState<AvailableTask[]>([]);
+  const [availableOpenTasks, setAvailableOpenTasks] = useState<AvailableTask[]>([]);
   const [availableGeneralTasks, setAvailableGeneralTasks] = useState<GeneralTask[]>([]);
   const [pickerSelectedTaskId, setPickerSelectedTaskId] = useState<number | null>(null);
   const [pickerSelectedGeneralTaskId, setPickerSelectedGeneralTaskId] = useState<number | null>(null);
@@ -148,11 +149,12 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       setPendingEntryId(entryId);
       setShowTaskPicker(true);
       setTaskPickerLoading(true);
-      const [assignedTasks, generalTaskList] = await Promise.all([
+      const [allAvailableTasks, generalTaskList] = await Promise.all([
         api.timeEntries.availableTasks(currentUserId),
         api.generalTasks.getAll(false),
       ]);
-      setAvailableAssignedTasks(assignedTasks);
+      setAvailableAssignedTasks(allAvailableTasks.filter((t: AvailableTask) => t.isAssigned));
+      setAvailableOpenTasks(allAvailableTasks.filter((t: AvailableTask) => !t.isAssigned));
       setAvailableGeneralTasks(generalTaskList);
     } catch (error) {
       console.error('Check-in failed:', error);
@@ -1428,7 +1430,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 {availableAssignedTasks.length > 0 && (
                   <div>
                     <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                      <Briefcase size={10} /> Assigned Tasks
+                      <Briefcase size={10} /> Assigned to You
                     </p>
                     <div className="space-y-2">
                       {availableAssignedTasks.map(task => (
@@ -1453,6 +1455,44 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                           <p className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase leading-tight">{task.title}</p>
                           {pickerSelectedTaskId === task.id && (
                             <div className="mt-1.5 flex items-center gap-1 text-blue-600">
+                              <CheckSquare size={11} />
+                              <span className="text-[9px] font-black uppercase">Selected</span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {availableOpenTasks.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <Users size={10} /> Open to Contribute
+                    </p>
+                    <div className="space-y-2">
+                      {availableOpenTasks.map(task => (
+                        <button
+                          key={task.id}
+                          onClick={() => {
+                            setPickerSelectedTaskId(pickerSelectedTaskId === task.id ? null : task.id);
+                            setPickerSelectedGeneralTaskId(null);
+                          }}
+                          className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                            pickerSelectedTaskId === task.id
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30'
+                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 hover:border-orange-300 dark:hover:border-orange-700 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {task.priority}
+                            </span>
+                            <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
+                          </div>
+                          <p className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase leading-tight">{task.title}</p>
+                          {pickerSelectedTaskId === task.id && (
+                            <div className="mt-1.5 flex items-center gap-1 text-orange-600">
                               <CheckSquare size={11} />
                               <span className="text-[9px] font-black uppercase">Selected</span>
                             </div>
@@ -1493,7 +1533,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   </div>
                 )}
 
-                {availableAssignedTasks.length === 0 && availableGeneralTasks.length === 0 && (
+                {availableAssignedTasks.length === 0 && availableOpenTasks.length === 0 && availableGeneralTasks.length === 0 && (
                   <p className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm font-bold">No tasks available</p>
                 )}
               </div>

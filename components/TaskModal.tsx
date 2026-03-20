@@ -731,6 +731,35 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               </div>
             </div>
 
+            {(() => {
+              const taskContributors = (editedTask.contributors || []) as string[];
+              const contributorUsers = taskContributors
+                .map((id: string) => users.find(u => String(u.id) === String(id)))
+                .filter(Boolean) as typeof users;
+              if (contributorUsers.length === 0) return null;
+              return (
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Session Contributors</label>
+                  <div className="space-y-2">
+                    {contributorUsers.map(u => (
+                      <div
+                        key={u.id}
+                        className="flex items-center gap-4 p-4 rounded-[20px] bg-slate-50 dark:bg-slate-700/50 border-2 border-slate-100 dark:border-slate-700"
+                      >
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black bg-orange-500 text-white">
+                          {u.name[0]}
+                        </div>
+                        <div className="text-left flex-1">
+                          <p className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-tight">{u.name}</p>
+                          <p className="text-[8px] opacity-50 font-bold">@{u.username}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="pt-8 border-t border-slate-200 dark:border-slate-700">
                 <button 
                   onClick={() => {

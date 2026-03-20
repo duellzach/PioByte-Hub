@@ -147,7 +147,7 @@ export interface IStorage {
   updateGeneralTask(id: number, data: Partial<InsertGeneralTask>): Promise<GeneralTask | undefined>;
   deleteGeneralTask(id: number): Promise<void>;
 
-  getAvailableTasksForUser(userId: number): Promise<Task[]>;
+  getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean })[]>;
   setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined>;
 
   getCertifications(): Promise<any[]>;
@@ -385,7 +385,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(generalTasks).where(eq(generalTasks.id, id));
   }
 
-  async getAvailableTasksForUser(userId: number): Promise<Task[]> {
+  async getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean })[]> {
     const allTasks = await db.select().from(tasks);
     const statusOrder: Record<string, number> = {
       'In Progress': 0,
@@ -394,12 +394,19 @@ export class DatabaseStorage implements IStorage {
       'Blocked': 3,
     };
     return allTasks
-      .filter(t => {
+      .filter(t => t.status !== 'Complete' && t.status !== 'Blocked')
+      .map(t => {
         const assignees = (t.assignees as number[]) || [];
-        return assignees.includes(userId) && t.status !== 'Complete';
+        return {
+          ...t,
+          successCriteria: migrateSuccessCriteria(t.successCriteria as any),
+          isAssigned: assignees.includes(userId),
+        };
       })
-      .map(t => ({ ...t, successCriteria: migrateSuccessCriteria(t.successCriteria as any) }))
-      .sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+      .sort((a, b) => {
+        if (a.isAssigned !== b.isAssigned) return a.isAssigned ? -1 : 1;
+        return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+      });
   }
 
   async setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined> {
