@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -998,6 +998,65 @@ export class DatabaseStorage implements IStorage {
     ];
     for (const s of seeds) {
       await db.insert(calendarEvents).values({ ...s, createdBy } as InsertCalendarEvent);
+    }
+  }
+
+  async getResources(category?: string): Promise<Resource[]> {
+    const rows = await db.select().from(resources).orderBy(desc(resources.pinned), desc(resources.createdAt));
+    if (category) return rows.filter(r => r.category === category);
+    return rows;
+  }
+
+  async getResource(id: number): Promise<Resource | undefined> {
+    const [row] = await db.select().from(resources).where(eq(resources.id, id));
+    return row;
+  }
+
+  async createResource(data: InsertResource): Promise<Resource> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.insert(resources).values(sanitized).returning();
+    return row;
+  }
+
+  async updateResource(id: number, data: Partial<InsertResource>): Promise<Resource | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.update(resources).set(sanitized).where(eq(resources.id, id)).returning();
+    return row;
+  }
+
+  async deleteResource(id: number): Promise<void> {
+    await db.delete(resources).where(eq(resources.id, id));
+  }
+
+  async seedResources(addedBy: number): Promise<void> {
+    const existing = await db.select().from(resources);
+    if (existing.length > 0) return;
+    const seeds: Omit<InsertResource, 'addedBy'>[] = [
+      { title: 'The Blue Alliance', url: 'https://www.thebluealliance.com', description: 'Official FRC match results, team info, event data, and historical records.', category: 'Competition', pinned: true },
+      { title: 'FRC Nexus', url: 'https://frc.nexus', description: 'Live event queuing, announcements, and pit display coordination tool.', category: 'Competition', pinned: true },
+      { title: 'FIRST Robotics Competition', url: 'https://www.firstinspires.org/robotics/frc', description: 'Official FIRST website — game manuals, season information, and registration.', category: 'Competition', pinned: false },
+      { title: 'FRC Game Manual', url: 'https://www.firstinspires.org/resource-library/frc/competition-manual-qa-system', description: 'Current season game manual with all official rules and scoring criteria.', category: 'Competition', pinned: false },
+      { title: 'WPILib Documentation', url: 'https://docs.wpilib.org', description: 'Official WPILib docs — the primary Java/C++ library for FRC robot programming.', category: 'Software', pinned: true },
+      { title: 'PathPlanner', url: 'https://pathplanner.dev', description: 'Advanced autonomous path planning for FRC robots.', category: 'Software', pinned: false },
+      { title: 'FRC 6328 Mechanical Advantage', url: 'https://github.com/Mechanical-Advantage', description: 'Open-source code, technical documentation, and build resources.', category: 'Software', pinned: false },
+      { title: 'Limelight Vision', url: 'https://docs.limelightvision.io', description: 'FRC-targeted vision tracking system with detailed setup documentation.', category: 'Software', pinned: false },
+      { title: 'FRC Driver Station Setup', url: 'https://docs.wpilib.org/en/stable/docs/zero-to-robot/step-2/frc-game-tools.html', description: 'NI FRC driver station installation and configuration guide.', category: 'Software', pinned: false },
+      { title: 'REV Robotics', url: 'https://docs.revrobotics.com', description: 'Control system components, SPARK MAX motor controllers, and documentation.', category: 'Vendor', pinned: false },
+      { title: 'CTRE Phoenix Documentation', url: 'https://pro.docs.ctr-electronics.com', description: 'Talon SRX, Falcon 500, and Phoenix 6 documentation and API reference.', category: 'Vendor', pinned: false },
+      { title: 'Playing With Fusion', url: 'https://www.playingwithfusion.com', description: 'Time-of-flight distance sensors and other FRC-legal sensors.', category: 'Vendor', pinned: false },
+      { title: 'FRC Design Sourcebook', url: 'https://www.frcdesign.org', description: 'Open-source design guide covering mechanisms, systems, and fabrication.', category: 'Design', pinned: false },
+      { title: 'Onshape FRC Library', url: 'https://cad.onshape.com/documents/7bfda6b4d5f79b44e17bbc9f', description: 'Community-maintained parts library for FRC design in Onshape.', category: 'Design', pinned: false },
+      { title: 'FRC Statbotics', url: 'https://www.statbotics.io', description: 'Advanced FRC analytics, EPA ratings, and team performance statistics.', category: 'Training', pinned: false },
+      { title: 'Spectrum 3847 Scouting Resources', url: 'https://spectrum3847.org', description: 'Strategy and scouting guides from one of FRC\'s most respected teams.', category: 'Training', pinned: false },
+      { title: 'Chief Delphi', url: 'https://www.chiefdelphi.com', description: 'The primary FRC community forum for strategy, technical discussion, and build threads.', category: 'Other', pinned: false },
+      { title: 'FRC YouTube Channel', url: 'https://www.youtube.com/@FIRSTRoboticsCompetition', description: 'Official FIRST YouTube channel with event streams, reveals, and highlights.', category: 'Other', pinned: false },
+    ];
+    for (const s of seeds) {
+      await db.insert(resources).values({ ...s, addedBy } as InsertResource);
     }
   }
 

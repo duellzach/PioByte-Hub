@@ -386,3 +386,17 @@ export const calendarEvents = pgTable("calendar_events", {
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
+
+export const resources = pgTable("resources", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  description: text("description").notNull().default(""),
+  category: text("category").notNull().default("Other"),
+  addedBy: integer("added_by").notNull().references(() => users.id),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type Resource = typeof resources.$inferSelect;
+export type InsertResource = typeof resources.$inferInsert;

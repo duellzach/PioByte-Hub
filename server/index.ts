@@ -1851,6 +1851,69 @@ app.delete("/api/calendar/:id", async (req, res) => {
   }
 });
 
+app.get("/api/resources", async (req, res) => {
+  try {
+    const category = req.query.category as string | undefined;
+    const rows = await storage.getResources(category);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error fetching resources:", error);
+    res.status(500).json({ error: "Failed to fetch resources" });
+  }
+});
+
+app.post("/api/resources", async (req, res) => {
+  try {
+    const { requesterId, ...data } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    if (!data.title?.trim()) return res.status(400).json({ error: "Title is required" });
+    if (!data.url?.trim()) return res.status(400).json({ error: "URL is required" });
+    const resource = await storage.createResource({ ...data, addedBy: parseInt(requesterId) });
+    res.status(201).json(resource);
+  } catch (error) {
+    console.error("Error creating resource:", error);
+    res.status(500).json({ error: "Failed to create resource" });
+  }
+});
+
+app.put("/api/resources/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { requesterId, ...data } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const existing = await storage.getResource(id);
+    if (!existing) return res.status(404).json({ error: "Resource not found" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    const isOwner = existing.addedBy === parseInt(requesterId);
+    const isCoach = hasAnyRole(actorRoles, COACH_CAPTAIN);
+    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach/captain can edit resources" });
+    const updated = await storage.updateResource(id, data);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating resource:", error);
+    res.status(500).json({ error: "Failed to update resource" });
+  }
+});
+
+app.delete("/api/resources/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const existing = await storage.getResource(id);
+    if (!existing) return res.status(404).json({ error: "Resource not found" });
+    const actorRoles = await getUserRoles(requesterId);
+    const isOwner = existing.addedBy === requesterId;
+    const isCoach = hasAnyRole(actorRoles, COACH_CAPTAIN);
+    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach/captain can delete resources" });
+    await storage.deleteResource(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting resource:", error);
+    res.status(500).json({ error: "Failed to delete resource" });
+  }
+});
+
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {
     res.sendFile(path.join(__dirname, "../dist/index.html"));
@@ -1864,9 +1927,12 @@ app.listen(PORT, "0.0.0.0", async () => {
     const allUsers = await storage.getUsers();
     if (allUsers.length > 0) {
       const coachOrCaptain = allUsers.find(u => (u.roles as string[]).some(r => ['Coach', 'Team Captain'].includes(r)));
-      if (coachOrCaptain) await storage.seedCalendarEvents(coachOrCaptain.id);
+      if (coachOrCaptain) {
+        await storage.seedCalendarEvents(coachOrCaptain.id);
+        await storage.seedResources(coachOrCaptain.id);
+      }
     }
   } catch (e) {
-    console.warn("Calendar seed skipped:", e);
+    console.warn("Seed skipped:", e);
   }
 });

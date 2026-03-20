@@ -215,6 +215,16 @@ export const api = {
     delete: (id: number, requesterId: number) =>
       apiRequest<void>(`/calendar/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
   },
+  resources: {
+    getAll: (category?: string) =>
+      apiRequest<any[]>(`/resources${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+    create: (requesterId: number, data: any) =>
+      apiRequest<any>('/resources', { method: 'POST', body: JSON.stringify({ ...data, requesterId }) }),
+    update: (id: number, requesterId: number, data: any) =>
+      apiRequest<any>(`/resources/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, requesterId }) }),
+    delete: (id: number, requesterId: number) =>
+      apiRequest<void>(`/resources/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
+  },
   seed: () =>
     apiRequest<{ success: boolean }>('/seed', { method: 'POST' }),
   changePassword: (userId: number, currentPassword: string, newPassword: string) =>
