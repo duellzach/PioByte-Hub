@@ -139,6 +139,21 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
   };
 
+  // Convert a datetime-local string (which represents Pacific time) to a UTC ISO string.
+  // We must NOT use `new Date(str)` directly because that treats the string as local
+  // browser time, which may not be Pacific. Instead, we append the correct PT offset.
+  const pacificLocalToISO = (localStr: string): string => {
+    if (!localStr) return '';
+    const datePart = localStr.slice(0, 10); // "YYYY-MM-DD"
+    // Use 20:00 UTC on that date as a reference to discover the PT offset (noon-ish PT).
+    const ref = new Date(datePart + 'T20:00:00Z');
+    const tzAbbr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles', timeZoneName: 'short',
+    }).formatToParts(ref).find(p => p.type === 'timeZoneName')?.value;
+    const offsetStr = tzAbbr === 'PDT' ? '-07:00' : '-08:00';
+    return new Date(localStr + ':00' + offsetStr).toISOString();
+  };
+
   const openTimeEditModal = (entry: TimeEntry) => {
     setEditingTimeEntry(entry);
     setTimeEditForm({
@@ -152,8 +167,8 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     if (!editingTimeEntry || !state.currentUser) return;
     try {
       await api.timeEntries.update(parseInt(editingTimeEntry.id), parseInt(state.currentUser.id), {
-        checkInAt: new Date(timeEditForm.checkInAt).toISOString(),
-        checkOutAt: timeEditForm.checkOutAt ? new Date(timeEditForm.checkOutAt).toISOString() : undefined,
+        checkInAt: pacificLocalToISO(timeEditForm.checkInAt),
+        checkOutAt: timeEditForm.checkOutAt ? pacificLocalToISO(timeEditForm.checkOutAt) : undefined,
         notes: timeEditForm.notes,
       });
       setEditingTimeEntry(null);

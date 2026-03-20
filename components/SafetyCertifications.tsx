@@ -908,7 +908,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                         <div className="min-w-0">
                           <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{req.certification?.name}</p>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                            Requester: {getUserName(req.userId)} • {new Date(req.createdAt).toLocaleDateString()}
+                            Requester: {getUserName(req.userId)} • {new Date(req.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })}
                           </p>
                           {req.trainerId && (
                             <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">

@@ -287,8 +287,21 @@ router.post("/time-entries/bulk-add", async (req, res) => {
     const { coachId, userIds, minutes, notes, date } = req.body;
     const results = [];
 
-    const checkInAt = date ? new Date(date) : new Date();
-    checkInAt.setHours(9, 0, 0, 0);
+    // Build 9 AM Pacific on the given date (or today in PT if no date supplied).
+    // The server runs in UTC, so we must resolve the PT offset explicitly.
+    const getPacificNineAM = (dateStr: string): Date => {
+      // Use 20:00 UTC as a reference point — that's noon-ish Pacific, safely within the same calendar day.
+      const ref = new Date(dateStr + 'T20:00:00Z');
+      const tzAbbr = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles', timeZoneName: 'short',
+      }).formatToParts(ref).find(p => p.type === 'timeZoneName')?.value;
+      const offsetHours = tzAbbr === 'PDT' ? 7 : 8; // PDT = UTC-7, PST = UTC-8
+      const [y, mo, d] = dateStr.split('-').map(Number);
+      return new Date(Date.UTC(y, mo - 1, d, 9 + offsetHours, 0, 0, 0));
+    };
+    const todayPT = (): string =>
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+    const checkInAt = getPacificNineAM(date || todayPT());
     const checkOutAt = new Date(checkInAt.getTime() + minutes * 60000);
     const roundedMinutes = roundToQuarterHour(minutes);
 
