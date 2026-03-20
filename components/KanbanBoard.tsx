@@ -519,6 +519,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             dueDate: new Date().toISOString().split('T')[0],
             dependencies: [],
             deptOnly: isDeptBoard,
+            contributors: [],
             createdAt: Date.now()
           }}
           users={state.users}

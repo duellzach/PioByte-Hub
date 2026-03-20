@@ -3,23 +3,7 @@ const QUEUE_KEY = 'piobyte_offline_match_queue';
 export interface OfflineMatchEntry {
   id: string;
   eventId: number;
-  data: {
-    matchNumber: number;
-    teamNumber: number;
-    alliance: string;
-    autoScore: number;
-    teleopScore: number;
-    endgameScore: number;
-    penalties: number;
-    autoClimb: boolean;
-    endClimbLevel: number;
-    coralScored: number;
-    algaeScored: number;
-    humanPlayerScore: number;
-    defenseRating: number;
-    notes: string;
-    scoutedBy: number;
-  };
+  data: Record<string, unknown>;
   timestamp: number;
 }
 

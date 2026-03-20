@@ -7,7 +7,8 @@
     "dev": "concurrently \"tsx server/index.ts\" \"vite\"",
     "server": "tsx server/index.ts",
     "client": "vite",
-    "build": "vite build",
+    "build:css": "tailwindcss -i ./index.css -o ./public/tailwind.css --minify",
+    "build": "npm run build:css && vite build",
     "preview": "vite preview",
     "start": "NODE_ENV=production tsx server/index.ts",
     "db:push": "drizzle-kit push",
@@ -46,6 +47,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
