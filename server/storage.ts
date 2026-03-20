@@ -998,8 +998,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined> {
+    const deduped = [...new Set(deletedDates)];
     const [row] = await db.update(calendarEvents)
-      .set({ deletedDates: JSON.stringify(deletedDates) })
+      .set({ deletedDates: JSON.stringify(deduped) })
       .where(eq(calendarEvents.id, id))
       .returning();
     return row;

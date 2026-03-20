@@ -1872,6 +1872,7 @@ app.patch("/api/calendar/:id/deleted-dates", async (req, res) => {
 
 app.get("/api/calendar/tba-preview", async (req, res) => {
   try {
+    if (!TBA_KEY) return res.status(503).json({ error: "TBA_API_KEY is not configured on this server" });
     const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(requesterId);
