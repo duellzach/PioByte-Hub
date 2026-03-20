@@ -32,12 +32,6 @@ const CAT_META: Record<string, { icon: React.ReactNode; color: string }> = {
 
 const EMPTY_FORM = { title: '', url: '', description: '', category: 'Competition' as Category, pinned: false };
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' });
-  } catch { return ''; }
-}
-
 const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const [items, setItems] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +47,6 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null);
 
   const isCoach = currentUser?.roles?.includes('Coach');
-  const isCoachOrCaptain = isCoach || currentUser?.roles?.includes('Team Captain');
 
   const canEdit = (r: ResourceItem) =>
     isCoach || (currentUser && r.addedBy === parseInt(currentUser.id));
