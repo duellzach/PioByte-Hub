@@ -96,7 +96,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         return !project?.archived && t.departments.includes(activeDept);
       });
     }
-    let tasks = state.tasks.filter(t => t.projectId === activeBoardKey);
+    let tasks = state.tasks.filter(t => t.projectId === activeBoardKey && !t.deptOnly);
     if (deptFilter !== 'All') {
       tasks = tasks.filter(t => t.departments.includes(deptFilter));
     }
@@ -518,6 +518,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             startDate: new Date().toISOString().split('T')[0],
             dueDate: new Date().toISOString().split('T')[0],
             dependencies: [],
+            deptOnly: isDeptBoard,
             createdAt: Date.now()
           }}
           users={state.users}
@@ -600,7 +601,7 @@ const TaskCard: React.FC<{
             <h4 className="text-[10px] md:text-xs font-black text-slate-900 dark:text-white leading-tight mb-1.5 uppercase tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
                 {task.title}
             </h4>
-            {(certName || hasUnmetDeps) && (
+            {(certName || hasUnmetDeps || task.deptOnly) && (
                 <div className="flex items-center flex-wrap gap-1 mb-1.5">
                     {certName && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded text-[6px] md:text-[7px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
@@ -610,6 +611,11 @@ const TaskCard: React.FC<{
                     {hasUnmetDeps && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-[6px] md:text-[7px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">
                             <Link2 size={7} /> Waiting on deps
+                        </span>
+                    )}
+                    {task.deptOnly && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded text-[6px] md:text-[7px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tight">
+                            Dept Only
                         </span>
                     )}
                 </div>

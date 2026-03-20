@@ -110,6 +110,7 @@ export interface Task {
   dueDate: string;
   dependencies: string[];
   helpRequested?: boolean;
+  deptOnly?: boolean;
   blockedReason?: string;
   completedAt?: number;
   createdAt: number;

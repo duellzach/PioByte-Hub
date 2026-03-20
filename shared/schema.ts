@@ -43,6 +43,7 @@ export const tasks = pgTable("tasks", {
   dueDate: text("due_date"),
   dependencies: jsonb("dependencies").$type<number[]>().notNull().default([]),
   helpRequested: boolean("help_requested").notNull().default(false),
+  deptOnly: boolean("dept_only").notNull().default(false),
   blockedReason: text("blocked_reason"),
   completedAt: timestamp("completed_at"),
   requiredCertificationId: integer("required_certification_id").references(() => safetyCertifications.id, { onDelete: "set null" }),

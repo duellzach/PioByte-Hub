@@ -38,6 +38,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     dueDate: new Date().toISOString().split('T')[0],
     dependencies: [],
     helpRequested: false,
+    deptOnly: false,
     blockedReason: '',
     createdAt: Date.now()
   });
@@ -501,6 +502,37 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Board Visibility</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setEditedTask({...editedTask, deptOnly: false})}
+                  className={`py-3 px-4 rounded-[18px] border-2 text-[9px] font-black uppercase tracking-widest transition-all ${
+                    !editedTask.deptOnly
+                      ? 'bg-slate-950 dark:bg-white text-white dark:text-slate-900 border-slate-950 dark:border-white'
+                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  Both Boards
+                </button>
+                <button
+                  onClick={() => setEditedTask({...editedTask, deptOnly: true})}
+                  className={`py-3 px-4 rounded-[18px] border-2 text-[9px] font-black uppercase tracking-widest transition-all ${
+                    editedTask.deptOnly
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  Dept Board Only
+                </button>
+              </div>
+              {editedTask.deptOnly && (
+                <p className="text-[9px] text-blue-500 font-bold mt-2 ml-1 uppercase tracking-wide">
+                  Only visible on departmental boards, not on the project Kanban board.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-6 pb-6 border-b border-slate-200 dark:border-slate-700">
