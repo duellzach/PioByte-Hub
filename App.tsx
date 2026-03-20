@@ -1,20 +1,31 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppState, User, Project, Task, Role, Department, TaskStatus, Priority, Notification, Announcement, TimeEntry } from './types';
 import Layout from './components/Layout';
-import Home from './components/Home';
-import Dashboard from './components/Dashboard';
-import KanbanBoard from './components/KanbanBoard';
-import TeamManagement from './components/TeamManagement';
-import TimeTracking from './components/TimeTracking';
-import Scout from './components/Scout';
-import SafetyCertifications from './components/SafetyCertifications';
-import Calendar from './components/Calendar';
-import Resources from './components/Resources';
 import TaskModal from './components/TaskModal';
 import Confetti from './components/Confetti';
+import ErrorBoundary from './components/ErrorBoundary';
 import { api } from './services/api';
 import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
+
+const Home = lazy(() => import('./components/Home'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const KanbanBoard = lazy(() => import('./components/KanbanBoard'));
+const TeamManagement = lazy(() => import('./components/TeamManagement'));
+const TimeTracking = lazy(() => import('./components/TimeTracking'));
+const Scout = lazy(() => import('./components/Scout'));
+const SafetyCertifications = lazy(() => import('./components/SafetyCertifications'));
+const Calendar = lazy(() => import('./components/Calendar'));
+const Resources = lazy(() => import('./components/Resources'));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Loading</p>
+    </div>
+  </div>
+);
 
 const TeamLogo = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -126,8 +137,22 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = setInterval(fetchData, 15000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (interval) { clearInterval(interval); interval = null; }
+      } else {
+        fetchData();
+        interval = setInterval(fetchData, 15000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchData]);
 
   useEffect(() => {
@@ -173,8 +198,22 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isLoggedIn) return;
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 10000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = setInterval(fetchAlerts, 10000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (interval) { clearInterval(interval); interval = null; }
+      } else {
+        fetchAlerts();
+        interval = setInterval(fetchAlerts, 10000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchAlerts, isLoggedIn]);
 
   const dismissAlert = (id: number) => {
@@ -381,100 +420,104 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced} stats={layoutStats} darkMode={darkMode} onToggleDarkMode={() => setDarkMode(!darkMode)}>
-        <Routes>
-          <Route path="/" element={
-            <Home 
-              state={state} 
-              onTaskClick={setActiveTaskModal} 
-              onClearNotification={handleClearNotification} 
-              onAddAnnouncement={handleAddAnnouncement}
-              onUpdateAnnouncement={handleUpdateAnnouncement}
-              onDeleteAnnouncement={handleDeleteAnnouncement}
-              onNotify={handleNotify}
-            />
-          } />
-          <Route path="/war-room" element={
-            <Dashboard 
-              state={state} 
-              onUpdateTask={handleUpdateTask} 
-              onDeleteTask={handleDeleteTask} 
-              onNotify={handleNotify}
-            />
-          } />
-          <Route path="/boards" element={
-            <KanbanBoard 
-              state={state} 
-              onAddTask={async (t) => {
-                  const taskData: any = { ...t };
-                  if (taskData.status === TaskStatus.Complete) taskData.completedAt = new Date().toISOString();
-                  taskData.projectId = parseInt(taskData.projectId);
-                  taskData.assignees = taskData.assignees.map(Number);
-                  taskData.contributors = (taskData.contributors || []).map(Number);
-                  taskData.dependencies = taskData.dependencies.map(Number);
-                  delete taskData.id;
-                  await api.tasks.create(taskData);
-                  await fetchData();
-              }}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onNotify={handleNotify}
-              onAddProject={async (proj) => {
-                const data: any = { ...proj };
-                delete data.id;
-                await api.projects.create(data);
-                await fetchData();
-              }}
-              onUpdateProject={async (proj) => {
-                const data: any = { ...proj };
-                data.scrumMasters = proj.scrumMasters.map(Number);
-                await api.projects.update(parseInt(proj.id), data);
-                for (const smId of proj.scrumMasters) {
-                  const user = state.users.find(u => u.id === smId);
-                  if (user && !user.roles.includes(Role.ScrumMaster)) {
-                    await api.users.update(parseInt(smId), { roles: [...user.roles, Role.ScrumMaster] });
-                  }
-                }
-                await fetchData();
-              }}
-              onArchiveProject={async (id) => {
-                const project = state.projects.find(p => p.id === id);
-                await api.projects.update(parseInt(id), { archived: !project?.archived });
-                await fetchData();
-              }}
-            />
-          } />
-          <Route path="/time" element={
-            <TimeTracking state={state} onRefresh={fetchData} />
-          } />
-          <Route path="/scout" element={
-            <Scout currentUser={state.currentUser} />
-          } />
-          <Route path="/safety" element={
-            <SafetyCertifications currentUser={state.currentUser} />
-          } />
-          <Route path="/team" element={
-            <TeamManagement 
-              state={state}
-              onAddUser={async (u) => {
-                const data: any = { ...u };
-                delete data.id;
-                await api.users.create(data);
-                await fetchData();
-              }}
-              onUpdateUser={async (u) => {
-                await api.users.update(parseInt(u.id), u);
-                await fetchData();
-              }}
-              onDeleteUser={async (id) => {
-                await api.users.delete(parseInt(id));
-                await fetchData();
-              }}
-            />
-          } />
-          <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
-          <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={
+                <Home 
+                  state={state} 
+                  onTaskClick={setActiveTaskModal} 
+                  onClearNotification={handleClearNotification} 
+                  onAddAnnouncement={handleAddAnnouncement}
+                  onUpdateAnnouncement={handleUpdateAnnouncement}
+                  onDeleteAnnouncement={handleDeleteAnnouncement}
+                  onNotify={handleNotify}
+                />
+              } />
+              <Route path="/war-room" element={
+                <Dashboard 
+                  state={state} 
+                  onUpdateTask={handleUpdateTask} 
+                  onDeleteTask={handleDeleteTask} 
+                  onNotify={handleNotify}
+                />
+              } />
+              <Route path="/boards" element={
+                <KanbanBoard 
+                  state={state} 
+                  onAddTask={async (t) => {
+                      const taskData: any = { ...t };
+                      if (taskData.status === TaskStatus.Complete) taskData.completedAt = new Date().toISOString();
+                      taskData.projectId = parseInt(taskData.projectId);
+                      taskData.assignees = taskData.assignees.map(Number);
+                      taskData.contributors = (taskData.contributors || []).map(Number);
+                      taskData.dependencies = taskData.dependencies.map(Number);
+                      delete taskData.id;
+                      await api.tasks.create(taskData);
+                      await fetchData();
+                  }}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={handleDeleteTask}
+                  onNotify={handleNotify}
+                  onAddProject={async (proj) => {
+                    const data: any = { ...proj };
+                    delete data.id;
+                    await api.projects.create(data);
+                    await fetchData();
+                  }}
+                  onUpdateProject={async (proj) => {
+                    const data: any = { ...proj };
+                    data.scrumMasters = proj.scrumMasters.map(Number);
+                    await api.projects.update(parseInt(proj.id), data);
+                    for (const smId of proj.scrumMasters) {
+                      const user = state.users.find(u => u.id === smId);
+                      if (user && !user.roles.includes(Role.ScrumMaster)) {
+                        await api.users.update(parseInt(smId), { roles: [...user.roles, Role.ScrumMaster] });
+                      }
+                    }
+                    await fetchData();
+                  }}
+                  onArchiveProject={async (id) => {
+                    const project = state.projects.find(p => p.id === id);
+                    await api.projects.update(parseInt(id), { archived: !project?.archived });
+                    await fetchData();
+                  }}
+                />
+              } />
+              <Route path="/time" element={
+                <TimeTracking state={state} onRefresh={fetchData} />
+              } />
+              <Route path="/scout" element={
+                <Scout currentUser={state.currentUser} />
+              } />
+              <Route path="/safety" element={
+                <SafetyCertifications currentUser={state.currentUser} />
+              } />
+              <Route path="/team" element={
+                <TeamManagement 
+                  state={state}
+                  onAddUser={async (u) => {
+                    const data: any = { ...u };
+                    delete data.id;
+                    await api.users.create(data);
+                    await fetchData();
+                  }}
+                  onUpdateUser={async (u) => {
+                    await api.users.update(parseInt(u.id), u);
+                    await fetchData();
+                  }}
+                  onDeleteUser={async (id) => {
+                    await api.users.delete(parseInt(id));
+                    await fetchData();
+                  }}
+                />
+              } />
+              <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
+              <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
 
         {activeTaskModal && (
           <TaskModal 

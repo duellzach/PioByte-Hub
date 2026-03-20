@@ -9,7 +9,15 @@ I prefer iterative development, with clear communication before major architectu
 ## System Architecture
 
 ### Frontend
-The application utilizes Vite and React 19 with TypeScript for the frontend, running on port 5000. It employs `react-router-dom` with `HashRouter` for navigation and `Tailwind CSS` via CDN for styling, complemented by `Lucide React` for icons. The UI/UX prioritizes a dark mode toggle for user preference and a responsive design adapting to various screen sizes.
+The application utilizes Vite and React 19 with TypeScript for the frontend, running on port 5000. It employs `react-router-dom` with `HashRouter` for navigation and `Tailwind CSS` (PostCSS build, v3 + `tailwindcss-animate`) for styling, complemented by `Lucide React` for icons. The UI/UX prioritizes a dark mode toggle for user preference and a responsive design adapting to various screen sizes.
+
+**Performance optimizations (Task #26)**:
+- All 9 page routes are **code-split** via `React.lazy` + `Suspense` — heavy pages (Scout 4400 lines, TimeTracking, SafetyCertifications, etc.) only load when first navigated to.
+- **Vite manual chunk splitting**: vendor-react, vendor-charts, vendor-icons, vendor-qr chunks let browsers cache third-party libraries independently.
+- **Tailwind CSS compiled at build time** via PostCSS (`tailwind.config.cjs`, `postcss.config.cjs`); CDN runtime removed — eliminates the production console warning and reduces client-side work.
+- **Visibility-aware polling**: both the 15s global data poll and 10s alert poll pause automatically when the browser tab is hidden and resume on focus.
+- **Error boundary** (`components/ErrorBoundary.tsx`) wraps all route content — a crash in one page shows a recovery UI instead of a blank screen.
+- **Express `compression` middleware** on server/index.ts — all API responses are gzip compressed.
 
 ### Backend
 The backend is an Express API running on port 3001, interacting with a PostgreSQL database provided by Replit. Drizzle ORM is used for database operations, ensuring a type-safe and efficient data layer.
@@ -38,7 +46,7 @@ The backend is an Express API running on port 3001, interacting with a PostgreSQ
 ## External Dependencies
 - **PostgreSQL**: Replit's built-in database.
 - **Blue Alliance API**: Used for fetching FRC event data, team information, rankings, and match schedules.
-- **Tailwind CSS CDN**: For frontend styling.
+- **Tailwind CSS** (PostCSS build, v3): Compiled at build time; config in `tailwind.config.cjs` + `postcss.config.cjs`; `tailwindcss-animate` plugin for enter/exit animations; `index.css` is the entry stylesheet.
 - **Lucide React**: For icons.
 - **`react-router-dom`**: For client-side routing.
 - **`pako`**: For data compression, specifically for QR code generation.

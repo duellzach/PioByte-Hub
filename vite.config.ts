@@ -22,6 +22,18 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
           '@shared': path.resolve(__dirname, 'shared'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+              'vendor-charts': ['recharts'],
+              'vendor-icons': ['lucide-react'],
+              'vendor-qr': ['pako', 'qrcode.react', 'html5-qrcode'],
+            },
+          },
+        },
+      },
     };
 });
