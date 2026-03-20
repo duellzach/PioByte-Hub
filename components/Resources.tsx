@@ -357,11 +357,29 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
             <div className="flex-1 flex items-center justify-center py-16">
               <div className="text-center">
                 <BookOpen size={40} className="text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No resources found</p>
-                {currentUser && !showForm && (
-                  <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
-                    Add the first one
-                  </button>
+                {search.trim() ? (
+                  <>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No results for "{search}"</p>
+                    <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Try a different search term</p>
+                  </>
+                ) : activeCategory !== 'All' ? (
+                  <>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No {activeCategory} resources yet</p>
+                    {currentUser && !showForm && (
+                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
+                        Add a {activeCategory} resource
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No resources yet</p>
+                    {currentUser && !showForm && (
+                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
+                        Add the first resource
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
