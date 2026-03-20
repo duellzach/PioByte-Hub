@@ -3558,6 +3558,10 @@ video {
   --tw-enter-translate-y: -100%;
 }
 
+.slide-in-from-top-1 {
+  --tw-enter-translate-y: -0.25rem;
+}
+
 .slide-in-from-top-2 {
   --tw-enter-translate-y: -0.5rem;
 }

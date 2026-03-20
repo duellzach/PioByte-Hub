@@ -1295,7 +1295,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </button>
 
           {showNotCheckedIn && (
-            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 animate-in slide-in-from-top-1 fade-in duration-200">
               {notCheckedInUsers.map(user => (
                 <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1337,7 +1337,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </button>
 
           {showAllEntries && (
-          <div className="px-4 md:px-6 pb-4 md:pb-6">
+          <div className="px-4 md:px-6 pb-4 md:pb-6 animate-in slide-in-from-top-1 fade-in duration-200">
           <div className="space-y-2 max-h-96 overflow-auto">
             {state.timeEntries.map(entry => (
               <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 md:p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 hover:border-slate-200 dark:hover:border-slate-500 transition-all">
