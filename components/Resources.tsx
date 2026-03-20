@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ExternalLink, Search, BookOpen, Zap, Code2, Trophy, Cpu, Globe, Youtube, ChevronRight, Plus, Edit2, Trash2, X, Loader2, Pin, ShieldCheck } from 'lucide-react';
+import { Search, BookOpen, Zap, Code2, Trophy, Cpu, Globe, ChevronRight, Plus, Edit2, Trash2, X, Loader2, ShieldCheck, Check } from 'lucide-react';
 import { api } from '../services/api';
 
 interface ResourceItem {
@@ -15,6 +15,7 @@ interface ResourceItem {
 
 interface ResourcesProps {
   currentUser: any;
+  users: any[];
 }
 
 const CATEGORIES = ['Competition', 'Software', 'Vendor', 'Design', 'Training', 'Other'] as const;
@@ -31,19 +32,36 @@ const CAT_META: Record<string, { icon: React.ReactNode; color: string }> = {
 
 const EMPTY_FORM = { title: '', url: '', description: '', category: 'Competition' as Category, pinned: false };
 
-const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' });
+  } catch { return ''; }
+}
+
+const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
   const [items, setItems] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('All');
-  const [showModal, setShowModal] = useState(false);
+
+  const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<ResourceItem | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null);
 
-  const isCoachOrCaptain = currentUser?.roles?.includes('Coach') || currentUser?.roles?.includes('Team Captain');
+  const isCoach = currentUser?.roles?.includes('Coach');
+  const isCoachOrCaptain = isCoach || currentUser?.roles?.includes('Team Captain');
+
+  const canEdit = (r: ResourceItem) =>
+    isCoach || (currentUser && r.addedBy === parseInt(currentUser.id));
+
+  const getUserName = (id: number) => {
+    const u = users.find((u: any) => parseInt(u.id) === id);
+    return u?.name || 'Unknown';
+  };
 
   const load = useCallback(async () => {
     try {
@@ -71,27 +89,32 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
   const pinned = filtered.filter(r => r.pinned);
   const rest = filtered.filter(r => !r.pinned);
 
-  const canEdit = (r: ResourceItem) =>
-    isCoachOrCaptain || (currentUser && r.addedBy === parseInt(currentUser.id));
-
   const openAdd = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
     setFormError('');
-    setShowModal(true);
+    setShowForm(true);
   };
 
   const openEdit = (r: ResourceItem) => {
     setEditTarget(r);
     setForm({ title: r.title, url: r.url, description: r.description, category: r.category as Category, pinned: r.pinned });
     setFormError('');
-    setShowModal(true);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditTarget(null);
+    setForm(EMPTY_FORM);
+    setFormError('');
   };
 
   const handleSave = async () => {
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
     if (!form.url.trim()) { setFormError('URL is required.'); return; }
-    const url = form.url.trim().startsWith('http') ? form.url.trim() : `https://${form.url.trim()}`;
+    const url = form.url.trim().match(/^https?:\/\//) ? form.url.trim() : `https://${form.url.trim()}`;
     setSaving(true);
     setFormError('');
     try {
@@ -100,7 +123,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
       } else {
         await api.resources.create(parseInt(currentUser.id), { ...form, url });
       }
-      setShowModal(false);
+      closeForm();
       await load();
     } catch (e: any) {
       setFormError(e.message || 'Failed to save resource.');
@@ -120,7 +143,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
   };
 
   const handlePinToggle = async (r: ResourceItem) => {
-    if (!isCoachOrCaptain) return;
+    if (!isCoach) return;
     try {
       await api.resources.update(r.id, parseInt(currentUser.id), { pinned: !r.pinned });
       await load();
@@ -134,7 +157,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Resources</h1>
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-0.5">Team Links & External Information Hub</p>
         </div>
-        {currentUser && (
+        {currentUser && !showForm && (
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 text-xs uppercase tracking-widest transition-all"
@@ -143,6 +166,113 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
           </button>
         )}
       </div>
+
+      {showForm && (
+        <div className="bg-white dark:bg-slate-800 border-2 border-red-600/30 rounded-2xl p-5 animate-in slide-in-from-top duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                {editTarget ? 'Edit Resource' : 'Add Resource'}
+              </h2>
+              <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest mt-0.5">
+                {editTarget ? 'Update link details' : 'Add a new link to the hub'}
+              </p>
+            </div>
+            <button onClick={closeForm} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Title *</label>
+              <input
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. WPILib Documentation"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">URL *</label>
+              <input
+                value={form.url}
+                onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                placeholder="https://..."
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Description</label>
+              <input
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Short description of this resource..."
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Category</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, category: cat }))}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                      form.category === cat
+                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isCoach && (
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, pinned: !f.pinned }))}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${
+                    form.pinned
+                      ? 'bg-red-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  <Zap size={12} fill={form.pinned ? 'currentColor' : 'none'} />
+                  {form.pinned ? 'Pinned to top' : 'Pin to top'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {formError && (
+            <p className="text-red-600 text-xs font-bold mt-3">{formError}</p>
+          )}
+
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={closeForm}
+              className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl text-sm uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-black rounded-xl text-sm uppercase tracking-widest hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+            >
+              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Check size={14} /> {editTarget ? 'Save Changes' : 'Add Resource'}</>}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -174,7 +304,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center py-16">
           <Loader2 size={32} className="text-slate-300 dark:text-slate-600 animate-spin" />
         </div>
       ) : (
@@ -189,8 +319,9 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
                   <ResourceCard
                     key={r.id}
                     resource={r}
+                    addedByName={getUserName(r.addedBy)}
                     canEdit={canEdit(r)}
-                    isCoach={isCoachOrCaptain}
+                    isCoach={isCoach}
                     onEdit={() => openEdit(r)}
                     onDelete={() => setDeleteConfirm(r)}
                     onPinToggle={() => handlePinToggle(r)}
@@ -210,8 +341,9 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
                   <ResourceCard
                     key={r.id}
                     resource={r}
+                    addedByName={getUserName(r.addedBy)}
                     canEdit={canEdit(r)}
-                    isCoach={isCoachOrCaptain}
+                    isCoach={isCoach}
                     onEdit={() => openEdit(r)}
                     onDelete={() => setDeleteConfirm(r)}
                     onPinToggle={() => handlePinToggle(r)}
@@ -226,7 +358,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
               <div className="text-center">
                 <BookOpen size={40} className="text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                 <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No resources found</p>
-                {currentUser && (
+                {currentUser && !showForm && (
                   <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
                     Add the first one
                   </button>
@@ -235,116 +367,6 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
             </div>
           )}
         </>
-      )}
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-4 border-red-600">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                  {editTarget ? 'Edit Resource' : 'Add Resource'}
-                </h2>
-                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">
-                  {editTarget ? 'Update link details' : 'Add a new link to the hub'}
-                </p>
-              </div>
-              <button onClick={() => setShowModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Title *</label>
-                <input
-                  value={form.title}
-                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="e.g. WPILib Documentation"
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">URL *</label>
-                <input
-                  value={form.url}
-                  onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-                  placeholder="https://docs.wpilib.org"
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Short description of this resource..."
-                  rows={2}
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Category</label>
-                <div className="flex flex-wrap gap-2">
-                  {CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, category: cat }))}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
-                        form.category === cat
-                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {isCoachOrCaptain && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, pinned: !f.pinned }))}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${
-                      form.pinned
-                        ? 'bg-red-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    <Zap size={12} fill={form.pinned ? 'currentColor' : 'none'} />
-                    {form.pinned ? 'Pinned' : 'Pin to top'}
-                  </button>
-                </div>
-              )}
-
-              {formError && (
-                <p className="text-red-600 text-xs font-bold">{formError}</p>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl text-sm uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 py-2.5 bg-red-600 text-white font-black rounded-xl text-sm uppercase tracking-widest hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : (editTarget ? 'Save Changes' : 'Add Resource')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {deleteConfirm && (
@@ -377,6 +399,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser }) => {
 
 interface ResourceCardProps {
   resource: ResourceItem;
+  addedByName: string;
   canEdit: boolean;
   isCoach: boolean;
   onEdit: () => void;
@@ -384,13 +407,13 @@ interface ResourceCardProps {
   onPinToggle: () => void;
 }
 
-const ResourceCard: React.FC<ResourceCardProps> = ({ resource, canEdit, isCoach, onEdit, onDelete, onPinToggle }) => {
+const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, canEdit, isCoach, onEdit, onDelete, onPinToggle }) => {
   const cat = CAT_META[resource.category] || CAT_META.Other;
 
   return (
-    <div className="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-red-600/40 hover:shadow-lg hover:shadow-red-600/5 transition-all">
+    <div className="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-red-600/40 hover:shadow-lg hover:shadow-red-600/5 transition-all flex flex-col">
       {canEdit && (
-        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
           {isCoach && (
             <button
               onClick={e => { e.preventDefault(); onPinToggle(); }}
@@ -421,23 +444,33 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, canEdit, isCoach,
         href={resource.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block"
+        className="flex flex-col flex-1"
       >
-        <div className="flex items-start justify-between gap-2 mb-2 pr-16">
+        <div className="flex items-start gap-2 mb-2 pr-16">
           <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${cat.color}`}>
             {cat.icon}
             {resource.category}
           </div>
+          {resource.pinned && <Zap size={9} className="text-red-600 flex-shrink-0 mt-1.5" fill="currentColor" />}
         </div>
+
         <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1 group-hover:text-red-600 transition-colors flex items-center gap-1.5">
           {resource.title}
-          {resource.pinned && <Zap size={9} className="text-red-600 flex-shrink-0" fill="currentColor" />}
-          <ChevronRight size={12} className="text-slate-300 dark:text-slate-600 group-hover:text-red-600 transition-colors ml-auto" />
+          <ChevronRight size={12} className="text-slate-300 dark:text-slate-600 group-hover:text-red-600 transition-colors ml-auto flex-shrink-0" />
         </h3>
+
         {resource.description && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed line-clamp-2">{resource.description}</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed line-clamp-2 mb-2">{resource.description}</p>
         )}
-        <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-1.5 truncate">{resource.url.replace(/^https?:\/\//, '')}</p>
+
+        <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono truncate mb-2">{resource.url.replace(/^https?:\/\//, '')}</p>
+
+        <div className="mt-auto pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center gap-1.5">
+          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Added by</span>
+          <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">{addedByName}</span>
+          <span className="text-[9px] text-slate-300 dark:text-slate-600">·</span>
+          <span className="text-[9px] text-slate-400 dark:text-slate-500">{new Date(resource.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}</span>
+        </div>
       </a>
     </div>
   );

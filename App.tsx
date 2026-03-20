@@ -472,7 +472,7 @@ const App: React.FC = () => {
             />
           } />
           <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
-          <Route path="/resources" element={<Resources currentUser={state.currentUser} />} />
+          <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
 

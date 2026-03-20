@@ -1885,8 +1885,8 @@ app.put("/api/resources/:id", async (req, res) => {
     if (!existing) return res.status(404).json({ error: "Resource not found" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     const isOwner = existing.addedBy === parseInt(requesterId);
-    const isCoach = hasAnyRole(actorRoles, COACH_CAPTAIN);
-    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach/captain can edit resources" });
+    const isCoach = hasAnyRole(actorRoles, ['Coach']);
+    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach can edit resources" });
     const updated = await storage.updateResource(id, data);
     res.json(updated);
   } catch (error) {
@@ -1904,8 +1904,8 @@ app.delete("/api/resources/:id", async (req, res) => {
     if (!existing) return res.status(404).json({ error: "Resource not found" });
     const actorRoles = await getUserRoles(requesterId);
     const isOwner = existing.addedBy === requesterId;
-    const isCoach = hasAnyRole(actorRoles, COACH_CAPTAIN);
-    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach/captain can delete resources" });
+    const isCoach = hasAnyRole(actorRoles, ['Coach']);
+    if (!isOwner && !isCoach) return res.status(403).json({ error: "Only the creator or a coach can delete resources" });
     await storage.deleteResource(id);
     res.status(204).send();
   } catch (error) {
