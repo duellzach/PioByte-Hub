@@ -38,6 +38,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     api.certifications.getAll().then(setCertifications).catch(() => {});
   }, []);
 
+  const isCoachOnly = state.currentUser?.roles.some(r => r === Role.Coach);
+
   const isCoachOrCaptain = state.currentUser?.roles.some(r => 
     r === Role.Coach || r === Role.TeamCaptain || r === Role.ScrumMaster
   );
@@ -59,21 +61,22 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   }, [accessibleProjects]);
 
   const [activeBoardKey, setActiveBoardKeyRaw] = useState<string>(() => {
-    return localStorage.getItem('piobyte_last_board_id') || '';
+    return localStorage.getItem('lastActiveBoardId') || '';
   });
 
   const selectBoard = (key: string) => {
     setActiveBoardKeyRaw(key);
-    localStorage.setItem('piobyte_last_board_id', key);
+    localStorage.setItem('lastActiveBoardId', key);
   };
 
   React.useEffect(() => {
-    const isDeptBoard = activeBoardKey.startsWith('dept:');
-    const isValidProject = accessibleProjects.find(p => p.id === activeBoardKey);
-    if (!activeBoardKey || (!isDeptBoard && !isValidProject)) {
+    const isDeptBoardKey = activeBoardKey.startsWith('dept:');
+    const matchedProject = accessibleProjects.find(p => p.id === activeBoardKey);
+    const isArchivedAndForbidden = matchedProject?.archived && !isCoachOnly;
+    if (!activeBoardKey || (!isDeptBoardKey && (!matchedProject || isArchivedAndForbidden))) {
       selectBoard(firstAccessibleProject);
     }
-  }, [accessibleProjects, activeBoardKey, firstAccessibleProject]);
+  }, [accessibleProjects, activeBoardKey, firstAccessibleProject, isCoachOnly]);
 
   const activeProject = useMemo(() => {
     if (activeBoardKey.startsWith('dept:')) return undefined;
@@ -211,7 +214,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                 <optgroup label="Projects">
                   {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  {isCoachOrCaptain && accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name} [Archived]</option>)}
+                  {isCoachOnly && accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name} [Archived]</option>)}
                 </optgroup>
                 <optgroup label="Department Boards">
                   {DEPARTMENTS.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
