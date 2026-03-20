@@ -128,7 +128,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* Logo header — compact */}
-        <div className="px-3 py-3 flex items-center justify-between border-b border-white/10 flex-shrink-0">
+        <div className="px-2 py-2 md:px-3 md:py-3 lg:px-3 lg:py-3 flex items-center justify-between border-b border-white/10 flex-shrink-0">
           <div className={`flex items-center gap-2.5 overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
             <div className="text-red-600 flex-shrink-0">
               <TeamLogo className="w-7 h-7" />
@@ -155,7 +155,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         </div>
 
         {/* Nav — no overflow, tightly spaced */}
-        <nav className={`flex-1 ${collapsed ? 'px-2 py-2' : 'px-3 py-2'} flex flex-col gap-0.5 overflow-hidden`}>
+        <nav className={`flex-1 ${collapsed ? 'px-2 py-2' : 'px-2 py-1.5 md:px-3 md:py-2 lg:px-3 lg:py-2.5'} flex flex-col gap-0.5 md:gap-1 lg:gap-1 overflow-hidden`}>
           <NavItem to="/" icon={<HomeIcon size={16} />} label="HOME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/war-room" icon={<LayoutDashboard size={16} />} label="WAR ROOM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/boards" icon={<Kanban size={16} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
@@ -191,7 +191,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         </nav>
 
         {/* User / logout — compact */}
-        <div className={`${collapsed ? 'px-2 py-2' : 'px-3 py-3'} border-t border-white/10 bg-black/40 flex-shrink-0`}>
+        <div className={`${collapsed ? 'px-2 py-2' : 'px-2 py-2 md:px-3 md:py-3 lg:px-3 lg:py-3'} border-t border-white/10 bg-black/40 flex-shrink-0`}>
           <div className={`flex items-center gap-2.5 ${collapsed ? 'mb-2' : 'mb-2.5'} transition-all duration-300`}>
             <div className="relative flex-shrink-0">
               <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center font-black text-sm border border-red-400/30 shadow-inner">
