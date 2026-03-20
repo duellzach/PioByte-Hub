@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen } from 'lucide-react';
 import { api } from '../services/api';
+import TeamLogo from './TeamLogo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,21 +32,6 @@ const EXPIRY_OPTIONS = [
   { label: '4 hours', hours: 4 },
   { label: 'Never', hours: null },
 ];
-
-const TeamLogo = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect width="100" height="100" rx="10" fill="currentColor" />
-    <circle cx="12" cy="12" r="5" fill="white" />
-    <circle cx="12" cy="88" r="5" fill="white" />
-    <circle cx="88" cy="88" r="5" fill="white" />
-    <rect x="25" y="8" width="55" height="30" rx="4" fill="white" fillOpacity="0.1" />
-    <rect x="58" y="8" width="14" height="24" fill="white" />
-    <circle cx="50" cy="48" r="16" fill="white" />
-    <circle cx="50" cy="48" r="6" fill="black" />
-    <circle cx="56" cy="48" r="2" fill="black" />
-    <text x="50" y="82" fontFamily="monospace" fontWeight="900" fontSize="19" fill="white" textAnchor="middle" letterSpacing="-1">10991</text>
-  </svg>
-);
 
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

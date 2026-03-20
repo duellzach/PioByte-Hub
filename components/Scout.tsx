@@ -1,103 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, Star, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
 import { ROLE_COLORS } from '../constants';
+import { Counter, StarRating, RatingSlider, TagInput } from './scout/shared';
 
 interface ScoutProps {
   currentUser: any;
 }
-
-const Counter: React.FC<{ label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; color?: string }> = ({ label, value, onChange, min = 0, max = 999, color = 'slate' }) => (
-  <div className="flex flex-col items-center gap-2">
-    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">{label}</span>
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(min, value - 1))}
-        className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl font-black text-lg bg-${color}-100 dark:bg-${color}-900/30 text-${color}-700 dark:text-${color}-300 hover:bg-${color}-200 transition-all active:scale-95`}
-      >−</button>
-      <span className="w-10 md:w-12 text-center font-black text-lg text-slate-900 dark:text-white">{value}</span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(max, value + 1))}
-        className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl font-black text-lg bg-${color}-100 dark:bg-${color}-900/30 text-${color}-700 dark:text-${color}-300 hover:bg-${color}-200 transition-all active:scale-95`}
-      >+</button>
-    </div>
-  </div>
-);
-
-const StarRating: React.FC<{ value: number; onChange: (v: number) => void; max?: number; label: string }> = ({ value, onChange, max = 5, label }) => (
-  <div className="flex flex-col gap-1">
-    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
-    <div className="flex gap-1">
-      {Array.from({ length: max }, (_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => onChange(i + 1)}
-          className="p-0.5 transition-all active:scale-90"
-        >
-          <Star size={20} className={i < value ? 'text-yellow-500 fill-yellow-500' : 'text-slate-200 dark:text-slate-700'} />
-        </button>
-      ))}
-    </div>
-  </div>
-);
-
-const RatingSlider: React.FC<{ value: number; onChange: (v: number) => void; label: string }> = ({ value, onChange, label }) => (
-  <div className="flex flex-col gap-2">
-    <div className="flex justify-between items-center">
-      <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
-      <span className="text-sm font-black text-red-600">{value}/10</span>
-    </div>
-    <input
-      type="range"
-      min={1}
-      max={10}
-      value={value}
-      onChange={(e) => onChange(parseInt(e.target.value))}
-      className="w-full accent-red-600"
-    />
-  </div>
-);
-
-const TagInput: React.FC<{ tags: string[]; onChange: (tags: string[]) => void; label: string; placeholder?: string }> = ({ tags, onChange, label, placeholder }) => {
-  const [input, setInput] = useState('');
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && input.trim()) {
-      e.preventDefault();
-      if (!tags.includes(input.trim())) {
-        onChange([...tags, input.trim()]);
-      }
-      setInput('');
-    }
-  };
-  return (
-    <div className="space-y-2">
-      <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
-      <div className="flex flex-wrap gap-2 mb-2">
-        {tags.map((tag, i) => (
-          <span key={i} className="flex items-center gap-1 px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs font-bold">
-            {tag}
-            <button type="button" onClick={() => onChange(tags.filter((_, j) => j !== i))} className="hover:text-red-900 dark:hover:text-red-100">
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder || 'Type and press Enter'}
-        className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white dark:placeholder:text-slate-400 dark:text-slate-500"
-      />
-    </div>
-  );
-};
 
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [events, setEvents] = useState<any[]>([]);
