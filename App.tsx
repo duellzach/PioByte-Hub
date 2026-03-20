@@ -148,7 +148,6 @@ const App: React.FC = () => {
     }
     if (latest.id === lastShownAnnRef.current) return;
     lastShownAnnRef.current = latest.id;
-    localStorage.setItem('lastSeenAnnouncementId', latest.id);
     if (latest.authorId === state.currentUser.id) return;
     const isGlobal = latest.scope === 'Global';
     const isDeptMatch = state.currentUser.departments.some((d: string) => d === latest.targetDepartment);
@@ -160,6 +159,7 @@ const App: React.FC = () => {
       dept: latest.targetDepartment,
       authorName: author?.name || 'Team',
     });
+    localStorage.setItem('lastSeenAnnouncementId', latest.id);
   }, [state.announcements, state.currentUser, isLoggedIn, state.users]);
 
   const fetchAlerts = useCallback(async () => {
@@ -298,7 +298,7 @@ const App: React.FC = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="bg-white rounded-[40px] p-16 w-full max-w-xl shadow-[0_0_100px_rgba(225,29,72,0.15)] animate-in zoom-in duration-500">
+        <div className="bg-white dark:bg-slate-900 rounded-[40px] p-16 w-full max-w-xl shadow-[0_0_100px_rgba(225,29,72,0.15)] animate-in zoom-in duration-500">
           <div className="text-center mb-12">
             <div className="w-32 h-32 mx-auto mb-8 shadow-2xl shadow-red-600/40 transform rotate-3">
                 <TeamLogo className="w-full h-full text-red-600" />
