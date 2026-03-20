@@ -2013,6 +2013,11 @@ const PORT = isProduction ? 5000 : 3001;
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on port ${PORT}`);
   try {
+    await storage.migrateCalendarTypes();
+  } catch (e) {
+    console.warn("Calendar type migration skipped:", e);
+  }
+  try {
     const allUsers = await storage.getUsers();
     if (allUsers.length > 0) {
       const coachOrCaptain = allUsers.find(u => (u.roles as string[]).some(r => ['Coach', 'Team Captain'].includes(r)));

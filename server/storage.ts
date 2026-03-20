@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources } from "../shared/schema";
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource } from "../shared/schema";
-import { eq, desc, and, isNull, lt, inArray } from "drizzle-orm";
+import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
   if (value === undefined || value === null) return undefined;
@@ -173,6 +173,7 @@ export interface IStorage {
   updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: number): Promise<void>;
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
+  migrateCalendarTypes(): Promise<void>;
   seedCalendarEvents(createdBy: number): Promise<void>;
 
   getResources(category?: string): Promise<Resource[]>;
@@ -990,6 +991,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async migrateCalendarTypes(): Promise<void> {
+    await db.execute(sql`UPDATE calendar_events SET type = 'shop' WHERE type = 'practice'`);
   }
 
   async patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined> {

@@ -384,7 +384,7 @@ export const calendarEvents = pgTable("calendar_events", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   recurrenceType: text("recurrence_type"),
   recurrenceEndsOn: text("recurrence_ends_on"),
-  parentEventId: integer("parent_event_id"),
+  parentEventId: integer("parent_event_id").references((): any => calendarEvents.id, { onDelete: 'cascade' }),
   instanceDate: text("instance_date"),
   deletedDates: text("deleted_dates"),
   attending: boolean("attending").notNull().default(true),
