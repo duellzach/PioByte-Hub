@@ -168,7 +168,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Resources</h1>
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-0.5">Team Links & External Information Hub</p>
         </div>
-        {currentUser && !showForm && (
+        {isPrivilegedUser && !showForm && (
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 text-xs uppercase tracking-widest transition-all"
@@ -398,7 +398,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 ) : activeCategory !== 'All' ? (
                   <>
                     <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No {activeCategory} resources yet</p>
-                    {currentUser && !showForm && (
+                    {isPrivilegedUser && !showForm && (
                       <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
                         Add a {activeCategory} resource
                       </button>
@@ -407,7 +407,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 ) : (
                   <>
                     <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No resources yet</p>
-                    {currentUser && !showForm && (
+                    {isPrivilegedUser && !showForm && (
                       <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
                         Add the first resource
                       </button>
