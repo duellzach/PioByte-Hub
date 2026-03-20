@@ -1414,7 +1414,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">What are you working on?</h2>
                 <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5">Optional — skip to just check in</p>
               </div>
-              <button onClick={() => setShowTaskPicker(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+              <button onClick={() => handlePickTask(null, null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
                 <X size={18} />
               </button>
             </div>
