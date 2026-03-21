@@ -147,7 +147,6 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
           <Counter label="Penalties" value={matchForm.penalties} onChange={(v) => setMatchForm({ ...matchForm, penalties: v })} />
 
           <StarRating value={matchForm.drivingSkillRating} onChange={(v) => setMatchForm({ ...matchForm, drivingSkillRating: v })} max={5} label="Driving Skill Rating" />
-          <StarRating value={matchForm.coreValuesRating} onChange={(v) => setMatchForm({ ...matchForm, coreValuesRating: v })} max={5} label="FIRST Core Values Rating" />
 
           <div className="space-y-1">
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</span>

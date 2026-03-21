@@ -47,6 +47,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const [compEvents, setCompEvents] = useState<any[]>([]);
   const [selectedCompEventId, setSelectedCompEventId] = useState<number | null>(null);
+  const [compAttendanceCollapsed, setCompAttendanceCollapsed] = useState(false);
   const [compCheckins, setCompCheckins] = useState<any[]>([]);
   const [myCompCheckin, setMyCompCheckin] = useState<any | null>(null);
   const [compElapsed, setCompElapsed] = useState<string>('');
@@ -618,16 +619,22 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
       {compEvents.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 border-l-4 border-l-violet-400 p-4 md:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <Trophy size={15} className="text-violet-500" />
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setCompAttendanceCollapsed(c => !c)}
+              className="flex items-center gap-2 text-left flex-1 min-w-0"
+            >
+              <Trophy size={15} className="text-violet-500 flex-shrink-0" />
               <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Competition Attendance</h3>
-            </div>
-            {compEvents.length > 1 && (
+              {compAttendanceCollapsed
+                ? <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                : <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />}
+            </button>
+            {!compAttendanceCollapsed && compEvents.length > 1 && (
               <select
                 value={selectedCompEventId || ''}
                 onChange={(e) => setSelectedCompEventId(parseInt(e.target.value))}
-                className="p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-bold outline-none focus:border-violet-500 dark:text-white"
+                className="p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-bold outline-none focus:border-violet-500 dark:text-white flex-shrink-0"
               >
                 {compEvents.map(e => (
                   <option key={e.id} value={e.id}>{e.name}</option>
@@ -636,8 +643,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             )}
           </div>
 
+          {!compAttendanceCollapsed && (
+          <>
           {selectedCompEvent && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="flex items-center gap-2 mt-4 mb-4 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
               <MapPin size={11} className="text-slate-400 flex-shrink-0" />
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate">
                 {selectedCompEvent.name}{selectedCompEvent.location ? ` • ${selectedCompEvent.location}` : ''}
@@ -866,6 +875,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </div>
             );
           })()}
+          </>
+          )}
         </div>
       )}
 

@@ -189,6 +189,7 @@ export const pitScouts = pgTable("pit_scouts", {
   offenseRating: integer("offense_rating").notNull().default(5),
   defenseRating: integer("defense_rating").notNull().default(5),
   overallRating: integer("overall_rating").notNull().default(5),
+  coreValuesRating: integer("core_values_rating").notNull().default(3),
   scoutedBy: integer("scouted_by").notNull().references(() => users.id),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

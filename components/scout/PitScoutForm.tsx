@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Camera } from 'lucide-react';
-import { RatingSlider, TagInput } from './shared';
+import { RatingSlider, StarRating, TagInput } from './shared';
 
 interface PitScoutFormProps {
   show: boolean;
@@ -182,6 +182,8 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             <RatingSlider value={pitForm.defenseRating} onChange={(v) => setPitForm({ ...pitForm, defenseRating: v })} label="Defense Rating" />
             <RatingSlider value={pitForm.overallRating} onChange={(v) => setPitForm({ ...pitForm, overallRating: v })} label="Overall Rating" />
           </div>
+
+          <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} max={5} label="FIRST Core Values Rating" />
 
           <button onClick={onSave} disabled={!pitForm.teamNumber}
             className="w-full py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">

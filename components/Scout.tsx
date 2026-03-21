@@ -46,14 +46,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     fuelCapacity: 0, traversalAbility: '', shooterType: '',
     capabilities: [] as string[], deficiencies: [] as string[],
     autonomousRoutine: 'None', autoOptions: [] as string[],
-    notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
+    notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, coreValuesRating: 3, photoUrl: ''
   });
 
   const [matchForm, setMatchForm] = useState({
     matchNumber: 1, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
     penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 0, algaeScored: 0,
     autoFuelTotal: 0, teleopFuelTotal: 0,
-    defenseRating: 3, drivingSkillRating: 3, coreValuesRating: 3,
+    defenseRating: 3, drivingSkillRating: 3,
     autoUsed: '', notes: ''
   });
 
@@ -616,7 +616,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       teamNumber: 0, teamName: '', robotName: '', drivetrain: '', weight: 0, speed: 0, height: 0,
       fuelCapacity: 0, traversalAbility: '', shooterType: '',
       capabilities: [], deficiencies: [], autonomousRoutine: 'None', autoOptions: [],
-      notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, photoUrl: ''
+      notes: '', offenseRating: 5, defenseRating: 5, overallRating: 5, coreValuesRating: 3, photoUrl: ''
     });
   };
 
@@ -625,7 +625,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       matchNumber: 0, matchType: 'qualification', teamNumber: 0, alliance: 'Red',
       penalties: 0, autoClimb: false, endClimbLevel: 0, coralScored: 3, algaeScored: 0,
       autoFuelTotal: 0, teleopFuelTotal: 0,
-      defenseRating: 3, drivingSkillRating: 3, coreValuesRating: 3,
+      defenseRating: 3, drivingSkillRating: 3,
       autoUsed: '', notes: ''
     });
   };
@@ -642,6 +642,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       autonomousRoutine: pit.autonomousRoutine || 'None', autoOptions: pit.autoOptions || [],
       notes: pit.notes || '',
       offenseRating: pit.offenseRating, defenseRating: pit.defenseRating, overallRating: pit.overallRating,
+      coreValuesRating: pit.coreValuesRating ?? 3,
       photoUrl: pit.photoUrl || ''
     });
     setShowPitForm(true);
@@ -683,7 +684,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       coralScored: match.coralScored, algaeScored: match.algaeScored,
       autoFuelTotal: match.autoFuelTotal || 0, teleopFuelTotal: match.teleopFuelTotal || 0,
       defenseRating: match.defenseRating || 3, drivingSkillRating: match.drivingSkillRating || 3,
-      coreValuesRating: match.coreValuesRating || 3,
       autoUsed: match.autoUsed || '', notes: match.notes
     });
     setShowMatchForm(true);
@@ -767,7 +767,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       if (teamMatches.length > 0) {
         const avg = (field: string) => (teamMatches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / teamMatches.length).toFixed(1);
         report += `Match Performance (${teamMatches.length} matches): Avg Auto Fuel: ${avg('autoFuelTotal')}, Avg Teleop Fuel: ${avg('teleopFuelTotal')}, Avg Accuracy: ${avg('coralScored')}/5, Climb Rate: ${((teamMatches.filter((m: any) => m.endClimbLevel > 0).length / teamMatches.length) * 100).toFixed(0)}%\n`;
-        report += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5\n`;
+        report += `Driving Skill: ${avg('drivingSkillRating')}/5${pit?.coreValuesRating ? `, FIRST Core Values: ${pit.coreValuesRating}/5` : ''}\n`;
         for (const m of teamMatches.slice(-3).sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
           report += `  M${m.matchNumber} (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel}${m.notes ? `, "${m.notes}"` : ''}\n`;
         }
@@ -793,7 +793,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     report += `Fuel Capacity: ${r.fuelCapacity > 0 ? `${r.fuelCapacity} cells` : '—'}\n`;
     report += `Field Traversal: ${r.traversalAbility || '—'}\n`;
     report += `Auto Routines: ${r.autoOptions?.length > 0 ? r.autoOptions.join(', ') : 'None'}\n`;
-    report += `Ratings: Offense ${r.offenseRating}/10, Defense ${r.defenseRating}/10, Overall ${r.overallRating}/10\n`;
+    report += `Ratings: Offense ${r.offenseRating}/10, Defense ${r.defenseRating}/10, Overall ${r.overallRating}/10${r.coreValuesRating ? `, FIRST Core Values: ${r.coreValuesRating}/5` : ''}\n`;
     report += `Capabilities: ${r.capabilities?.length > 0 ? r.capabilities.join(', ') : 'None'}\n`;
     report += `Weaknesses: ${r.deficiencies?.length > 0 ? r.deficiencies.join(', ') : 'None'}\n`;
     report += `Notes: ${r.notes || '—'}\n`;
@@ -814,7 +814,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       if (matches.length > 0) {
         const avg = (field: string) => (matches.reduce((s: number, m: any) => s + (m[field] || 0), 0) / matches.length).toFixed(1);
         block += `Averages: Auto Fuel: ${avg('autoFuelTotal')}, Teleop Fuel: ${avg('teleopFuelTotal')}, Accuracy: ${avg('coralScored')}/5, Climb Rate: ${((matches.filter((m: any) => m.endClimbLevel > 0).length / matches.length) * 100).toFixed(0)}%\n`;
-        block += `Driving Skill: ${avg('drivingSkillRating')}/5, FIRST Core Values: ${avg('coreValuesRating')}/5, Avg Penalties: ${avg('penalties')}\n`;
+        block += `Driving Skill: ${avg('drivingSkillRating')}/5${r.coreValuesRating ? `, FIRST Core Values: ${r.coreValuesRating}/5` : ''}, Avg Penalties: ${avg('penalties')}\n`;
         for (const m of [...matches].sort((a: any, b: any) => a.matchNumber - b.matchNumber)) {
           block += `  M${m.matchNumber} [${m.matchType || 'qualification'}] (${m.alliance}): Auto: ${m.autoFuelTotal || 0}, Teleop: ${m.teleopFuelTotal || 0}, Accuracy: ${m.coralScored || '?'}/5, Climb L${m.endClimbLevel || 0}, Drive: ${m.drivingSkillRating || '?'}/5${m.autoUsed ? `, Auto Used: "${m.autoUsed}"` : ''}${m.notes ? `, Notes: "${m.notes}"` : ''}\n`;
         }
@@ -1846,7 +1846,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <div className="flex items-center gap-2">
                         <div className="text-right hidden sm:block">
                           {m.drivingSkillRating > 0 && <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">Drive: {'★'.repeat(Math.min(m.drivingSkillRating || 0, 5))}</p>}
-                          {m.coreValuesRating > 0 && <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">CV: {'★'.repeat(Math.min(m.coreValuesRating || 0, 5))}</p>}
                         </div>
                         <div className="text-right">
                           <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">Fuel</p>
