@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Trophy, MapPin, Calendar, Check, AlertCircle, Zap, Brain, Copy, Download } from 'lucide-react';
+import { Plus, X, Trophy, MapPin, Calendar, Check, AlertCircle, Brain, Copy, Download } from 'lucide-react';
 
 interface ScoutEventListProps {
   events: any[];
@@ -10,19 +10,9 @@ interface ScoutEventListProps {
   onCreateEvent: () => void;
   onEnterEvent: (evt: any) => void;
   onDeleteEvent: (id: number) => void;
-  showEventSettings: boolean;
   showEventForm: boolean;
-  activeEvent: any;
-  eventSettingsForm: { tbaEventKey: string; nexusEventKey: string };
-  setEventSettingsForm: React.Dispatch<React.SetStateAction<{ tbaEventKey: string; nexusEventKey: string }>>;
   eventForm: any;
   setEventForm: React.Dispatch<React.SetStateAction<any>>;
-  nexusTestStatus: 'idle' | 'testing' | 'ok' | 'error';
-  nexusTestMsg: string;
-  onTestNexus: () => void;
-  eventSettingsSaveError: string | null;
-  onSaveEventSettings: () => void;
-  onCloseEventSettings: () => void;
   onCreateEventSubmit: () => void;
   onCloseEventForm: () => void;
   geminiModal: { open: boolean; text: string; matchLabel: string };
@@ -33,9 +23,8 @@ interface ScoutEventListProps {
 
 const ScoutEventList: React.FC<ScoutEventListProps> = ({
   events, isCoachOrCaptain, eventCounts, nexusToast, onDismissNexusToast,
-  onCreateEvent, onEnterEvent, onDeleteEvent, showEventSettings, showEventForm,
-  activeEvent, eventSettingsForm, setEventSettingsForm, eventForm, setEventForm,
-  nexusTestStatus, nexusTestMsg, onTestNexus, eventSettingsSaveError, onSaveEventSettings, onCloseEventSettings,
+  onCreateEvent, onEnterEvent, onDeleteEvent, showEventForm,
+  eventForm, setEventForm,
   onCreateEventSubmit, onCloseEventForm, geminiModal, copiedGemini,
   onSetGeminiModal, onSetCopiedGemini,
 }) => {
@@ -109,69 +98,6 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
           {nexusToast.type === 'ok' ? <Check size={16} /> : <AlertCircle size={16} />}
           <span className="font-black text-sm">{nexusToast.msg}</span>
           <button onClick={onDismissNexusToast} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
-        </div>
-      )}
-
-      {showEventSettings && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-10 shadow-2xl border-t-8 border-violet-600">
-            <div className="flex justify-between items-start mb-6 md:mb-8">
-              <div>
-                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Event Settings</h2>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">{activeEvent?.name}</p>
-              </div>
-              <button onClick={onCloseEventSettings} className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-xl transition-all">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TBA Event Key</label>
-                <input value={eventSettingsForm.tbaEventKey} onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, tbaEventKey: e.target.value })}
-                  placeholder="e.g. 2026azgl"
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm" />
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Find your event key on thebluealliance.com</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">FRC Nexus Event Key</label>
-                  {eventSettingsForm.tbaEventKey && eventSettingsForm.nexusEventKey !== eventSettingsForm.tbaEventKey && (
-                    <button onClick={() => { setEventSettingsForm({ ...eventSettingsForm, nexusEventKey: eventSettingsForm.tbaEventKey }); }}
-                      className="text-[9px] font-black text-violet-500 hover:text-violet-700 uppercase tracking-widest transition-colors">← Same as TBA key</button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <input value={eventSettingsForm.nexusEventKey}
-                    onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, nexusEventKey: e.target.value })}
-                    placeholder="e.g. 2026azgl"
-                    className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 transition-all font-bold text-sm" />
-                  <button onClick={onTestNexus} disabled={nexusTestStatus === 'testing'}
-                    className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-1.5 ${
-                      nexusTestStatus === 'ok' ? 'bg-green-600 text-white' :
-                      nexusTestStatus === 'error' ? 'bg-red-600 text-white' :
-                      nexusTestStatus === 'testing' ? 'bg-slate-200 text-slate-500' :
-                      'bg-violet-600 text-white hover:bg-violet-700'
-                    }`}>
-                    <Zap size={13} />
-                    {nexusTestStatus === 'testing' ? 'Testing...' : nexusTestStatus === 'ok' ? 'Connected!' : nexusTestStatus === 'error' ? 'Failed' : 'Test'}
-                  </button>
-                </div>
-                {nexusTestMsg && (
-                  <p className={`text-[9px] font-bold ml-1 ${nexusTestStatus === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{nexusTestMsg}</p>
-                )}
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Enables live queue countdown & match schedule from frc.nexus</p>
-              </div>
-              {eventSettingsSaveError && (
-                <p className="text-xs font-bold text-red-600 flex items-center gap-1.5">
-                  <AlertCircle size={13} /> {eventSettingsSaveError}
-                </p>
-              )}
-              <button onClick={onSaveEventSettings}
-                className="w-full py-4 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-                <Check size={16} /> Save Settings
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
