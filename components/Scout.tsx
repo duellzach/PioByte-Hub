@@ -320,7 +320,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     r === 'Coach' || r === 'Team Captain'
   );
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (): Promise<any[]> => {
     try {
       const data = await api.scout.getEvents();
       setEvents(data);
@@ -337,8 +337,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         }
       }
       setEventCounts(counts);
+      return data;
     } catch (err) {
       console.error('Failed to fetch events:', err);
+      return [];
     }
   }, []);
 
@@ -529,11 +531,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (!activeEvent) return;
     setEventSettingsSaveError(null);
     try {
-      const updated = await api.scout.updateEvent(activeEvent.id, eventSettingsForm);
-      const merged = updated || { ...activeEvent, ...eventSettingsForm };
+      await api.scout.updateEvent(activeEvent.id, eventSettingsForm);
+      const freshEvents = await fetchEvents();
+      const freshEvent = freshEvents.find((e: any) => e.id === activeEvent.id);
+      const merged = freshEvent || { ...activeEvent, ...eventSettingsForm };
       setActiveEvent(merged);
       setShowEventSettings(false);
-      fetchEvents();
       if (merged.tbaEventKey) fetchTbaData(merged.tbaEventKey);
       if (merged.nexusEventKey) fetchNexusData(merged.nexusEventKey);
     } catch (err: any) {
