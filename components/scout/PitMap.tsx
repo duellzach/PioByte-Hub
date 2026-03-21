@@ -107,6 +107,7 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
   }
 
   if (!mapData || (!mapData.pits && !mapData.areas && !mapData.labels)) {
+    if (mapData) console.warn('PitMap: received data but no recognized keys:', mapData);
     return (
       <div className="py-20 text-center">
         <MapPin size={48} className="text-slate-200 dark:text-slate-700 mx-auto mb-4" />

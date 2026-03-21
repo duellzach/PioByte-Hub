@@ -202,10 +202,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (activeTab !== 'map') return;
     const key = activeEvent?.nexusEventKey;
     if (!key) return;
-    if (!pitMapData && !pitMapLoading) {
+    if (!pitMapData && !pitMapLoading && !pitMapError) {
       fetchPitMap(key);
     }
-  }, [activeTab, activeEvent, pitMapData, pitMapLoading, fetchPitMap]);
+  }, [activeTab, activeEvent, pitMapData, pitMapLoading, pitMapError, fetchPitMap]);
 
   useEffect(() => {
     setPitMapData(null);
