@@ -174,6 +174,7 @@ export interface IStorage {
   deleteCalendarEvent(id: number): Promise<void>;
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
+  backfillNexusEventKeys(): Promise<void>;
   seedCalendarEvents(createdBy: number): Promise<void>;
 
   getResources(category?: string): Promise<Resource[]>;
@@ -1005,6 +1006,16 @@ export class DatabaseStorage implements IStorage {
 
   async migrateCalendarTypes(): Promise<void> {
     await db.execute(sql`UPDATE calendar_events SET type = 'shop' WHERE type = 'practice'`);
+  }
+
+  async backfillNexusEventKeys(): Promise<void> {
+    await db.execute(sql`
+      UPDATE scout_events
+      SET nexus_event_key = tba_event_key
+      WHERE (nexus_event_key IS NULL OR nexus_event_key = '')
+        AND tba_event_key IS NOT NULL
+        AND tba_event_key != ''
+    `);
   }
 
   async patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined> {
