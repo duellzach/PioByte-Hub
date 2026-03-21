@@ -20,6 +20,7 @@ interface ScoutEventListProps {
   nexusTestStatus: 'idle' | 'testing' | 'ok' | 'error';
   nexusTestMsg: string;
   onTestNexus: () => void;
+  eventSettingsSaveError: string | null;
   onSaveEventSettings: () => void;
   onCloseEventSettings: () => void;
   onCreateEventSubmit: () => void;
@@ -34,7 +35,7 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
   events, isCoachOrCaptain, eventCounts, nexusToast, onDismissNexusToast,
   onCreateEvent, onEnterEvent, onDeleteEvent, showEventSettings, showEventForm,
   activeEvent, eventSettingsForm, setEventSettingsForm, eventForm, setEventForm,
-  nexusTestStatus, nexusTestMsg, onTestNexus, onSaveEventSettings, onCloseEventSettings,
+  nexusTestStatus, nexusTestMsg, onTestNexus, eventSettingsSaveError, onSaveEventSettings, onCloseEventSettings,
   onCreateEventSubmit, onCloseEventForm, geminiModal, copiedGemini,
   onSetGeminiModal, onSetCopiedGemini,
 }) => {
@@ -160,6 +161,11 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
                 )}
                 <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Enables live queue countdown & match schedule from frc.nexus</p>
               </div>
+              {eventSettingsSaveError && (
+                <p className="text-xs font-bold text-red-600 flex items-center gap-1.5">
+                  <AlertCircle size={13} /> {eventSettingsSaveError}
+                </p>
+              )}
               <button onClick={onSaveEventSettings}
                 className="w-full py-4 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2">
                 <Check size={16} /> Save Settings

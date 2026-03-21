@@ -458,9 +458,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateScoutEvent(id: number, event: Partial<InsertScoutEvent>): Promise<ScoutEvent | undefined> {
-    const sanitized: any = { ...event };
-    delete sanitized.id;
-    const [updated] = await db.update(scoutEvents).set(sanitized).where(eq(scoutEvents.id, id)).returning();
+    const updates: Partial<InsertScoutEvent> = {};
+    if (event.name !== undefined) updates.name = event.name;
+    if (event.location !== undefined) updates.location = event.location;
+    if (event.startDate !== undefined) updates.startDate = event.startDate;
+    if (event.endDate !== undefined) updates.endDate = event.endDate;
+    if (event.tbaEventKey !== undefined) updates.tbaEventKey = event.tbaEventKey;
+    if (event.nexusEventKey !== undefined) updates.nexusEventKey = event.nexusEventKey;
+    if (event.archived !== undefined) updates.archived = event.archived;
+    if (Object.keys(updates).length === 0) {
+      const [row] = await db.select().from(scoutEvents).where(eq(scoutEvents.id, id));
+      return row;
+    }
+    const [updated] = await db.update(scoutEvents).set(updates).where(eq(scoutEvents.id, id)).returning();
     return updated;
   }
 

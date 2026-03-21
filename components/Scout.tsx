@@ -102,6 +102,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const [showEventSettings, setShowEventSettings] = useState(false);
   const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '' });
+  const [eventSettingsSaveError, setEventSettingsSaveError] = useState<string | null>(null);
   const [nexusTestStatus, setNexusTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [nexusTestMsg, setNexusTestMsg] = useState('');
   const [nexusToast, setNexusToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
@@ -520,20 +521,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
     setNexusTestStatus('idle');
     setNexusTestMsg('');
+    setEventSettingsSaveError(null);
     setShowEventSettings(true);
   };
 
   const handleSaveEventSettings = async () => {
     if (!activeEvent) return;
+    setEventSettingsSaveError(null);
     try {
       const updated = await api.scout.updateEvent(activeEvent.id, eventSettingsForm);
       const merged = updated || { ...activeEvent, ...eventSettingsForm };
       setActiveEvent(merged);
       setShowEventSettings(false);
+      fetchEvents();
       if (merged.tbaEventKey) fetchTbaData(merged.tbaEventKey);
       if (merged.nexusEventKey) fetchNexusData(merged.nexusEventKey);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update event settings:', err);
+      setEventSettingsSaveError(err?.message || 'Failed to save settings. Please try again.');
     }
   };
 
@@ -2397,8 +2402,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       onEnterEvent={enterEvent}
       onDeleteEvent={handleDeleteEvent}
       onTestNexus={handleTestNexus}
+      eventSettingsSaveError={eventSettingsSaveError}
       onSaveEventSettings={handleSaveEventSettings}
-      onCloseEventSettings={() => setShowEventSettings(false)}
+      onCloseEventSettings={() => { setShowEventSettings(false); setEventSettingsSaveError(null); }}
       onCreateEventSubmit={handleCreateEvent}
       onCloseEventForm={() => setShowEventForm(false)}
       onDismissNexusToast={() => setNexusToast(null)}
