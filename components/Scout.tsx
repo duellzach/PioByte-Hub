@@ -2379,6 +2379,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           onUnclaim={unclaimTeam}
         />
 
+        {nexusToast && (
+          <div className={`fixed top-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+            nexusToast.type === 'ok' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}>
+            {nexusToast.type === 'ok' ? <Check size={16} /> : <AlertCircle size={16} />}
+            <span className="font-black text-sm">{nexusToast.msg}</span>
+            <button onClick={() => setNexusToast(null)} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
+          </div>
+        )}
+
         {showEventSettings && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-10 shadow-2xl border-t-8 border-violet-600">
