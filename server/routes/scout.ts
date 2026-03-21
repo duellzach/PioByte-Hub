@@ -333,7 +333,7 @@ router.get("/nexus/:eventKey/map", async (req, res) => {
     res.json(data);
   } catch (error: any) {
     const status = error?.status ?? error?.statusCode ?? 500;
-    console.error("Nexus map error:", error.message);
+    console.error(`Nexus map error [${req.params.eventKey}]:`, error.message);
     res.status(status).json({ error: error.message || "Failed to fetch Nexus pit map" });
   }
 });

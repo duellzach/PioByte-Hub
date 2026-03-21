@@ -80,7 +80,23 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
     );
   }
 
-  if (error === 'NO_MAP' || (!loading && !mapData && !error)) {
+  if (error === 'NO_MAP') {
+    return (
+      <div className="py-20 text-center">
+        <MapPin size={48} className="text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+        <p className="text-lg font-black text-slate-300 dark:text-slate-600 uppercase tracking-tight">No Map Data</p>
+        <p className="text-slate-400 text-sm mt-1 mb-4">This event does not have a pit map configured in Nexus.</p>
+        <button
+          onClick={onRefresh}
+          className="px-5 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!loading && !mapData && !error) {
     return (
       <div className="py-20 text-center">
         <MapPin size={48} className="text-slate-200 dark:text-slate-700 mx-auto mb-4" />
