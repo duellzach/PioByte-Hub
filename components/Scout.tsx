@@ -11,6 +11,7 @@ import PitScoutForm from './scout/PitScoutForm';
 import MatchScoutForm from './scout/MatchScoutForm';
 import ScoutQR from './scout/ScoutQR';
 import PitDisplay from './scout/PitDisplay';
+import PitMap from './scout/PitMap';
 import ScoutEventList from './scout/ScoutEventList';
 
 interface ScoutProps {
@@ -20,7 +21,7 @@ interface ScoutProps {
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display'>('robots');
+  const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display' | 'map'>('robots');
   const [pitScouts, setPitScouts] = useState<any[]>([]);
   const [matchScoutsData, setMatchScoutsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,6 +92,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [nexusData, setNexusData] = useState<any | null>(null);
   const [nexusLoading, setNexusLoading] = useState(false);
   const [nexusError, setNexusError] = useState<string | null>(null);
+
+  const [pitMapData, setPitMapData] = useState<any | null>(null);
+  const [pitMapLoading, setPitMapLoading] = useState(false);
+  const [pitMapError, setPitMapError] = useState<string | null>(null);
   const [nexusCountdown, setNexusCountdown] = useState<string>('');
   const nexusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -168,6 +173,44 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       setNexusLoading(false);
     }
   }, []);
+
+  const fetchPitMap = useCallback(async (eventKey: string) => {
+    if (!eventKey) return;
+    setPitMapLoading(true);
+    setPitMapError(null);
+    try {
+      const data = await api.nexus.getPitMap(eventKey);
+      setPitMapData(data);
+    } catch (err: any) {
+      const status: number = err?.status ?? 0;
+      if (status === 404) {
+        setPitMapData(null);
+        setPitMapError('NO_MAP');
+      } else if (status === 503) {
+        setPitMapData(null);
+        setPitMapError('NOT_CONFIGURED');
+      } else {
+        setPitMapError(err?.message || 'Failed to load pit map');
+        setPitMapData(null);
+      }
+    } finally {
+      setPitMapLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'map') return;
+    const key = activeEvent?.nexusEventKey;
+    if (!key) return;
+    if (!pitMapData && !pitMapLoading) {
+      fetchPitMap(key);
+    }
+  }, [activeTab, activeEvent, pitMapData, pitMapLoading, fetchPitMap]);
+
+  useEffect(() => {
+    setPitMapData(null);
+    setPitMapError(null);
+  }, [activeEvent?.id]);
 
   useEffect(() => {
     if (nexusPollRef.current) clearInterval(nexusPollRef.current);
@@ -1222,7 +1265,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
         <div className="overflow-x-auto -mx-2 px-2">
           <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl border border-slate-200 shadow-inner min-w-max">
-            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display'] as const).map(tab => (
+            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display', 'map'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -1230,7 +1273,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   activeTab === tab ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
-                {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : tab === 'info' ? 'Info' : tab === 'schedule' ? 'Schedule' : tab === 'qr' ? 'QR' : 'Pit Display'}
+                {tab === 'robots' ? 'Robots' : tab === 'matches' ? 'Matches' : tab === 'info' ? 'Info' : tab === 'schedule' ? 'Schedule' : tab === 'qr' ? 'QR' : tab === 'display' ? 'Pit Display' : 'Map'}
               </button>
             ))}
           </div>
@@ -2283,6 +2326,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </div>
               </div>
             )}
+          </div>
+        ) : activeTab === 'map' ? (
+          <div className="space-y-4">
+            <PitMap
+              mapData={pitMapData}
+              loading={pitMapLoading}
+              error={pitMapError}
+              eventKey={activeEvent?.nexusEventKey || null}
+              onRefresh={() => activeEvent?.nexusEventKey && fetchPitMap(activeEvent.nexusEventKey)}
+            />
           </div>
         ) : null}
 

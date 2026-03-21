@@ -15,7 +15,9 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    const err: any = new Error(`API error: ${response.status} ${response.statusText}`);
+    err.status = response.status;
+    throw err;
   }
 
   if (response.status === 204 || response.headers.get('content-length') === '0') {
@@ -127,6 +129,7 @@ export const api = {
   nexus: {
     getEvent: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}`),
     getPits: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}/pits`),
+    getPitMap: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}/map`),
   },
   eventInfo: {
     get: (eventId: number) => apiRequest<any>(`/scout-events/${eventId}/info`),

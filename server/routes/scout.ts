@@ -323,6 +323,21 @@ router.get("/nexus/:eventKey/pits", async (req, res) => {
   }
 });
 
+router.get("/nexus/:eventKey/map", async (req, res) => {
+  try {
+    if (!process.env.NEXUS_API_KEY) {
+      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
+      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    }
+    const data = await nexusFetch(`/event/${req.params.eventKey}/map`);
+    res.json(data);
+  } catch (error: any) {
+    const status = error?.status ?? error?.statusCode ?? 500;
+    console.error("Nexus map error:", error.message);
+    res.status(status).json({ error: error.message || "Failed to fetch Nexus pit map" });
+  }
+});
+
 router.get("/scout-events/:eventId/info", async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);

@@ -39,6 +39,10 @@ export async function nexusFetch(path: string) {
   const resp = await fetch(`${NEXUS_BASE}${path}`, {
     headers: { "Nexus-Api-Key": key },
   });
-  if (!resp.ok) throw new Error(`Nexus API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok) {
+    const err: any = new Error(`Nexus API error: ${resp.status} ${resp.statusText}`);
+    err.status = resp.status;
+    throw err;
+  }
   return resp.json();
 }
