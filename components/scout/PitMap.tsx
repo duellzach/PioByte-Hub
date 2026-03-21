@@ -10,9 +10,10 @@ interface PitMapProps {
   error: string | null;
   eventKey: string | null;
   onRefresh: () => void;
+  teamNames?: Record<string, string>;
 }
 
-const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRefresh }) => {
+const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRefresh, teamNames }) => {
   const [searchTeam, setSearchTeam] = useState('');
   const [highlightedTeam, setHighlightedTeam] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -21,7 +22,26 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
   const handleSearch = (val: string) => {
     setSearchTeam(val);
     const trimmed = val.trim();
-    setHighlightedTeam(trimmed.length > 0 ? trimmed : null);
+    if (!trimmed) {
+      setHighlightedTeam(null);
+      return;
+    }
+    const mapPits: Record<string, any> = mapData?.pits ?? {};
+    const byNumber = Object.entries(mapPits).find(
+      ([, pit]) => pit.team != null && String(pit.team).toLowerCase() === trimmed.toLowerCase()
+    );
+    if (byNumber) {
+      setHighlightedTeam(String(byNumber[1].team));
+      return;
+    }
+    if (teamNames) {
+      const entries = Object.entries(teamNames);
+      const exactName = entries.find(([, name]) => name.toLowerCase() === trimmed.toLowerCase());
+      if (exactName) { setHighlightedTeam(exactName[0]); return; }
+      const partial = entries.find(([, name]) => name.toLowerCase().includes(trimmed.toLowerCase()));
+      if (partial) { setHighlightedTeam(partial[0]); return; }
+    }
+    setHighlightedTeam(trimmed);
   };
 
   useEffect(() => {
@@ -172,8 +192,8 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
           <input
             value={searchTeam}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Find a team's pit..."
-            type="number"
+            placeholder="Find by team number or name..."
+            type="text"
             className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 transition-all font-bold text-sm"
           />
           {searchTeam && (
@@ -193,25 +213,25 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
 
       {highlightedTeam && !searchedAddress && (
         <div className="text-xs text-slate-400 font-bold px-1">
-          Team {highlightedTeam} not found on map — they may not have an assigned pit.
+          Team {highlightedTeam}{teamNames?.[highlightedTeam] ? ` (${teamNames[highlightedTeam]})` : ''} not found on map — they may not have an assigned pit.
         </div>
       )}
 
       {highlightedTeam && searchedAddress && (
         <div className="text-xs text-slate-600 dark:text-slate-300 font-bold px-1">
-          Team {highlightedTeam} is in pit <span className="text-red-600 font-black">{searchedAddress}</span>
+          Team {highlightedTeam}{teamNames?.[highlightedTeam] ? ` — ${teamNames[highlightedTeam]}` : ''} is in pit <span className="text-red-600 font-black">{searchedAddress}</span>
         </div>
       )}
 
       <div className="flex gap-3 text-[10px] font-bold text-slate-500 flex-wrap">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded-sm" style={{ background: ACCENT_COLOR }} />
-          Team {OUR_TEAM}
+          Team {OUR_TEAM}{teamNames?.[ourTeamStr] ? ` (${teamNames[ourTeamStr]})` : ''}
         </span>
         {highlightedTeam && highlightedTeam !== ourTeamStr && (
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-sm bg-orange-400" />
-            Team {highlightedTeam}
+            Team {highlightedTeam}{teamNames?.[highlightedTeam] ? ` (${teamNames[highlightedTeam]})` : ''}
           </span>
         )}
         <span className="flex items-center gap-1.5">

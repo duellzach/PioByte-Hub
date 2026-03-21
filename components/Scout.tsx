@@ -1165,6 +1165,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
   }, [selectedRobot, matchScoutsData]);
 
+  const teamNamesMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    pitScouts.forEach((ps: any) => {
+      if (ps.teamNumber && ps.teamName) m[String(ps.teamNumber)] = ps.teamName;
+    });
+    return m;
+  }, [pitScouts]);
+
   useEffect(() => {
     if (!selectedRobot) { setTbaYearEvents([]); setTbaYearStatuses({}); setCrossEventMatches([]); return; }
     const year = new Date().getFullYear();
@@ -2335,6 +2343,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               error={pitMapError}
               eventKey={activeEvent?.nexusEventKey || null}
               onRefresh={() => activeEvent?.nexusEventKey && fetchPitMap(activeEvent.nexusEventKey)}
+              teamNames={teamNamesMap}
             />
           </div>
         ) : null}
