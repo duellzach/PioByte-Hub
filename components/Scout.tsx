@@ -1306,7 +1306,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
         <div className="overflow-x-auto -mx-2 px-2">
           <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl border border-slate-200 shadow-inner min-w-max">
-            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display', 'map'] as const).map(tab => (
+            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display', 'map'] as const).filter(tab => tab !== 'schedule' || isCoachOrCaptain).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
