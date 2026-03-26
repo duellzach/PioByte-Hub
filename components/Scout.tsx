@@ -2147,12 +2147,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
             {assignmentsLoading ? (
               <div className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-sm">Loading...</div>
-            ) : assignments.length === 0 ? (
-              <div className="py-16 text-center">
-                <Calendar size={48} className="text-slate-200 dark:text-slate-700 mx-auto mb-4" />
-                <p className="text-lg font-black text-slate-300 dark:text-slate-600 uppercase tracking-tight">No Assignments Yet</p>
-                {isCoachOrCaptain && <p className="text-slate-400 text-sm mt-1">Add assignments to tell team members their roles during the competition.</p>}
-              </div>
             ) : (
               <>
                 {(() => {
@@ -2295,6 +2289,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 })}
                               </tr>
                             ))}
+                            {rows.length === 0 && (
+                              <tr>
+                                <td
+                                  colSpan={totalMatches + 1}
+                                  className="py-10 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest"
+                                >
+                                  No assigned members yet{isCoachOrCaptain ? ' — use "Add Assignment" to get started' : ''}
+                                </td>
+                              </tr>
+                            )}
                           </tbody>
                         </table>
                       </div>
@@ -2311,13 +2315,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   );
                 })()}
 
-                <div className="space-y-3">
+                {assignments.length > 0 && <div className="space-y-3">
                   <button
                     onClick={() => setShowAssignmentList(v => !v)}
                     className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
                     <ChevronRight size={13} className={`transition-transform duration-200 ${showAssignmentList ? 'rotate-90' : ''}`} />
-                    {showAssignmentList ? 'Hide' : 'Show'} assignment list ({assignments.length})
+                    {showAssignmentList ? 'Hide list' : 'Show assignments list'} ({assignments.length})
                   </button>
                   {showAssignmentList && (
                     <div className="space-y-3">
@@ -2361,7 +2365,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       })}
                     </div>
                   )}
-                </div>
+                </div>}
               </>
             )}
 
