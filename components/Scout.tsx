@@ -2198,15 +2198,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   const CELL_BG: Record<string, string> = Object.fromEntries(
                     Object.entries(ROLE_CHIP_COLORS).map(([role, cls]) => [role, cls.split(' ')[0]])
                   );
-                  const ABBREV: Record<string, string> = {
-                    'Scout - Stands': 'Scout',
-                    'Pit Crew': 'Pit',
-                    'Networking': 'Net',
-                    'Media': 'Media',
-                    'Free Time': 'Free',
-                    'Driver/Coach Support': 'D/C',
-                  };
-
                   // Build userId_matchNum → teamNumber lookup from teamClaims (active claims)
                   const claimByUserMatch = new Map<string, number>();
                   for (const [key, claim] of Object.entries(teamClaims)) {
@@ -2248,7 +2239,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         <div className="flex flex-wrap gap-1.5">
                           {ASSIGNMENT_ROLES.map(role => (
                             <span key={role} className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white ${CELL_BG[role] || 'bg-slate-500'}`}>
-                              {ABBREV[role] || role}
+                              {ROLE_ABBREV[role] || role}
                             </span>
                           ))}
                           <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-slate-400 text-white">Off</span>
@@ -2373,6 +2364,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         width: 22,
                                         minWidth: 22,
                                         ...(isOff ? { backgroundImage: 'repeating-linear-gradient(45deg,#94a3b8 0,#94a3b8 2px,#cbd5e1 2px,#cbd5e1 6px)' } : {}),
+                                        ...(ourMatchNums.has(matchNum) && !isOff ? { boxShadow: 'inset 0 -2px 0 rgba(220,38,38,0.55)' } : {}),
                                       }}
                                       title={isOff ? `${name}: Off / Break (M${matchNum})` : `${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${completedTeam ? ` · Scouted Team ${completedTeam}` : claimedTeam ? ` · Claiming Team ${claimedTeam}` : ''}${a.notes ? ` — ${a.notes}` : ''}`}
                                       className={`h-8 ${isOff ? 'opacity-80' : bg} ${isTick10 ? `border-l-2 ${isOff ? 'border-slate-400' : 'border-white/40'}` : `border-l ${isOff ? 'border-slate-400/50' : 'border-white/20'}`} ${isFirst && !isOff ? 'rounded-l' : ''} ${isLast && !isOff ? 'rounded-r' : ''} ${isCoachOrCaptain ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
@@ -2391,7 +2383,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                             <span className="text-white text-[6px] font-black leading-none select-none px-px">{claimedTeam}</span>
                                           ) : (
                                             <span className="text-white text-[6px] font-black leading-none select-none truncate px-px">
-                                              {ABBREV[a.role] ?? a.role}
+                                              {ROLE_ABBREV[a.role] ?? a.role}
                                             </span>
                                           )}
                                         </div>
