@@ -638,6 +638,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         setShowMatchForm(false);
         setEditingMatch(null);
         resetMatchForm();
+        setSyncMessage(`Match ${data.matchNumber} updated — Team ${data.teamNumber} ✓`);
+        setTimeout(() => setSyncMessage(null), 4000);
         fetchEventData(activeEvent.id);
       } catch (err) {
         console.error('Failed to update match scout:', err);
@@ -651,6 +653,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       }
       setShowMatchForm(false);
       resetMatchForm();
+      setSyncMessage(`Match ${data.matchNumber} saved — Team ${data.teamNumber} ✓`);
+      setTimeout(() => setSyncMessage(null), 4000);
       fetchEventData(activeEvent.id);
     } catch (err) {
       addToOfflineQueue({ eventId: activeEvent.id, data });
@@ -2195,7 +2199,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     'Driver/Coach Support': 'D/C',
                   };
 
-                  // Build userId_matchNum → teamNumber lookup from teamClaims
+                  // Build userId_matchNum → teamNumber lookup from teamClaims (active claims)
                   const claimByUserMatch = new Map<string, number>();
                   for (const [key, claim] of Object.entries(teamClaims)) {
                     const colonIdx = key.lastIndexOf(':');
@@ -2205,6 +2209,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     const mMatch = matchKeyPart.match(/_qm(\d+)$/);
                     if (mMatch && !isNaN(teamNum)) {
                       claimByUserMatch.set(`${(claim as any).userId}_${mMatch[1]}`, teamNum);
+                    }
+                  }
+
+                  // Build userId_matchNum → teamNumber lookup from submitted match scouts (permanent)
+                  const scoutedByUserMatch = new Map<string, number>();
+                  for (const ms of matchScoutsData) {
+                    if (ms.scoutedBy && ms.matchNumber && ms.teamNumber) {
+                      scoutedByUserMatch.set(`${ms.scoutedBy}_${ms.matchNumber}`, ms.teamNumber);
                     }
                   }
 
@@ -2327,7 +2339,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   const isFirst = matchNum === a.fromMatch;
                                   const isLast = matchNum === a.toMatch;
                                   const isOff = matchExceptionsSet.has(`${userId}_${matchNum}`);
-                                  const claimedTeam = a.role === 'Scout - Stands' ? claimByUserMatch.get(`${userId}_${matchNum}`) : undefined;
+                                  const completedTeam = a.role === 'Scout - Stands' ? scoutedByUserMatch.get(`${userId}_${matchNum}`) : undefined;
+                                  const claimedTeam = a.role === 'Scout - Stands' ? (completedTeam ?? claimByUserMatch.get(`${userId}_${matchNum}`)) : undefined;
                                   const bg = isOff ? '' : (CELL_BG[a.role] || 'bg-slate-400');
                                   return (
                                     <td
@@ -2337,7 +2350,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         minWidth: 22,
                                         ...(isOff ? { backgroundImage: 'repeating-linear-gradient(45deg,#94a3b8 0,#94a3b8 2px,#cbd5e1 2px,#cbd5e1 6px)' } : {}),
                                       }}
-                                      title={isOff ? `${name}: Off / Break (M${matchNum})` : `${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${claimedTeam ? ` · Team ${claimedTeam}` : ''}${a.notes ? ` — ${a.notes}` : ''}`}
+                                      title={isOff ? `${name}: Off / Break (M${matchNum})` : `${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${completedTeam ? ` · Scouted Team ${completedTeam}` : claimedTeam ? ` · Claiming Team ${claimedTeam}` : ''}${a.notes ? ` — ${a.notes}` : ''}`}
                                       className={`h-8 ${isOff ? 'opacity-80' : bg} ${isTick10 ? `border-l-2 ${isOff ? 'border-slate-400' : 'border-white/40'}` : `border-l ${isOff ? 'border-slate-400/50' : 'border-white/20'}`} ${isFirst && !isOff ? 'rounded-l' : ''} ${isLast && !isOff ? 'rounded-r' : ''} ${isCoachOrCaptain ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                                       onClick={isCoachOrCaptain ? () => {
                                         setCellPopover({ userId: userId as number, matchNum, assign: a });
