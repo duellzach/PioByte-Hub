@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
 import pako from 'pako';
@@ -19,6 +20,7 @@ interface ScoutProps {
 }
 
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
+  const location = useLocation();
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display' | 'map'>('robots');
@@ -365,6 +367,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   }, []);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  // Auto-enter event when navigated from the home page upcoming-events card
+  const openEventIdHandled = useRef(false);
+  useEffect(() => {
+    const openId = (location.state as any)?.openEventId;
+    if (!openId || openEventIdHandled.current || events.length === 0) return;
+    const target = events.find((e: any) => e.id === openId);
+    if (target) {
+      openEventIdHandled.current = true;
+      enterEvent(target);
+    }
+  }, [events, location.state]);
 
   useEffect(() => {
     api.users.getAll().then(setAllUsers).catch(() => {});

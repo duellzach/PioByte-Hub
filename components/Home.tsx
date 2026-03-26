@@ -5,6 +5,7 @@ import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X
 import { api } from '../services/api';
 import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
 interface HomeProps {
   state: AppState;
@@ -18,6 +19,7 @@ interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, onAddAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement, onNotify }) => {
   const user = state.currentUser;
+  const navigate = useNavigate();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [broadcastText, setBroadcastText] = useState('');
@@ -452,8 +454,9 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               return (
                 <div
                   key={evt.id}
-                  className={`relative overflow-hidden rounded-2xl border-2 p-6 ${
-                    isNow ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700' : isDone ? 'border-slate-200 bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700' : 'border-red-200 bg-white dark:bg-slate-800 dark:border-red-900/30'
+                  onClick={() => navigate('/scout', { state: { openEventId: evt.id } })}
+                  className={`relative overflow-hidden rounded-2xl border-2 p-6 cursor-pointer transition-shadow hover:shadow-md ${
+                    isNow ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700 hover:border-green-400' : isDone ? 'border-slate-200 bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700 hover:border-slate-300' : 'border-red-200 bg-white dark:bg-slate-800 dark:border-red-900/30 hover:border-red-400'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
