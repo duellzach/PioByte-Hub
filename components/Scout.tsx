@@ -142,6 +142,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     'Free Time': 'bg-green-500 text-white',
     'Driver/Coach Support': 'bg-indigo-500 text-white',
   };
+  const ROLE_ABBREV: Record<string, string> = {
+    'Scout - Stands': 'Scout',
+    'Pit Crew': 'Pit',
+    'Networking': 'Net',
+    'Media': 'Media',
+    'Free Time': 'Free',
+    'Driver/Coach Support': 'D/C',
+  };
 
   const fetchEventInfoData = useCallback(async (eventId: number) => {
     try {
@@ -2220,6 +2228,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     }
                   }
 
+                  // Build set of qual match numbers where Team 10991 is competing
+                  const ourMatchNums = new Set<number>();
+                  for (const m of tbaMatches) {
+                    if (m.comp_level !== 'qm') continue;
+                    const redKeys: string[] = m.alliances?.red?.team_keys ?? [];
+                    const blueKeys: string[] = m.alliances?.blue?.team_keys ?? [];
+                    if (redKeys.includes('frc10991') || blueKeys.includes('frc10991')) {
+                      ourMatchNums.add(m.match_number as number);
+                    }
+                  }
+
                   return (
                     <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
                       <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
@@ -2246,21 +2265,26 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               >
                                 Member
                               </th>
-                              {matchNums.map(n => (
-                                <th
-                                  key={n}
-                                  style={{ width: 22, minWidth: 22 }}
-                                  className={`text-center py-1 select-none overflow-hidden ${
-                                    n % 10 === 0
-                                      ? 'text-slate-600 dark:text-slate-300 font-black text-[7px] border-l-2 border-slate-200 dark:border-slate-600'
-                                      : n % 5 === 0
-                                      ? 'text-slate-500 dark:text-slate-400 font-bold text-[7px] border-l border-slate-100 dark:border-slate-700'
-                                      : 'text-slate-400 dark:text-slate-600 font-semibold text-[6px] border-l border-slate-50 dark:border-slate-700/50'
-                                  }`}
-                                >
-                                  {n}
-                                </th>
-                              ))}
+                              {matchNums.map(n => {
+                                const isOur = ourMatchNums.has(n);
+                                return (
+                                  <th
+                                    key={n}
+                                    style={{ width: 22, minWidth: 22, ...(isOur ? { borderBottom: '2px solid #dc2626' } : {}) }}
+                                    className={`text-center py-1 select-none overflow-hidden ${
+                                      isOur
+                                        ? 'text-red-600 dark:text-red-400 font-black text-[7px] border-l-2 border-red-200 dark:border-red-900/60 bg-red-50/80 dark:bg-red-900/15'
+                                        : n % 10 === 0
+                                        ? 'text-slate-600 dark:text-slate-300 font-black text-[7px] border-l-2 border-slate-200 dark:border-slate-600'
+                                        : n % 5 === 0
+                                        ? 'text-slate-500 dark:text-slate-400 font-bold text-[7px] border-l border-slate-100 dark:border-slate-700'
+                                        : 'text-slate-400 dark:text-slate-600 font-semibold text-[6px] border-l border-slate-50 dark:border-slate-700/50'
+                                    }`}
+                                  >
+                                    {n}
+                                  </th>
+                                );
+                              })}
                             </tr>
                           </thead>
                           <tbody>
@@ -2283,7 +2307,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     <td
                                       key={matchNum}
                                       style={{ width: 22, minWidth: 22 }}
-                                      className={`text-center py-1 ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
+                                      className={`text-center py-1 ${ourMatchNums.has(matchNum) ? 'bg-red-50/60 dark:bg-red-900/10' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
                                     >
                                       {(() => {
                                         const hasAnyScout = rows.some(([uid, { userAssigns }]) => {
@@ -2325,7 +2349,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         key={matchNum}
                                         style={{ width: 22, minWidth: 22 }}
                                         title={isCoachOrCaptain ? `Assign ${name} to match ${matchNum}` : undefined}
-                                        className={`h-8 text-center ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
+                                        className={`h-8 text-center ${ourMatchNums.has(matchNum) ? 'bg-red-50/40 dark:bg-red-900/10' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
                                         onClick={isCoachOrCaptain ? () => {
                                           setEditingAssignment(null);
                                           setAssignmentForm({ userId: userId as number, fromMatch: matchNum, toMatch: matchNum, role: 'Scout - Stands', notes: '' });
@@ -2516,6 +2540,42 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     >
                       Edit Assignment Range
                     </button>
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Change Role</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ASSIGNMENT_ROLES.map(role => {
+                          const isCurrent = cellPopover.assign.role === role;
+                          const chipCls = ROLE_CHIP_COLORS[role] || 'bg-slate-500 text-white';
+                          return (
+                            <button
+                              key={role}
+                              disabled={isCurrent}
+                              className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                isCurrent
+                                  ? `${chipCls} ring-2 ring-offset-1 ring-slate-300 dark:ring-slate-600 cursor-default`
+                                  : `${chipCls} opacity-35 hover:opacity-90 cursor-pointer`
+                              }`}
+                              onClick={async () => {
+                                if (!activeEvent || !currentUser || isCurrent) return;
+                                try {
+                                  await api.competitionAssignments.update(activeEvent.id, cellPopover.assign.id, {
+                                    ...cellPopover.assign,
+                                    role,
+                                    createdBy: parseInt(currentUser.id),
+                                  });
+                                  fetchAssignments(activeEvent.id);
+                                } catch (err) {
+                                  console.error('Failed to update role:', err);
+                                }
+                                setCellPopover(null);
+                              }}
+                            >
+                              {ROLE_ABBREV[role] ?? role}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
