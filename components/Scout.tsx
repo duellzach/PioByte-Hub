@@ -2273,11 +2273,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       style={{ width: 22, minWidth: 22 }}
                                       className={`text-center py-1 ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
                                     >
-                                      {count > 0 ? (
-                                        <span className="text-[8px] font-black text-red-600 dark:text-red-400">{count}</span>
-                                      ) : (
-                                        <span className="text-slate-300 dark:text-slate-600 text-[8px]">—</span>
-                                      )}
+                                      {(() => {
+                                        const hasAnyScout = rows.some(([uid, { userAssigns }]) => {
+                                          const a = userAssigns.find((ua: any) => matchNum >= ua.fromMatch && matchNum <= ua.toMatch);
+                                          return !!a && a.role === 'Scout - Stands';
+                                        });
+                                        if (!hasAnyScout) return <span className="text-slate-200 dark:text-slate-700 text-[8px]">—</span>;
+                                        if (count === 0) return <span className="text-[8px] font-black text-red-600 dark:text-red-400">0</span>;
+                                        if (count === 1) return <span className="text-[8px] font-black text-amber-500 dark:text-amber-400">{count}</span>;
+                                        return <span className="text-[8px] font-black text-green-600 dark:text-green-400">{count}</span>;
+                                      })()}
                                     </td>
                                   );
                                 })}
@@ -2338,6 +2343,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         setCellPopover({ userId: userId as number, matchNum, assign: a });
                                       } : undefined}
                                     >
+                                      {isOff && matchNum === a.fromMatch && (
+                                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                                          <span className="text-slate-600 dark:text-slate-400 text-[6px] font-black leading-none select-none">off</span>
+                                        </div>
+                                      )}
                                       {!isOff && isFirst && (
                                         <div className="w-full h-full flex items-center justify-center overflow-hidden">
                                           {claimedTeam ? (
