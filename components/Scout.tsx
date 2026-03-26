@@ -2177,14 +2177,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   }
                   const rows = Array.from(byUser.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
-                  const CELL_BG: Record<string, string> = {
-                    'Scout - Stands': 'bg-red-500',
-                    'Pit Crew': 'bg-orange-500',
-                    'Networking': 'bg-blue-500',
-                    'Media': 'bg-violet-500',
-                    'Free Time': 'bg-green-500',
-                    'Driver/Coach Support': 'bg-indigo-500',
-                  };
+                  const CELL_BG: Record<string, string> = Object.fromEntries(
+                    Object.entries(ROLE_CHIP_COLORS).map(([role, cls]) => [role, cls.split(' ')[0]])
+                  );
                   const ABBREV: Record<string, string> = {
                     'Scout - Stands': 'Scout',
                     'Pit Crew': 'Pit',
@@ -2262,13 +2257,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         key={matchNum}
                                         style={{ width: 22, minWidth: 22 }}
                                         title={isCoachOrCaptain ? `Assign ${name} to match ${matchNum}` : undefined}
-                                        className={`h-8 ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
+                                        className={`h-8 text-center ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
                                         onClick={isCoachOrCaptain ? () => {
                                           setEditingAssignment(null);
                                           setAssignmentForm({ userId: userId as number, fromMatch: matchNum, toMatch: matchNum, role: 'Scout - Stands', notes: '' });
                                           setShowAssignmentForm(true);
                                         } : undefined}
-                                      />
+                                      >
+                                        <span className="text-slate-200 dark:text-slate-700 text-[9px] select-none">—</span>
+                                      </td>
                                     );
                                   }
                                   const isFirst = matchNum === a.fromMatch;
@@ -2287,9 +2284,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       } : undefined}
                                     >
                                       {isFirst && (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                          <span className="text-white text-[7px] font-black leading-none select-none px-0.5 truncate">
-                                            {ABBREV[a.role]?.[0] ?? ''}
+                                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                                          <span className="text-white text-[6px] font-black leading-none select-none truncate px-px">
+                                            {ABBREV[a.role] ?? a.role}
                                           </span>
                                         </div>
                                       )}
