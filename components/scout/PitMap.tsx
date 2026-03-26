@@ -164,13 +164,17 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
       if (e.touches.length < 2) pinchRef.current = null;
     };
 
+    const onTouchCancel = () => { pinchRef.current = null; };
+
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchmove', onTouchMove, { passive: false });
     container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchCancel, { passive: true });
     return () => {
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchmove', onTouchMove);
       container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchCancel);
     };
   }, [mapData]);
 
