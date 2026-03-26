@@ -757,6 +757,10 @@ video {
   z-index: 110;
 }
 
+.z-\[115\] {
+  z-index: 115;
+}
+
 .z-\[200\] {
   z-index: 200;
 }
@@ -1198,6 +1202,10 @@ video {
 
 .w-7 {
   width: 1.75rem;
+}
+
+.w-72 {
+  width: 18rem;
 }
 
 .w-8 {
@@ -1948,6 +1956,10 @@ video {
 .border-slate-400 {
   --tw-border-opacity: 1;
   border-color: rgb(148 163 184 / var(--tw-border-opacity, 1));
+}
+
+.border-slate-400\/50 {
+  border-color: rgb(148 163 184 / 0.5);
 }
 
 .border-slate-50 {
@@ -3261,6 +3273,10 @@ video {
   color: rgb(255 255 255 / 0.05);
 }
 
+.text-white\/80 {
+  color: rgb(255 255 255 / 0.8);
+}
+
 .text-yellow-500 {
   --tw-text-opacity: 1;
   color: rgb(234 179 8 / var(--tw-text-opacity, 1));
@@ -4149,10 +4165,6 @@ body {
   opacity: 0.8;
 }
 
-.hover\:opacity-90:hover {
-  opacity: 0.9;
-}
-
 .hover\:shadow-2xl:hover {
   --tw-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);
@@ -4186,11 +4198,6 @@ body {
 .hover\:shadow-red-600\/5:hover {
   --tw-shadow-color: rgb(220 38 38 / 0.05);
   --tw-shadow: var(--tw-shadow-colored);
-}
-
-.hover\:brightness-110:hover {
-  --tw-brightness: brightness(1.1);
-  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
 .focus\:border-amber-500:focus {
@@ -4675,6 +4682,10 @@ body {
   background-color: rgb(51 65 85 / 0.3);
 }
 
+.dark\:bg-slate-700\/40:is(.dark *) {
+  background-color: rgb(51 65 85 / 0.4);
+}
+
 .dark\:bg-slate-700\/50:is(.dark *) {
   background-color: rgb(51 65 85 / 0.5);
 }
@@ -5051,6 +5062,10 @@ body {
   background-color: rgb(20 83 45 / 0.3);
 }
 
+.dark\:hover\:bg-green-900\/40:hover:is(.dark *) {
+  background-color: rgb(20 83 45 / 0.4);
+}
+
 .dark\:hover\:bg-red-600:hover:is(.dark *) {
   --tw-bg-opacity: 1;
   background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
@@ -5062,6 +5077,10 @@ body {
 
 .dark\:hover\:bg-red-900\/30:hover:is(.dark *) {
   background-color: rgb(127 29 29 / 0.3);
+}
+
+.dark\:hover\:bg-red-900\/40:hover:is(.dark *) {
+  background-color: rgb(127 29 29 / 0.4);
 }
 
 .dark\:hover\:bg-red-900\/50:hover:is(.dark *) {

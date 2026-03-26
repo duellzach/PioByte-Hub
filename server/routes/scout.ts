@@ -486,4 +486,55 @@ router.delete("/events/:id/team-claims", async (req, res) => {
   }
 });
 
+router.get("/events/:id/match-exceptions", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const exceptions = await storage.getMatchExceptions(eventId);
+    res.json(exceptions);
+  } catch (error) {
+    console.error("Error fetching match exceptions:", error);
+    res.status(500).json({ error: "Failed to fetch match exceptions" });
+  }
+});
+
+router.post("/events/:id/match-exceptions", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { userId, matchNumber, type = "off", createdBy } = req.body;
+    if (!userId || !matchNumber || !createdBy) {
+      return res.status(400).json({ error: "userId, matchNumber, createdBy are required" });
+    }
+    const actor = await storage.getUser(parseInt(createdBy));
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can mark match exceptions" });
+    }
+    const exception = await storage.upsertMatchException({ eventId, userId: parseInt(userId), matchNumber: parseInt(matchNumber), type, createdBy: parseInt(createdBy) });
+    res.status(201).json(exception);
+  } catch (error) {
+    console.error("Error upserting match exception:", error);
+    res.status(500).json({ error: "Failed to upsert match exception" });
+  }
+});
+
+router.delete("/events/:id/match-exceptions", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { userId, matchNumber, requesterId } = req.body;
+    if (!userId || !matchNumber || !requesterId) {
+      return res.status(400).json({ error: "userId, matchNumber, requesterId are required" });
+    }
+    const actor = await storage.getUser(parseInt(requesterId));
+    const actorRoles: string[] = actor?.roles || [];
+    if (!actorRoles.includes("Coach") && !actorRoles.includes("Team Captain")) {
+      return res.status(403).json({ error: "Only coaches and captains can remove match exceptions" });
+    }
+    await storage.deleteMatchException(eventId, parseInt(userId), parseInt(matchNumber));
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting match exception:", error);
+    res.status(500).json({ error: "Failed to delete match exception" });
+  }
+});
+
 export default router;

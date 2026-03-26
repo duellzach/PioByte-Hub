@@ -407,3 +407,18 @@ export const resources = pgTable("resources", {
 
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = typeof resources.$inferInsert;
+
+export const matchExceptions = pgTable("match_exceptions", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  matchNumber: integer("match_number").notNull(),
+  type: text("type").notNull().default("off"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  uniqException: uniqueIndex("match_exceptions_unique_idx").on(t.eventId, t.userId, t.matchNumber),
+}));
+
+export type MatchException = typeof matchExceptions.$inferSelect;
+export type InsertMatchException = typeof matchExceptions.$inferInsert;

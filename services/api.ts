@@ -116,6 +116,13 @@ export const api = {
     deleteTeamClaim: (eventId: number, matchKey: string, teamNumber: number, userId: number) =>
       apiRequest<void>(`/events/${eventId}/team-claims`, { method: 'DELETE', body: JSON.stringify({ matchKey, teamNumber, userId }) }),
   },
+  matchExceptions: {
+    list: (eventId: number) => apiRequest<any[]>(`/events/${eventId}/match-exceptions`),
+    upsert: (eventId: number, data: { userId: number; matchNumber: number; type?: string; createdBy: number }) =>
+      apiRequest<any>(`/events/${eventId}/match-exceptions`, { method: 'POST', body: JSON.stringify(data) }),
+    delete: (eventId: number, userId: number, matchNumber: number, requesterId: number) =>
+      apiRequest<void>(`/events/${eventId}/match-exceptions`, { method: 'DELETE', body: JSON.stringify({ userId, matchNumber, requesterId }) }),
+  },
   tba: {
     getEventMatches: (eventKey: string) => apiRequest<any[]>(`/tba/event/${eventKey}/matches`),
     getEventTeams: (eventKey: string) => apiRequest<any[]>(`/tba/event/${eventKey}/teams`),

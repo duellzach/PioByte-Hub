@@ -130,6 +130,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
   const [assignmentForm, setAssignmentForm] = useState({ userId: 0, fromMatch: 1, toMatch: 10, role: 'Scout - Stands', notes: '' });
   const [showAssignmentList, setShowAssignmentList] = useState(false);
+  const [matchExceptionsSet, setMatchExceptionsSet] = useState<Set<string>>(new Set());
+  const [cellPopover, setCellPopover] = useState<{ userId: number; matchNum: number; assign: any } | null>(null);
 
   const ASSIGNMENT_ROLES = ['Scout - Stands', 'Pit Crew', 'Networking', 'Media', 'Free Time', 'Driver/Coach Support'];
   const ROLE_CHIP_COLORS: Record<string, string> = {
@@ -159,6 +161,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       console.error('Failed to fetch assignments:', err);
     }
     setAssignmentsLoading(false);
+  }, []);
+
+  const fetchMatchExceptions = useCallback(async (eventId: number) => {
+    try {
+      const data = await api.matchExceptions.list(eventId);
+      setMatchExceptionsSet(new Set(data.map((e: any) => `${e.userId}_${e.matchNumber}`)));
+    } catch (err) {
+      console.error('Failed to fetch match exceptions:', err);
+    }
   }, []);
 
   const fetchNexusData = useCallback(async (eventKey: string) => {
@@ -487,6 +498,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     fetchEventData(event.id);
     fetchEventInfoData(event.id);
     fetchAssignments(event.id);
+    fetchMatchExceptions(event.id);
     if (event.tbaEventKey) fetchTbaData(event.tbaEventKey);
   };
 
@@ -2183,6 +2195,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     'Driver/Coach Support': 'D/C',
                   };
 
+                  // Build userId_matchNum → teamNumber lookup from teamClaims
+                  const claimByUserMatch = new Map<string, number>();
+                  for (const [key, claim] of Object.entries(teamClaims)) {
+                    const colonIdx = key.lastIndexOf(':');
+                    if (colonIdx < 0) continue;
+                    const matchKeyPart = key.substring(0, colonIdx);
+                    const teamNum = parseInt(key.substring(colonIdx + 1));
+                    const mMatch = matchKeyPart.match(/_qm(\d+)$/);
+                    if (mMatch && !isNaN(teamNum)) {
+                      claimByUserMatch.set(`${(claim as any).userId}_${mMatch[1]}`, teamNum);
+                    }
+                  }
+
                   return (
                     <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
                       <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
@@ -2195,6 +2220,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               {ABBREV[role] || role}
                             </span>
                           ))}
+                          <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-slate-400 text-white">Off</span>
                         </div>
                       </div>
 
@@ -2226,6 +2252,37 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                             </tr>
                           </thead>
                           <tbody>
+                            {rows.length > 0 && (
+                              <tr className="border-b-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/40">
+                                <td
+                                  style={{ width: 140, minWidth: 140 }}
+                                  className="sticky left-0 z-10 pl-5 pr-3 py-1 text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-700/40 border-r-2 border-slate-100 dark:border-slate-700 whitespace-nowrap"
+                                >
+                                  Scouts on duty
+                                </td>
+                                {matchNums.map(matchNum => {
+                                  const count = rows.filter(([uid, { userAssigns }]) => {
+                                    const a = userAssigns.find((ua: any) => matchNum >= ua.fromMatch && matchNum <= ua.toMatch);
+                                    if (!a || a.role !== 'Scout - Stands') return false;
+                                    return !matchExceptionsSet.has(`${uid}_${matchNum}`);
+                                  }).length;
+                                  const isTick10 = matchNum % 10 === 0;
+                                  return (
+                                    <td
+                                      key={matchNum}
+                                      style={{ width: 22, minWidth: 22 }}
+                                      className={`text-center py-1 ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
+                                    >
+                                      {count > 0 ? (
+                                        <span className="text-[8px] font-black text-red-600 dark:text-red-400">{count}</span>
+                                      ) : (
+                                        <span className="text-slate-300 dark:text-slate-600 text-[8px]">—</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            )}
                             {rows.map(([userId, { name, isMe, userAssigns }]) => (
                               <tr
                                 key={userId}
@@ -2264,24 +2321,37 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   }
                                   const isFirst = matchNum === a.fromMatch;
                                   const isLast = matchNum === a.toMatch;
-                                  const bg = CELL_BG[a.role] || 'bg-slate-400';
+                                  const isOff = matchExceptionsSet.has(`${userId}_${matchNum}`);
+                                  const claimedTeam = a.role === 'Scout - Stands' ? claimByUserMatch.get(`${userId}_${matchNum}`) : undefined;
+                                  const bg = isOff ? '' : (CELL_BG[a.role] || 'bg-slate-400');
                                   return (
                                     <td
                                       key={matchNum}
-                                      style={{ width: 22, minWidth: 22 }}
-                                      title={`${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${a.notes ? ` — ${a.notes}` : ''}`}
-                                      className={`h-8 ${bg} ${isTick10 ? 'border-l-2 border-white/40' : 'border-l border-white/20'} ${isFirst ? 'rounded-l' : ''} ${isLast ? 'rounded-r' : ''} ${isCoachOrCaptain ? 'cursor-pointer hover:brightness-110 hover:opacity-90' : ''} transition-opacity`}
+                                      style={{
+                                        width: 22,
+                                        minWidth: 22,
+                                        ...(isOff ? { backgroundImage: 'repeating-linear-gradient(45deg,#94a3b8 0,#94a3b8 2px,#cbd5e1 2px,#cbd5e1 6px)' } : {}),
+                                      }}
+                                      title={isOff ? `${name}: Off / Break (M${matchNum})` : `${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${claimedTeam ? ` · Team ${claimedTeam}` : ''}${a.notes ? ` — ${a.notes}` : ''}`}
+                                      className={`h-8 ${isOff ? 'opacity-80' : bg} ${isTick10 ? `border-l-2 ${isOff ? 'border-slate-400' : 'border-white/40'}` : `border-l ${isOff ? 'border-slate-400/50' : 'border-white/20'}`} ${isFirst && !isOff ? 'rounded-l' : ''} ${isLast && !isOff ? 'rounded-r' : ''} ${isCoachOrCaptain ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                                       onClick={isCoachOrCaptain ? () => {
-                                        setEditingAssignment(a);
-                                        setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
-                                        setShowAssignmentForm(true);
+                                        setCellPopover({ userId: userId as number, matchNum, assign: a });
                                       } : undefined}
                                     >
-                                      {isFirst && (
+                                      {!isOff && isFirst && (
                                         <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                                          <span className="text-white text-[6px] font-black leading-none select-none truncate px-px">
-                                            {ABBREV[a.role] ?? a.role}
-                                          </span>
+                                          {claimedTeam ? (
+                                            <span className="text-white text-[6px] font-black leading-none select-none px-px">{claimedTeam}</span>
+                                          ) : (
+                                            <span className="text-white text-[6px] font-black leading-none select-none truncate px-px">
+                                              {ABBREV[a.role] ?? a.role}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {!isOff && !isFirst && claimedTeam && (
+                                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                                          <span className="text-white/80 text-[5px] font-black leading-none select-none px-px">{claimedTeam}</span>
                                         </div>
                                       )}
                                     </td>
@@ -2305,7 +2375,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
                       <div className="px-5 py-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
                         <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">
-                          {totalMatches} matches · {rows.length} members{isCoachOrCaptain ? ' · click cell to assign' : ''}
+                          {totalMatches} matches · {rows.length} members{isCoachOrCaptain ? ' · click cell to assign/off' : ''}
                         </span>
                         <span className="text-[8px] text-slate-400 font-bold">
                           tick marks every 5 / bold every 10
@@ -2367,6 +2437,65 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   )}
                 </div>}
               </>
+            )}
+
+            {cellPopover && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[115] flex items-center justify-center p-4" onClick={() => setCellPopover(null)}>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 shadow-2xl p-5 w-72" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm font-black text-slate-900 dark:text-white">
+                      Match {cellPopover.matchNum}
+                      {(() => {
+                        const u = allUsers.find((u: any) => u.id === cellPopover.userId);
+                        return u ? <span className="text-slate-400 font-bold"> · {u.name || u.username}</span> : null;
+                      })()}
+                    </span>
+                    <button onClick={() => setCellPopover(null)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"><X size={14} className="text-slate-400" /></button>
+                  </div>
+                  <div className="space-y-2">
+                    {matchExceptionsSet.has(`${cellPopover.userId}_${cellPopover.matchNum}`) ? (
+                      <button
+                        className="w-full px-4 py-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-sm font-black hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors text-left"
+                        onClick={async () => {
+                          if (!activeEvent || !currentUser) return;
+                          try {
+                            await api.matchExceptions.delete(activeEvent.id, cellPopover.userId, cellPopover.matchNum, parseInt(currentUser.id));
+                            setMatchExceptionsSet(prev => { const next = new Set(prev); next.delete(`${cellPopover.userId}_${cellPopover.matchNum}`); return next; });
+                          } catch (err) { console.error('Failed to remove off mark:', err); }
+                          setCellPopover(null);
+                        }}
+                      >
+                        ✓ Remove Off / Break Mark
+                      </button>
+                    ) : (
+                      <button
+                        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-black hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left"
+                        onClick={async () => {
+                          if (!activeEvent || !currentUser) return;
+                          try {
+                            await api.matchExceptions.upsert(activeEvent.id, { userId: cellPopover.userId, matchNumber: cellPopover.matchNum, type: 'off', createdBy: parseInt(currentUser.id) });
+                            setMatchExceptionsSet(prev => new Set(prev).add(`${cellPopover.userId}_${cellPopover.matchNum}`));
+                          } catch (err) { console.error('Failed to mark off:', err); }
+                          setCellPopover(null);
+                        }}
+                      >
+                        Mark Off / Break
+                      </button>
+                    )}
+                    <button
+                      className="w-full px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl text-sm font-black hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-left"
+                      onClick={() => {
+                        setEditingAssignment(cellPopover.assign);
+                        setAssignmentForm({ userId: cellPopover.assign.userId, fromMatch: cellPopover.assign.fromMatch, toMatch: cellPopover.assign.toMatch, role: cellPopover.assign.role, notes: cellPopover.assign.notes || '' });
+                        setCellPopover(null);
+                        setShowAssignmentForm(true);
+                      }}
+                    >
+                      Edit Assignment Range
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {showAssignmentForm && (

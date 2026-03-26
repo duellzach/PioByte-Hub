@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -183,6 +183,10 @@ export interface IStorage {
   updateResource(id: number, data: Partial<InsertResource>): Promise<Resource | undefined>;
   deleteResource(id: number): Promise<void>;
   seedResources(addedBy: number): Promise<void>;
+
+  getMatchExceptions(eventId: number): Promise<MatchException[]>;
+  upsertMatchException(data: { eventId: number; userId: number; matchNumber: number; type: string; createdBy: number }): Promise<MatchException>;
+  deleteMatchException(eventId: number, userId: number, matchNumber: number): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -1101,6 +1105,21 @@ export class DatabaseStorage implements IStorage {
     for (const s of seeds) {
       await db.insert(resources).values({ ...s, addedBy } as InsertResource);
     }
+  }
+
+  async getMatchExceptions(eventId: number): Promise<MatchException[]> {
+    return db.select().from(matchExceptions).where(eq(matchExceptions.eventId, eventId));
+  }
+
+  async upsertMatchException(data: { eventId: number; userId: number; matchNumber: number; type: string; createdBy: number }): Promise<MatchException> {
+    const [row] = await db.insert(matchExceptions).values(data)
+      .onConflictDoUpdate({ target: [matchExceptions.eventId, matchExceptions.userId, matchExceptions.matchNumber], set: { type: data.type, createdBy: data.createdBy } })
+      .returning();
+    return row;
+  }
+
+  async deleteMatchException(eventId: number, userId: number, matchNumber: number): Promise<void> {
+    await db.delete(matchExceptions).where(and(eq(matchExceptions.eventId, eventId), eq(matchExceptions.userId, userId), eq(matchExceptions.matchNumber, matchNumber)));
   }
 
   async seedDatabase(): Promise<void> {
