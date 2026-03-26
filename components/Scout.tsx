@@ -2212,15 +2212,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 <th
                                   key={n}
                                   style={{ width: 22, minWidth: 22 }}
-                                  className={`text-center text-[7px] font-black py-1 select-none ${
+                                  className={`text-center py-1 select-none overflow-hidden ${
                                     n % 10 === 0
-                                      ? 'text-slate-500 dark:text-slate-400 border-l-2 border-slate-200 dark:border-slate-600'
+                                      ? 'text-slate-600 dark:text-slate-300 font-black text-[7px] border-l-2 border-slate-200 dark:border-slate-600'
                                       : n % 5 === 0
-                                      ? 'text-slate-400 dark:text-slate-500 border-l border-slate-100 dark:border-slate-700'
-                                      : 'text-transparent border-l border-slate-50 dark:border-slate-700/50'
+                                      ? 'text-slate-500 dark:text-slate-400 font-bold text-[7px] border-l border-slate-100 dark:border-slate-700'
+                                      : 'text-slate-400 dark:text-slate-600 font-semibold text-[6px] border-l border-slate-50 dark:border-slate-700/50'
                                   }`}
                                 >
-                                  {n % 5 === 0 ? n : '.'}
+                                  {n}
                                 </th>
                               ))}
                             </tr>
