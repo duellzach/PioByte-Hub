@@ -129,6 +129,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [showAssignmentForm, setShowAssignmentForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
   const [assignmentForm, setAssignmentForm] = useState({ userId: 0, fromMatch: 1, toMatch: 10, role: 'Scout - Stands', notes: '' });
+  const [showAssignmentList, setShowAssignmentList] = useState(false);
 
   const ASSIGNMENT_ROLES = ['Scout - Stands', 'Pit Crew', 'Networking', 'Media', 'Free Time', 'Driver/Coach Support'];
   const ROLE_CHIP_COLORS: Record<string, string> = {
@@ -2154,116 +2155,215 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
             ) : (
               <>
-                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-5 flex items-center gap-2">
-                    <Grid3X3 size={15} className="text-red-600" /> Schedule Overview
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr>
-                          <th className="text-left py-2 pr-4 font-black text-[9px] text-slate-400 uppercase tracking-widest min-w-[120px]">Member</th>
-                          {assignments
-                            .reduce((acc: any[], a) => {
-                              const key = `${a.fromMatch}-${a.toMatch}`;
-                              if (!acc.find(x => x.key === key)) acc.push({ key, fromMatch: a.fromMatch, toMatch: a.toMatch });
-                              return acc;
-                            }, [])
-                            .sort((a, b) => a.fromMatch - b.fromMatch)
-                            .map(range => (
-                              <th key={range.key} className="py-2 px-2 font-black text-[9px] text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">M{range.fromMatch}–M{range.toMatch}</th>
-                            ))
-                          }
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const ranges = assignments
-                            .reduce((acc: any[], a) => {
-                              const key = `${a.fromMatch}-${a.toMatch}`;
-                              if (!acc.find((x: any) => x.key === key)) acc.push({ key, fromMatch: a.fromMatch, toMatch: a.toMatch });
-                              return acc;
-                            }, [])
-                            .sort((a: any, b: any) => a.fromMatch - b.fromMatch);
-                          const byUser = new Map<number, { name: string; assignments: any[] }>();
-                          for (const a of assignments) {
-                            if (!byUser.has(a.userId)) byUser.set(a.userId, { name: a.userName || `User ${a.userId}`, assignments: [] });
-                            byUser.get(a.userId)!.assignments.push(a);
-                          }
-                          return Array.from(byUser.entries()).map(([userId, { name, assignments: userAssigns }]) => {
-                            const isMe = userId === parseInt(currentUser?.id);
-                            return (
-                              <tr key={userId} className={isMe ? 'bg-red-50 dark:bg-red-900/10' : ''}>
-                                <td className="py-2 pr-4 font-bold text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap">
-                                  {name}{isMe ? ' (you)' : ''}
+                {(() => {
+                  const qualNums = tbaMatches
+                    .filter((m: any) => m.comp_level === 'qm')
+                    .map((m: any) => m.match_number as number);
+                  const totalFromTba = qualNums.length > 0 ? Math.max(...qualNums) : 0;
+                  const totalFromAssign = assignments.length > 0 ? Math.max(...assignments.map((a: any) => a.toMatch as number)) : 0;
+                  const totalMatches = Math.max(totalFromTba, totalFromAssign, 10);
+                  const matchNums = Array.from({ length: totalMatches }, (_, i) => i + 1);
+
+                  const byUser = new Map<number, { name: string; isMe: boolean; userAssigns: any[] }>();
+                  for (const a of assignments) {
+                    if (!byUser.has(a.userId)) {
+                      byUser.set(a.userId, {
+                        name: a.userName || `User ${a.userId}`,
+                        isMe: a.userId === parseInt(currentUser?.id),
+                        userAssigns: [],
+                      });
+                    }
+                    byUser.get(a.userId)!.userAssigns.push(a);
+                  }
+                  const rows = Array.from(byUser.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name));
+
+                  const CELL_BG: Record<string, string> = {
+                    'Scout - Stands': 'bg-red-500',
+                    'Pit Crew': 'bg-orange-500',
+                    'Networking': 'bg-blue-500',
+                    'Media': 'bg-violet-500',
+                    'Free Time': 'bg-green-500',
+                    'Driver/Coach Support': 'bg-indigo-500',
+                  };
+                  const ABBREV: Record<string, string> = {
+                    'Scout - Stands': 'Scout',
+                    'Pit Crew': 'Pit',
+                    'Networking': 'Net',
+                    'Media': 'Media',
+                    'Free Time': 'Free',
+                    'Driver/Coach Support': 'D/C',
+                  };
+
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
+                      <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                          <Grid3X3 size={15} className="text-red-600" /> Match Schedule Grid
+                        </h3>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ASSIGNMENT_ROLES.map(role => (
+                            <span key={role} className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white ${CELL_BG[role] || 'bg-slate-500'}`}>
+                              {ABBREV[role] || role}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="border-collapse" style={{ tableLayout: 'fixed', minWidth: `${140 + totalMatches * 22}px` }}>
+                          <thead>
+                            <tr className="border-b-2 border-slate-100 dark:border-slate-700">
+                              <th
+                                className="sticky left-0 z-10 bg-white dark:bg-slate-800 text-left pl-5 pr-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-r-2 border-slate-100 dark:border-slate-700"
+                                style={{ width: 140, minWidth: 140 }}
+                              >
+                                Member
+                              </th>
+                              {matchNums.map(n => (
+                                <th
+                                  key={n}
+                                  style={{ width: 22, minWidth: 22 }}
+                                  className={`text-center text-[7px] font-black py-1 select-none ${
+                                    n % 10 === 0
+                                      ? 'text-slate-500 dark:text-slate-400 border-l-2 border-slate-200 dark:border-slate-600'
+                                      : n % 5 === 0
+                                      ? 'text-slate-400 dark:text-slate-500 border-l border-slate-100 dark:border-slate-700'
+                                      : 'text-transparent border-l border-slate-50 dark:border-slate-700/50'
+                                  }`}
+                                >
+                                  {n % 5 === 0 ? n : '.'}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map(([userId, { name, isMe, userAssigns }]) => (
+                              <tr
+                                key={userId}
+                                className={`border-b border-slate-50 dark:border-slate-700/40 ${isMe ? '' : 'hover:bg-slate-50/60 dark:hover:bg-slate-700/20'}`}
+                              >
+                                <td
+                                  style={{ width: 140, minWidth: 140 }}
+                                  className={`sticky left-0 z-10 pl-5 pr-3 py-1.5 text-xs font-bold whitespace-nowrap border-r-2 border-slate-100 dark:border-slate-700 ${
+                                    isMe
+                                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                >
+                                  {name}{isMe ? <span className="ml-1 text-red-400 text-[9px]">you</span> : ''}
                                 </td>
-                                {ranges.map((range: any) => {
-                                  const a = userAssigns.find((ua: any) => ua.fromMatch === range.fromMatch && ua.toMatch === range.toMatch);
-                                  if (!a) return <td key={range.key} className="py-2 px-2 text-center"><span className="text-slate-200 dark:text-slate-700">—</span></td>;
-                                  const color = ROLE_CHIP_COLORS[a.role] || 'bg-slate-500 text-white';
-                                  return (
-                                    <td key={range.key} className="py-2 px-2 text-center">
-                                      <span
-                                        title={a.notes || a.role}
-                                        className={`inline-block px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest cursor-pointer ${color}`}
+                                {matchNums.map(matchNum => {
+                                  const a = userAssigns.find((ua: any) => matchNum >= ua.fromMatch && matchNum <= ua.toMatch);
+                                  const isTick10 = matchNum % 10 === 0;
+                                  const isTick5 = matchNum % 5 === 0;
+                                  if (!a) {
+                                    return (
+                                      <td
+                                        key={matchNum}
+                                        style={{ width: 22, minWidth: 22 }}
+                                        title={isCoachOrCaptain ? `Assign ${name} to match ${matchNum}` : undefined}
+                                        className={`h-8 ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
                                         onClick={isCoachOrCaptain ? () => {
-                                          setEditingAssignment(a);
-                                          setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
+                                          setEditingAssignment(null);
+                                          setAssignmentForm({ userId: userId as number, fromMatch: matchNum, toMatch: matchNum, role: 'Scout - Stands', notes: '' });
                                           setShowAssignmentForm(true);
                                         } : undefined}
-                                      >{a.role.replace('Scout - Stands', 'Scout').replace('Driver/Coach Support', 'Driver/Coach')}</span>
+                                      />
+                                    );
+                                  }
+                                  const isFirst = matchNum === a.fromMatch;
+                                  const isLast = matchNum === a.toMatch;
+                                  const bg = CELL_BG[a.role] || 'bg-slate-400';
+                                  return (
+                                    <td
+                                      key={matchNum}
+                                      style={{ width: 22, minWidth: 22 }}
+                                      title={`${name}: ${a.role} (M${a.fromMatch}–M${a.toMatch})${a.notes ? ` — ${a.notes}` : ''}`}
+                                      className={`h-8 ${bg} ${isTick10 ? 'border-l-2 border-white/40' : 'border-l border-white/20'} ${isFirst ? 'rounded-l' : ''} ${isLast ? 'rounded-r' : ''} ${isCoachOrCaptain ? 'cursor-pointer hover:brightness-110 hover:opacity-90' : ''} transition-opacity`}
+                                      onClick={isCoachOrCaptain ? () => {
+                                        setEditingAssignment(a);
+                                        setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
+                                        setShowAssignmentForm(true);
+                                      } : undefined}
+                                    >
+                                      {isFirst && (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <span className="text-white text-[7px] font-black leading-none select-none px-0.5 truncate">
+                                            {ABBREV[a.role]?.[0] ?? ''}
+                                          </span>
+                                        </div>
+                                      )}
                                     </td>
                                   );
                                 })}
                               </tr>
-                            );
-                          });
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="px-5 py-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">
+                          {totalMatches} matches · {rows.length} members{isCoachOrCaptain ? ' · click cell to assign' : ''}
+                        </span>
+                        <span className="text-[8px] text-slate-400 font-bold">
+                          tick marks every 5 / bold every 10
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-3">
-                  <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">All Assignments</h3>
-                  {assignments.map(a => {
-                    const badge = ROLE_COLORS[a.role] || 'bg-slate-100 text-slate-600';
-                    const isMe = a.userId === parseInt(currentUser?.id);
-                    return (
-                      <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-red-200 dark:border-red-800' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <p className="text-sm font-black text-slate-900 dark:text-white">{a.userName}{isMe ? ' (you)' : ''}</p>
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${badge}`}>{a.role}</span>
+                  <button
+                    onClick={() => setShowAssignmentList(v => !v)}
+                    className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    <ChevronRight size={13} className={`transition-transform duration-200 ${showAssignmentList ? 'rotate-90' : ''}`} />
+                    {showAssignmentList ? 'Hide' : 'Show'} assignment list ({assignments.length})
+                  </button>
+                  {showAssignmentList && (
+                    <div className="space-y-3">
+                      {assignments.map(a => {
+                        const badge = ROLE_COLORS[a.role] || 'bg-slate-100 text-slate-600';
+                        const isMe = a.userId === parseInt(currentUser?.id);
+                        return (
+                          <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-red-200 dark:border-red-800' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <p className="text-sm font-black text-slate-900 dark:text-white">{a.userName}{isMe ? ' (you)' : ''}</p>
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${badge}`}>{a.role}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold">Matches {a.fromMatch}–{a.toMatch}</p>
+                              {a.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{a.notes}</p>}
+                            </div>
+                            {isCoachOrCaptain && (
+                              <div className="flex gap-2 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setEditingAssignment(a);
+                                    setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
+                                    setShowAssignmentForm(true);
+                                  }}
+                                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-all"
+                                ><Settings size={14} className="text-slate-500" /></button>
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Delete this assignment?')) return;
+                                    try {
+                                      await api.competitionAssignments.delete(activeEvent.id, a.id, parseInt(currentUser.id));
+                                      fetchAssignments(activeEvent.id);
+                                    } catch (err) { console.error('Failed to delete assignment:', err); }
+                                  }}
+                                  className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 transition-all"
+                                ><Trash2 size={14} className="text-red-500" /></button>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-[10px] text-slate-400 font-bold">Matches {a.fromMatch}–{a.toMatch}</p>
-                          {a.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{a.notes}</p>}
-                        </div>
-                        {isCoachOrCaptain && (
-                          <div className="flex gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => {
-                                setEditingAssignment(a);
-                                setAssignmentForm({ userId: a.userId, fromMatch: a.fromMatch, toMatch: a.toMatch, role: a.role, notes: a.notes || '' });
-                                setShowAssignmentForm(true);
-                              }}
-                              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-all"
-                            ><Settings size={14} className="text-slate-500" /></button>
-                            <button
-                              onClick={async () => {
-                                if (!confirm('Delete this assignment?')) return;
-                                try {
-                                  await api.competitionAssignments.delete(activeEvent.id, a.id, parseInt(currentUser.id));
-                                  fetchAssignments(activeEvent.id);
-                                } catch (err) { console.error('Failed to delete assignment:', err); }
-                              }}
-                              className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 transition-all"
-                            ><Trash2 size={14} className="text-red-500" /></button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </>
             )}
