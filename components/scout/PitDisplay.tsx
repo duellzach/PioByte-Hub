@@ -323,14 +323,15 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                             const firstActiveIdx = matches.findIndex((m: any) => activeStatuses.has(m.status));
                             const lastCompletedIdx = (() => {
                               for (let i = matches.length - 1; i >= 0; i--) {
-                                if (!activeStatuses.has(matches[i].status)) return i;
+                                const s = matches[i].status;
+                                if (s && !activeStatuses.has(s)) return i;
                               }
                               return -1;
                             })();
                             const anchorIdx = firstActiveIdx >= 0
                               ? firstActiveIdx
                               : lastCompletedIdx >= 0
-                                ? Math.max(0, lastCompletedIdx - 1)
+                                ? Math.min(lastCompletedIdx + 1, matches.length - 1)
                                 : 0;
                             const next10 = matches.slice(anchorIdx, anchorIdx + 10);
                             if (next10.length === 0) return null;
