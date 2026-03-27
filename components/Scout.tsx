@@ -1223,11 +1223,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           if (!merged.drivetrain && other.drivetrain) merged.drivetrain = other.drivetrain;
           if (!merged.traversalAbility && other.traversalAbility) merged.traversalAbility = other.traversalAbility;
           if (!merged.shooterType && other.shooterType) merged.shooterType = other.shooterType;
-          if (!merged.notes && other.notes) merged.notes = other.notes;
           if (!merged.photoUrl && other.photoUrl) merged.photoUrl = other.photoUrl;
           if (!merged.weight && other.weight) merged.weight = other.weight;
           if (!merged.speed && other.speed) merged.speed = other.speed;
           if (!merged.height && other.height) merged.height = other.height;
+          if (!merged.fuelCapacity && other.fuelCapacity) merged.fuelCapacity = other.fuelCapacity;
+          if ((!merged.autonomousRoutine || merged.autonomousRoutine === 'None') && other.autonomousRoutine && other.autonomousRoutine !== 'None') {
+            merged.autonomousRoutine = other.autonomousRoutine;
+          }
+          if (other.notes) {
+            if (!merged.notes) {
+              merged.notes = other.notes;
+            } else if (merged.notes !== other.notes) {
+              merged.notes = merged.notes + '\n\n' + other.notes;
+            }
+          }
           merged.capabilities = Array.from(new Set([...merged.capabilities, ...(other.capabilities || [])]));
           merged.deficiencies = Array.from(new Set([...merged.deficiencies, ...(other.deficiencies || [])]));
           merged.autoOptions = Array.from(new Set([...merged.autoOptions, ...(other.autoOptions || [])]));
