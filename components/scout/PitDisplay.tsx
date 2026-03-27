@@ -32,6 +32,16 @@ interface PitDisplayProps {
   onGenerateGeminiReport: (m: any) => void;
 }
 
+const extractAnnouncementText = (a: any): string => {
+  if (typeof a === 'string') return a;
+  return a?.message ?? a?.text ?? a?.body ?? a?.content ?? a?.announcement ?? a?.description ?? '';
+};
+
+const extractPartsRequestText = (r: any): string => {
+  if (typeof r === 'string') return r;
+  return r?.request ?? r?.item ?? r?.part ?? r?.message ?? r?.text ?? r?.description ?? '';
+};
+
 const PitDisplay: React.FC<PitDisplayProps> = ({
   pitSubTab, setPitSubTab, pitDisplayAlerts, dismissedPitAlertIds, onDismissPitAlert,
   nexusData, nexusLoading, nexusError, nexusCountdown, onFetchNexusData, onFetchTbaData,
@@ -98,10 +108,10 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
 
       {nexusData && (() => {
         const firstPendingAnnouncement = nexusData.announcements?.find(
-          (a: any) => !dismissedAnnouncements.has(String(a.id ?? a.message ?? a))
+          (a: any) => !dismissedAnnouncements.has(String(a?.id ?? extractAnnouncementText(a)))
         );
         const firstPendingPart = nexusData.partsRequests?.find(
-          (r: any) => !dismissedParts.has(String(r.id ?? r.message ?? r))
+          (r: any) => !dismissedParts.has(String(r?.id ?? extractPartsRequestText(r)))
         );
         const matches: any[] = nexusData.matches || [];
         const activeStatusSet = new Set(['Now queuing', 'On deck', 'On field']);
@@ -155,7 +165,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <Zap size={32} className="text-yellow-600" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Announcement</h2>
-                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{typeof firstPendingAnnouncement === 'string' ? firstPendingAnnouncement : (firstPendingAnnouncement.message ?? firstPendingAnnouncement.text ?? firstPendingAnnouncement.body ?? '')}</p>
+                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{extractAnnouncementText(firstPendingAnnouncement)}</p>
               </div>
             </div>
           );
@@ -173,7 +183,16 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <AlertCircle size={32} className="text-red-600" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Parts Request</h2>
-                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{typeof firstPendingPart === 'string' ? firstPendingPart : (firstPendingPart.message ?? firstPendingPart.text ?? firstPendingPart.body ?? '')}</p>
+                {firstPendingPart?.teamNumber && (
+                  <p className="text-sm font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Team {firstPendingPart.teamNumber}</p>
+                )}
+                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{extractPartsRequestText(firstPendingPart)}</p>
+                {firstPendingPart?.quantity != null && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Qty: {firstPendingPart.quantity}</p>
+                )}
+                {firstPendingPart?.notes && extractPartsRequestText(firstPendingPart) !== firstPendingPart.notes && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 italic">{firstPendingPart.notes}</p>
+                )}
               </div>
             </div>
           );
@@ -194,7 +213,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                     <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">FRC Nexus Live</span>
                     {nexusData?.nowQueuing && (
                       <span className="px-2.5 py-1 bg-red-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest animate-pulse">
-                        {nexusData.nowQueuing}
+                        {typeof nexusData.nowQueuing === 'string' ? nexusData.nowQueuing : (nexusData.nowQueuing?.label ?? nexusData.nowQueuing?.match ?? '')}
                       </span>
                     )}
                   </div>
@@ -292,7 +311,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700 rounded-xl p-4">
                               <p className="text-[9px] font-black text-yellow-700 dark:text-yellow-300 uppercase tracking-widest mb-2">Announcements</p>
                               {nexusData.announcements.map((a: any, i: number) => (
-                                <p key={i} className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">{typeof a === 'string' ? a : (a.message ?? a.text ?? a.body ?? '')}</p>
+                                <p key={i} className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">{extractAnnouncementText(a)}</p>
                               ))}
                             </div>
                           )}
@@ -376,9 +395,25 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                           {nexusData.partsRequests?.length > 0 && (
                             <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-700 rounded-xl p-4">
                               <p className="text-[9px] font-black text-red-600 uppercase tracking-widest mb-2">Parts Requests</p>
-                              {nexusData.partsRequests.map((r: any, i: number) => (
-                                <p key={i} className="text-sm text-red-800 dark:text-red-200 font-medium">{typeof r === 'string' ? r : r.message || JSON.stringify(r)}</p>
-                              ))}
+                              <div className="space-y-2">
+                                {nexusData.partsRequests.map((r: any, i: number) => {
+                                  const desc = extractPartsRequestText(r);
+                                  return (
+                                    <div key={i} className="flex items-start gap-2">
+                                      {r?.teamNumber && (
+                                        <span className="flex-shrink-0 px-2 py-0.5 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 rounded font-black text-[10px]">
+                                          #{r.teamNumber}
+                                        </span>
+                                      )}
+                                      <div className="min-w-0">
+                                        <p className="text-sm text-red-800 dark:text-red-200 font-medium leading-snug">{desc}</p>
+                                        {r?.quantity != null && <p className="text-[10px] text-red-500 dark:text-red-400 font-bold">Qty: {r.quantity}</p>}
+                                        {r?.notes && desc !== r.notes && <p className="text-[10px] text-red-500 dark:text-red-400 italic">{r.notes}</p>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </>
