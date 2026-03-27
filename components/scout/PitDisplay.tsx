@@ -155,7 +155,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <Zap size={32} className="text-yellow-600" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Announcement</h2>
-                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{firstPendingAnnouncement.message ?? firstPendingAnnouncement}</p>
+                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{typeof firstPendingAnnouncement === 'string' ? firstPendingAnnouncement : (firstPendingAnnouncement.message ?? firstPendingAnnouncement.text ?? firstPendingAnnouncement.body ?? '')}</p>
               </div>
             </div>
           );
@@ -173,7 +173,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <AlertCircle size={32} className="text-red-600" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Parts Request</h2>
-                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{firstPendingPart.message ?? firstPendingPart}</p>
+                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{typeof firstPendingPart === 'string' ? firstPendingPart : (firstPendingPart.message ?? firstPendingPart.text ?? firstPendingPart.body ?? '')}</p>
               </div>
             </div>
           );
@@ -292,7 +292,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700 rounded-xl p-4">
                               <p className="text-[9px] font-black text-yellow-700 dark:text-yellow-300 uppercase tracking-widest mb-2">Announcements</p>
                               {nexusData.announcements.map((a: any, i: number) => (
-                                <p key={i} className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">{a.message || a}</p>
+                                <p key={i} className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">{typeof a === 'string' ? a : (a.message ?? a.text ?? a.body ?? '')}</p>
                               ))}
                             </div>
                           )}
