@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Counter, StarRating } from './shared';
 
@@ -18,6 +18,39 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
   show, editingMatch, matchForm, setMatchForm, onClose, onSave,
   pitScouts, activeTeamClaimRef, onUnclaim,
 }) => {
+  const [customAutoInput, setCustomAutoInput] = useState('');
+
+  const scoutedTeam = pitScouts.find((p: any) => p.teamNumber === matchForm.teamNumber);
+  const pitAutoOptions: string[] = Array.from(new Set([
+    ...(scoutedTeam?.autoOptions || []),
+    ...(scoutedTeam?.autonomousRoutine && scoutedTeam.autonomousRoutine !== 'None'
+      ? [scoutedTeam.autonomousRoutine]
+      : []),
+  ])).filter(Boolean);
+
+  const isCustomSelected = matchForm.autoUsed === '__custom__' ||
+    (matchForm.autoUsed && !pitAutoOptions.includes(matchForm.autoUsed) && matchForm.autoUsed !== '');
+
+  useEffect(() => {
+    if (isCustomSelected && matchForm.autoUsed !== '__custom__') {
+      setCustomAutoInput(matchForm.autoUsed);
+    }
+  }, [matchForm.teamNumber, show]);
+
+  const handleAutoSelect = (val: string) => {
+    if (val === '__custom__') {
+      setMatchForm({ ...matchForm, autoUsed: '__custom__' });
+      setCustomAutoInput('');
+    } else {
+      setMatchForm({ ...matchForm, autoUsed: val });
+    }
+  };
+
+  const handleCustomInput = (val: string) => {
+    setCustomAutoInput(val);
+    setMatchForm({ ...matchForm, autoUsed: val });
+  };
+
   if (!show) return null;
 
   const handleClose = () => {
@@ -86,21 +119,39 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
             </div>
           </div>
 
-          {(() => {
-            const scoutedTeam = pitScouts.find((p: any) => p.teamNumber === matchForm.teamNumber);
-            const autoOpts = scoutedTeam?.autoOptions || [];
-            return autoOpts.length > 0 ? (
-              <div className="space-y-1">
-                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Auto Used</span>
-                <select value={matchForm.autoUsed} onChange={(e) => setMatchForm({ ...matchForm, autoUsed: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm">
-                  <option value="">Select auto routine...</option>
-                  {autoOpts.map((a: string) => <option key={a} value={a}>{a}</option>)}
-                  <option value="Other">Other / Custom</option>
-                </select>
-              </div>
-            ) : null;
-          })()}
+          <div className="space-y-2">
+            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Auto Routine Used</span>
+            <select
+              value={isCustomSelected ? '__custom__' : (matchForm.autoUsed || '')}
+              onChange={(e) => handleAutoSelect(e.target.value)}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+            >
+              <option value="">— None / Not recorded —</option>
+              {pitAutoOptions.length > 0 && (
+                <optgroup label="From robot scouting">
+                  {pitAutoOptions.map((a: string) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="__custom__">Other / Custom…</option>
+            </select>
+            {isCustomSelected && (
+              <input
+                type="text"
+                value={customAutoInput}
+                onChange={(e) => handleCustomInput(e.target.value)}
+                placeholder="Describe the auto routine…"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-red-300 dark:border-red-700 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                autoFocus
+              />
+            )}
+            {pitAutoOptions.length === 0 && (
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold px-1">
+                No routines on file — add them in the robot scouting report for team {matchForm.teamNumber || '…'}.
+              </p>
+            )}
+          </div>
 
           <div className="space-y-3">
             <div className="border-2 border-green-100 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20 rounded-xl p-4">
