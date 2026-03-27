@@ -14,9 +14,10 @@ interface PitMapProps {
   eventKey: string | null;
   onRefresh: () => void;
   teamNames?: Record<string, string>;
+  scoutedTeams?: Set<string>;
 }
 
-const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRefresh, teamNames }) => {
+const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRefresh, teamNames, scoutedTeams }) => {
   const [searchTeam, setSearchTeam] = useState('');
   const [highlightedTeam, setHighlightedTeam] = useState<string | null>(null);
   const [teamNicknames, setTeamNicknames] = useState<Record<string, string>>({});
@@ -348,6 +349,12 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
             Team {highlightedTeam}{nicknames[highlightedTeam] ? ` (${nicknames[highlightedTeam]})` : ''}
           </span>
         )}
+        {scoutedTeams && scoutedTeams.size > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm bg-green-600" />
+            Scouted
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded-sm bg-slate-200 dark:bg-slate-600" />
           Pit
@@ -492,6 +499,7 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
               const isOurs = team === ourTeamStr;
               const isSearched = highlightedTeam !== null && team !== null && team.toLowerCase() === searchedTeamStr;
               const hasTeam = team !== null;
+              const isScouted = team !== null && scoutedTeams != null && scoutedTeams.has(team);
 
               let fillColor = '#f1f5f9';
               let strokeColor = '#cbd5e1';
@@ -507,6 +515,11 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
               } else if (isSearched) {
                 fillColor = '#fb923c';
                 strokeColor = '#ea580c';
+                strokeWidth = 2;
+                textFill = '#ffffff';
+              } else if (isScouted) {
+                fillColor = '#16a34a';
+                strokeColor = '#15803d';
                 strokeWidth = 2;
                 textFill = '#ffffff';
               } else if (hasTeam) {

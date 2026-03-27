@@ -1152,6 +1152,70 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
   };
 
+  const duplicateTeamNums = useMemo(() => {
+    const seen = new Set<number>();
+    const dupes = new Set<number>();
+    for (const ps of pitScouts) {
+      if (seen.has(ps.teamNumber)) dupes.add(ps.teamNumber);
+      seen.add(ps.teamNumber);
+    }
+    return dupes;
+  }, [pitScouts]);
+
+  const scorePitEntry = (ps: any): number => {
+    let s = 0;
+    if (ps.teamName) s++;
+    if (ps.robotName) s++;
+    if (ps.drivetrain) s++;
+    if (ps.traversalAbility) s++;
+    if (ps.shooterType) s++;
+    if (ps.notes) s++;
+    if (ps.photoUrl) s++;
+    if (ps.weight > 0) s++;
+    if (ps.speed > 0) s++;
+    if (ps.height > 0) s++;
+    s += (ps.capabilities?.length || 0);
+    s += (ps.deficiencies?.length || 0);
+    s += (ps.autoOptions?.length || 0);
+    return s;
+  };
+
+  const handleMergeDuplicates = async () => {
+    if (!activeEvent || duplicateTeamNums.size === 0) return;
+    const groups = new Map<number, any[]>();
+    for (const ps of pitScouts) {
+      const arr = groups.get(ps.teamNumber) || [];
+      arr.push(ps);
+      groups.set(ps.teamNumber, arr);
+    }
+    const dupeGroups = Array.from(groups.values()).filter(g => g.length > 1);
+    for (const group of dupeGroups) {
+      const sorted = [...group].sort((a, b) => scorePitEntry(b) - scorePitEntry(a));
+      const primary = { ...sorted[0] };
+      const rest = sorted.slice(1);
+      for (const other of rest) {
+        if (!primary.teamName && other.teamName) primary.teamName = other.teamName;
+        if (!primary.robotName && other.robotName) primary.robotName = other.robotName;
+        if (!primary.drivetrain && other.drivetrain) primary.drivetrain = other.drivetrain;
+        if (!primary.traversalAbility && other.traversalAbility) primary.traversalAbility = other.traversalAbility;
+        if (!primary.shooterType && other.shooterType) primary.shooterType = other.shooterType;
+        if (!primary.notes && other.notes) primary.notes = other.notes;
+        if (!primary.photoUrl && other.photoUrl) primary.photoUrl = other.photoUrl;
+        if (!primary.weight && other.weight) primary.weight = other.weight;
+        if (!primary.speed && other.speed) primary.speed = other.speed;
+        if (!primary.height && other.height) primary.height = other.height;
+        primary.capabilities = Array.from(new Set([...(primary.capabilities || []), ...(other.capabilities || [])]));
+        primary.deficiencies = Array.from(new Set([...(primary.deficiencies || []), ...(other.deficiencies || [])]));
+        primary.autoOptions = Array.from(new Set([...(primary.autoOptions || []), ...(other.autoOptions || [])]));
+      }
+      await api.scout.updatePitScout(primary.id, primary);
+      for (const o of rest) {
+        await api.scout.deletePitScout(o.id);
+      }
+    }
+    fetchEventData(activeEvent.id);
+  };
+
   const filteredPitScouts = pitScouts.filter(ps =>
     !searchTerm ||
     ps.teamNumber.toString().includes(searchTerm) ||
@@ -1371,6 +1435,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <Plus size={16} /> Scout Robot
               </button>
             </div>
+
+            {duplicateTeamNums.size > 0 && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-2xl">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-amber-500 text-base">⚠️</span>
+                  <p className="text-[11px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
+                    {duplicateTeamNums.size} team{duplicateTeamNums.size > 1 ? 's have' : ' has'} duplicate scouting entries
+                  </p>
+                </div>
+                <button
+                  onClick={handleMergeDuplicates}
+                  className="shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-[10px] uppercase tracking-widest transition-all"
+                >
+                  Merge All
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {filteredPitScouts.map(ps => (
@@ -2671,6 +2752,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               eventKey={activeEvent?.nexusEventKey || null}
               onRefresh={() => activeEvent?.nexusEventKey && fetchPitMap(activeEvent.nexusEventKey)}
               teamNames={teamNamesMap}
+              scoutedTeams={new Set(pitScouts.map((p: any) => String(p.teamNumber)))}
             />
           </div>
         ) : null}
