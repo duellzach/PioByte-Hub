@@ -321,11 +321,36 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                             const activeStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
                             const completedStatuses = new Set(['Results posted', 'Complete', 'Completed', 'Done', 'Played']);
                             const matches: any[] = nexusData.matches;
-                            const firstActiveIdx = matches.findIndex((m: any) => activeStatuses.has(m.status));
+
+                            // TBA ground-truth: qual match numbers where actual_time is set = played
+                            const tbaPlayedNums = new Set<number>(
+                              tbaMatches
+                                .filter((m: any) => m.actual_time != null && m.comp_level === 'qm')
+                                .map((m: any) => m.match_number as number)
+                            );
+                            // Extract qual match number from Nexus label (e.g. "Qualification 15" → 15)
+                            const parseNum = (label: string): number | null => {
+                              const d = label?.match(/\d+/);
+                              return d ? parseInt(d[0]) : null;
+                            };
+                            // A Nexus match is truly done if TBA says so, or its status explicitly says so
+                            const isTrulyDone = (m: any): boolean => {
+                              const num = parseNum(m.label);
+                              if (num != null && tbaPlayedNums.has(num)) return true;
+                              const s = m.status;
+                              return completedStatuses.has(s) || (s && !activeStatuses.has(s) && !s.toLowerCase().includes('schedul'));
+                            };
+                            // A Nexus match is truly active only if its status is active AND TBA hasn't confirmed it done
+                            const isTrulyActive = (m: any): boolean => {
+                              if (!activeStatuses.has(m.status)) return false;
+                              const num = parseNum(m.label);
+                              return num == null || !tbaPlayedNums.has(num);
+                            };
+
+                            const firstActiveIdx = matches.findIndex(isTrulyActive);
                             const lastCompletedIdx = (() => {
                               for (let i = matches.length - 1; i >= 0; i--) {
-                                const s = matches[i].status;
-                                if (completedStatuses.has(s) || (s && !activeStatuses.has(s) && !s.toLowerCase().includes('schedul'))) return i;
+                                if (isTrulyDone(matches[i])) return i;
                               }
                               return -1;
                             })();
@@ -362,12 +387,16 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                                               : 'border-b-slate-100 dark:border-b-slate-700 odd:bg-white dark:odd:bg-transparent even:bg-slate-50/50 dark:even:bg-slate-700/20'
                                           }`}>
                                             <td className="px-3 py-2">
-                                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${statusColor(m.status)}`}>
-                                                {m.status === 'Queuing soon' ? 'Soon' :
-                                                 m.status === 'Now queuing' ? 'Queue' :
-                                                 m.status === 'On deck' ? 'Deck' :
-                                                 m.status === 'On field' ? 'Field' : '—'}
-                                              </span>
+                                              {(() => {
+                                                const done = isTrulyDone(m);
+                                                const label = done ? 'Done' :
+                                                  m.status === 'Queuing soon' ? 'Soon' :
+                                                  m.status === 'Now queuing' ? 'Queue' :
+                                                  m.status === 'On deck' ? 'Deck' :
+                                                  m.status === 'On field' ? 'Field' : '—';
+                                                const color = done ? 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400' : statusColor(m.status);
+                                                return <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${color}`}>{label}</span>;
+                                              })()}
                                             </td>
                                             <td className={`px-3 py-2 font-black text-sm ${isOurs ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'}`}>
                                               {m.label}{isOurs && ' ★'}
