@@ -1189,31 +1189,59 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       groups.set(ps.teamNumber, arr);
     }
     const dupeGroups = Array.from(groups.values()).filter(g => g.length > 1);
-    for (const group of dupeGroups) {
-      const sorted = [...group].sort((a, b) => scorePitEntry(b) - scorePitEntry(a));
-      const primary = { ...sorted[0] };
-      const rest = sorted.slice(1);
-      for (const other of rest) {
-        if (!primary.teamName && other.teamName) primary.teamName = other.teamName;
-        if (!primary.robotName && other.robotName) primary.robotName = other.robotName;
-        if (!primary.drivetrain && other.drivetrain) primary.drivetrain = other.drivetrain;
-        if (!primary.traversalAbility && other.traversalAbility) primary.traversalAbility = other.traversalAbility;
-        if (!primary.shooterType && other.shooterType) primary.shooterType = other.shooterType;
-        if (!primary.notes && other.notes) primary.notes = other.notes;
-        if (!primary.photoUrl && other.photoUrl) primary.photoUrl = other.photoUrl;
-        if (!primary.weight && other.weight) primary.weight = other.weight;
-        if (!primary.speed && other.speed) primary.speed = other.speed;
-        if (!primary.height && other.height) primary.height = other.height;
-        primary.capabilities = Array.from(new Set([...(primary.capabilities || []), ...(other.capabilities || [])]));
-        primary.deficiencies = Array.from(new Set([...(primary.deficiencies || []), ...(other.deficiencies || [])]));
-        primary.autoOptions = Array.from(new Set([...(primary.autoOptions || []), ...(other.autoOptions || [])]));
+    try {
+      for (const group of dupeGroups) {
+        const sorted = [...group].sort((a, b) => scorePitEntry(b) - scorePitEntry(a));
+        const primary = sorted[0];
+        const rest = sorted.slice(1);
+        const merged: any = {
+          teamNumber: primary.teamNumber,
+          teamName: primary.teamName,
+          robotName: primary.robotName,
+          drivetrain: primary.drivetrain,
+          traversalAbility: primary.traversalAbility,
+          shooterType: primary.shooterType,
+          notes: primary.notes,
+          photoUrl: primary.photoUrl,
+          weight: primary.weight,
+          speed: primary.speed,
+          height: primary.height,
+          fuelCapacity: primary.fuelCapacity,
+          autonomousRoutine: primary.autonomousRoutine,
+          offenseRating: primary.offenseRating,
+          defenseRating: primary.defenseRating,
+          overallRating: primary.overallRating,
+          coreValuesRating: primary.coreValuesRating,
+          capabilities: [...(primary.capabilities || [])],
+          deficiencies: [...(primary.deficiencies || [])],
+          autoOptions: [...(primary.autoOptions || [])],
+          scoutedBy: primary.scoutedBy,
+        };
+        for (const other of rest) {
+          if (!merged.teamName && other.teamName) merged.teamName = other.teamName;
+          if (!merged.robotName && other.robotName) merged.robotName = other.robotName;
+          if (!merged.drivetrain && other.drivetrain) merged.drivetrain = other.drivetrain;
+          if (!merged.traversalAbility && other.traversalAbility) merged.traversalAbility = other.traversalAbility;
+          if (!merged.shooterType && other.shooterType) merged.shooterType = other.shooterType;
+          if (!merged.notes && other.notes) merged.notes = other.notes;
+          if (!merged.photoUrl && other.photoUrl) merged.photoUrl = other.photoUrl;
+          if (!merged.weight && other.weight) merged.weight = other.weight;
+          if (!merged.speed && other.speed) merged.speed = other.speed;
+          if (!merged.height && other.height) merged.height = other.height;
+          merged.capabilities = Array.from(new Set([...merged.capabilities, ...(other.capabilities || [])]));
+          merged.deficiencies = Array.from(new Set([...merged.deficiencies, ...(other.deficiencies || [])]));
+          merged.autoOptions = Array.from(new Set([...merged.autoOptions, ...(other.autoOptions || [])]));
+        }
+        await api.scout.updatePitScout(primary.id, merged);
+        for (const o of rest) {
+          await api.scout.deletePitScout(o.id);
+        }
       }
-      await api.scout.updatePitScout(primary.id, primary);
-      for (const o of rest) {
-        await api.scout.deletePitScout(o.id);
-      }
+      await fetchEventData(activeEvent.id);
+    } catch (err) {
+      console.error('Merge failed:', err);
+      alert('Merge failed — check the console for details.');
     }
-    fetchEventData(activeEvent.id);
   };
 
   const filteredPitScouts = pitScouts.filter(ps =>
@@ -2752,7 +2780,23 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               eventKey={activeEvent?.nexusEventKey || null}
               onRefresh={() => activeEvent?.nexusEventKey && fetchPitMap(activeEvent.nexusEventKey)}
               teamNames={teamNamesMap}
-              scoutedTeams={new Set(pitScouts.map((p: any) => String(p.teamNumber)))}
+              scoutedTeams={new Set(
+                pitScouts
+                  .filter((p: any) =>
+                    p.robotName ||
+                    p.drivetrain ||
+                    p.photoUrl ||
+                    p.shooterType ||
+                    p.traversalAbility ||
+                    (p.weight > 0) ||
+                    (p.height > 0) ||
+                    p.capabilities?.length > 0 ||
+                    p.deficiencies?.length > 0 ||
+                    (p.autonomousRoutine && p.autonomousRoutine !== 'None') ||
+                    p.autoOptions?.length > 0
+                  )
+                  .map((p: any) => String(p.teamNumber))
+              )}
             />
           </div>
         ) : null}
