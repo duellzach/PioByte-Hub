@@ -319,12 +319,13 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                           {nexusData.matches?.length > 0 && (() => {
                             const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
                             const activeStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
+                            const completedStatuses = new Set(['Results posted', 'Complete', 'Completed', 'Done', 'Played']);
                             const matches: any[] = nexusData.matches;
                             const firstActiveIdx = matches.findIndex((m: any) => activeStatuses.has(m.status));
                             const lastCompletedIdx = (() => {
                               for (let i = matches.length - 1; i >= 0; i--) {
                                 const s = matches[i].status;
-                                if (s && !activeStatuses.has(s)) return i;
+                                if (completedStatuses.has(s) || (s && !activeStatuses.has(s) && !s.toLowerCase().includes('schedul'))) return i;
                               }
                               return -1;
                             })();
