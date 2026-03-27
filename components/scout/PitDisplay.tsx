@@ -318,23 +318,21 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
 
                           {nexusData.matches?.length > 0 && (() => {
                             const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
-                            const upcomingStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
-                            const now = Date.now();
-                            const next10 = [...nexusData.matches]
-                              .filter((m: any) => {
-                                if (upcomingStatuses.has(m.status)) return true;
-                                const t = m.times?.estimatedQueueTime || m.times?.estimatedStartTime;
-                                return t && new Date(t).getTime() > now;
-                              })
-                              .sort((a: any, b: any) => {
-                                const aT = a.times?.estimatedQueueTime || a.times?.estimatedStartTime;
-                                const bT = b.times?.estimatedQueueTime || b.times?.estimatedStartTime;
-                                if (aT && bT) return new Date(aT).getTime() - new Date(bT).getTime();
-                                if (upcomingStatuses.has(a.status) && !upcomingStatuses.has(b.status)) return -1;
-                                if (!upcomingStatuses.has(a.status) && upcomingStatuses.has(b.status)) return 1;
-                                return 0;
-                              })
-                              .slice(0, 10);
+                            const activeStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
+                            const matches: any[] = nexusData.matches;
+                            const firstActiveIdx = matches.findIndex((m: any) => activeStatuses.has(m.status));
+                            const lastCompletedIdx = (() => {
+                              for (let i = matches.length - 1; i >= 0; i--) {
+                                if (!activeStatuses.has(matches[i].status)) return i;
+                              }
+                              return -1;
+                            })();
+                            const anchorIdx = firstActiveIdx >= 0
+                              ? firstActiveIdx
+                              : lastCompletedIdx >= 0
+                                ? Math.max(0, lastCompletedIdx - 1)
+                                : 0;
+                            const next10 = matches.slice(anchorIdx, anchorIdx + 10);
                             if (next10.length === 0) return null;
                             return (
                               <div>

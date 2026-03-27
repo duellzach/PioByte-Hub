@@ -196,7 +196,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
                         {record && <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{record.wins}-{record.losses}-{record.ties}</span>}
                       </div>
                     </div>
-                    <a href={`https://www.thebluealliance.com/team/${selectedRobot.teamNumber}/${event.key}`} target="_blank" rel="noopener noreferrer"
+                    <a href={`https://www.thebluealliance.com/team/${selectedRobot.teamNumber}/${event.key.substring(0, 4)}`} target="_blank" rel="noopener noreferrer"
                       className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">
                       View on TBA →
                     </a>
