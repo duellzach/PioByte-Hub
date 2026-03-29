@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS, DEPARTMENT_COLORS } from '../constants';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2 } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
@@ -34,6 +34,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.Backlog);
   const [certifications, setCertifications] = useState<any[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -236,7 +237,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                 <optgroup label="Projects">
                   {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  {isCoachOnly && accessibleProjects.filter(p => p.archived).map(p => <option key={p.id} value={p.id}>{p.name} [Archived]</option>)}
                 </optgroup>
                 <optgroup label="Department Boards">
                   {DEPARTMENTS.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
@@ -256,6 +256,19 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                     title="Board Settings"
                 >
                     <Settings size={16} />
+                </button>
+              )}
+              {isCoachOnly && accessibleProjects.some(p => p.archived) && (
+                <button
+                  onClick={() => setShowArchived(v => !v)}
+                  title={showArchived ? 'Hide archived boards' : 'Show archived boards'}
+                  className={`p-2 md:p-2.5 border rounded-xl transition-colors shadow-sm ${
+                    showArchived
+                      ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400'
+                      : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <Archive size={16} />
                 </button>
               )}
               {!isDeptBoard && (
@@ -286,6 +299,27 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             </button>
           )}
         </div>
+
+        {isCoachOnly && showArchived && view === 'board' && (
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <Archive size={10} /> Archived
+            </span>
+            {accessibleProjects.filter(p => p.archived).map(p => (
+              <button
+                key={p.id}
+                onClick={() => { selectBoard(p.id); setShowArchived(false); }}
+                className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                  activeBoardKey === p.id
+                    ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-300'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {view === 'board' ? (
