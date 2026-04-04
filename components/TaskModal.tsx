@@ -528,10 +528,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   Dept Board Only
                 </button>
               </div>
-              {editedTask.deptOnly && (
+              {editedTask.deptOnly && editedTask.departments.length > 0 && (
                 <p className="text-[9px] text-blue-500 font-bold mt-2 ml-1 uppercase tracking-wide">
                   Only visible on departmental boards, not on the project Kanban board.
                 </p>
+              )}
+              {editedTask.deptOnly && editedTask.departments.length === 0 && (
+                <div className="mt-2 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-xl">
+                  <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-amber-700 dark:text-amber-300 font-black uppercase tracking-wide leading-snug">
+                    No department selected — this task will be invisible on all boards. Assign at least one department, or switch back to "Both Boards".
+                  </p>
+                </div>
               )}
             </div>
 
@@ -888,10 +896,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               </div>
             </div>
 
-            <div className="pt-8 border-t border-slate-200 dark:border-slate-700">
+            <div className="pt-8 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                {editedTask.deptOnly && editedTask.departments.length === 0 && (
+                  <p className="text-[9px] text-amber-600 dark:text-amber-400 font-black text-center uppercase tracking-wide">
+                    "Dept Board Only" will be cleared on save — no department selected.
+                  </p>
+                )}
                 <button 
                   onClick={() => {
-                    onSave(editedTask);
+                    const taskToSave = (editedTask.deptOnly && editedTask.departments.length === 0)
+                      ? { ...editedTask, deptOnly: false }
+                      : editedTask;
+                    onSave(taskToSave);
                   }}
                   className="w-full py-6 bg-red-600 text-white font-black rounded-[28px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-[0.2em] text-sm"
                 >

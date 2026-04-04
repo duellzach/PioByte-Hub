@@ -74,11 +74,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   React.useEffect(() => {
     const isDeptBoardKey = activeBoardKey.startsWith('dept:');
     const matchedProject = accessibleProjects.find(p => p.id === activeBoardKey);
-    const isArchivedAndForbidden = matchedProject?.archived && !isCoachOnly;
-    if (!activeBoardKey || (!isDeptBoardKey && (!matchedProject || isArchivedAndForbidden))) {
+    if (!activeBoardKey || (!isDeptBoardKey && !matchedProject)) {
       selectBoard(firstAccessibleProject);
     }
-  }, [accessibleProjects, activeBoardKey, firstAccessibleProject, isCoachOnly]);
+  }, [accessibleProjects, activeBoardKey, firstAccessibleProject]);
 
   const activeProject = useMemo(() => {
     if (activeBoardKey.startsWith('dept:')) return undefined;
@@ -258,7 +257,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                     <Settings size={16} />
                 </button>
               )}
-              {isCoachOnly && accessibleProjects.some(p => p.archived) && (
+              {accessibleProjects.some(p => p.archived) && (
                 <button
                   onClick={() => setShowArchived(v => !v)}
                   title={showArchived ? 'Hide archived boards' : 'Show archived boards'}
@@ -300,7 +299,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
           )}
         </div>
 
-        {isCoachOnly && showArchived && view === 'board' && (
+        {showArchived && view === 'board' && (
           <div className="flex flex-wrap items-center gap-2 px-1">
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
               <Archive size={10} /> Archived

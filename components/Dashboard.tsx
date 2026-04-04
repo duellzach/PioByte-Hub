@@ -74,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
       };
     });
     state.tasks.forEach(task => {
-      if (matrix[task.projectId]) {
+      if (matrix[task.projectId] && !task.deptOnly) {
         matrix[task.projectId][task.status].push(task);
       }
     });
