@@ -39,7 +39,7 @@ const extractAnnouncementText = (a: any): string => {
 
 const extractPartsRequestText = (r: any): string => {
   if (typeof r === 'string') return r;
-  return r?.request ?? r?.item ?? r?.part ?? r?.message ?? r?.text ?? r?.description ?? '';
+  return r?.parts ?? r?.request ?? r?.item ?? r?.part ?? r?.message ?? r?.text ?? r?.description ?? '';
 };
 
 const PitDisplay: React.FC<PitDisplayProps> = ({
@@ -183,8 +183,8 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <AlertCircle size={32} className="text-red-600" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Parts Request</h2>
-                {firstPendingPart?.teamNumber && (
-                  <p className="text-sm font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Team {firstPendingPart.teamNumber}</p>
+                {(firstPendingPart?.requestedByTeam ?? firstPendingPart?.teamNumber) && (
+                  <p className="text-sm font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Team {firstPendingPart.requestedByTeam ?? firstPendingPart.teamNumber}</p>
                 )}
                 <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{extractPartsRequestText(firstPendingPart)}</p>
                 {firstPendingPart?.quantity != null && (
@@ -429,9 +429,9 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                                   const desc = extractPartsRequestText(r);
                                   return (
                                     <div key={i} className="flex items-start gap-2">
-                                      {r?.teamNumber && (
+                                      {(r?.requestedByTeam ?? r?.teamNumber) && (
                                         <span className="flex-shrink-0 px-2 py-0.5 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 rounded font-black text-[10px]">
-                                          #{r.teamNumber}
+                                          #{r.requestedByTeam ?? r.teamNumber}
                                         </span>
                                       )}
                                       <div className="min-w-0">
