@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "sbmE1Ez7deaf9mm_qEl6T"
+uri = "file://WELCOME_GUIDE.md"
+type = "text"
+title = "PIO-BYTES Hub — Welcome Guide (Google Doc ready)"

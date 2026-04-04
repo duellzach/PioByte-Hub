@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import TaskModal from './components/TaskModal';
 import Confetti from './components/Confetti';
 import ErrorBoundary from './components/ErrorBoundary';
+import CoachTutorial from './components/CoachTutorial';
 import { api } from './services/api';
 import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
 import TeamLogo from './components/TeamLogo';
@@ -226,7 +227,7 @@ const App: React.FC = () => {
     try {
       await api.seed();
       await fetchData();
-      alert("Database seeded successfully! You can now log in as 'captain' with password 'password'.");
+      alert("Database seeded successfully! Log in as 'coach_mentor' or 'captain10991' with password 'changeme'.");
     } catch (e) {
       console.error("Seeding failed", e);
       alert("Seeding failed. Please try again.");
@@ -359,7 +360,7 @@ const App: React.FC = () => {
               }} className="space-y-8">
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Secure Username</label>
-                    <input name="username" placeholder="captain / coach" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-red-600/10 focus:border-red-600 transition-all font-black uppercase text-sm" />
+                    <input name="username" placeholder="coach_mentor / captain10991" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-red-600/10 focus:border-red-600 transition-all font-black uppercase text-sm" />
                 </div>
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Access Key</label>
@@ -527,6 +528,12 @@ const App: React.FC = () => {
           />
         )}
         <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
+
+        {isLoggedIn && state.currentUser && (state.currentUser.roles as string[]).includes('Coach') && (
+          <CoachTutorial
+            onNavigate={(route) => { window.location.hash = '#' + route; }}
+          />
+        )}
 
         {annToast && (
           <div className="fixed bottom-6 right-6 z-[400] animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-sm w-full">

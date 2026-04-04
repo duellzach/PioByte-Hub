@@ -1127,9 +1127,62 @@ export class DatabaseStorage implements IStorage {
     if (existingUsers.length > 0) return;
 
     const defaultUsers = [
-      { username: 'captain', password: 'password', name: 'John Doe', roles: ['Team Captain', 'SCRUM Master'], departments: ['Software', 'Modeling'] },
-      { username: 'coach', password: 'password', name: 'Mentor Mike', roles: ['Coach'], departments: ['Logistics', 'Business'] },
-      { username: 'mech_lead', password: 'password', name: 'Jane Smith', roles: ['Department Head'], departments: ['Mechanical'] },
+      {
+        username: 'coach_mentor',
+        password: 'changeme',
+        name: 'Coach Mentor',
+        roles: ['Coach'],
+        departments: ['Leadership', 'Business'],
+      },
+      {
+        username: 'captain10991',
+        password: 'changeme',
+        name: 'Team Captain',
+        roles: ['Team Captain', 'SCRUM Master'],
+        departments: ['Software', 'Leadership'],
+      },
+      {
+        username: 'mech_lead',
+        password: 'changeme',
+        name: 'Mechanical Lead',
+        roles: ['Department Head'],
+        departments: ['Mechanical'],
+      },
+      {
+        username: 'sw_lead',
+        password: 'changeme',
+        name: 'Software Lead',
+        roles: ['Department Head'],
+        departments: ['Software'],
+      },
+      {
+        username: 'elec_lead',
+        password: 'changeme',
+        name: 'Electrical Lead',
+        roles: ['Department Head'],
+        departments: ['Electrical'],
+      },
+      {
+        username: 'biz_lead',
+        password: 'changeme',
+        name: 'Business Lead',
+        roles: ['Department Head'],
+        departments: ['Business', 'Logistics'],
+      },
+      {
+        username: 'safety_trainer',
+        password: 'changeme',
+        name: 'Safety Trainer',
+        roles: ['Safety Trainer'],
+        departments: ['Mechanical', 'Electrical'],
+      },
+      {
+        username: 'member1',
+        password: 'changeme',
+        name: 'Team Member',
+        roles: ['Team Member'],
+        departments: ['Software'],
+      },
     ];
 
     for (const user of defaultUsers) {
@@ -1137,8 +1190,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     await this.createProject({
-      name: '2025 Competition Robot',
-      description: 'Initial season build',
+      name: '2026 Competition Robot',
+      description: 'Build season — FRC Team 10991 PIO-BYTES',
       archived: false,
     });
   }
