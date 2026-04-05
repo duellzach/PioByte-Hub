@@ -414,8 +414,24 @@ export const teamSettings = pgTable("team_settings", {
   teamName: text("team_name").notNull().default("piobyte"),
   themeColor: text("theme_color").notNull().default("#dc2626"),
   logoUrl: text("logo_url"),
-  departments: jsonb("departments").$type<{ name: string; color: string }[]>().notNull().default([]),
-  roles: jsonb("roles").$type<{ name: string; tier: string }[]>().notNull().default([]),
+  departments: jsonb("departments").$type<{ name: string; color: string }[]>().notNull().default([
+    { name: 'Mechanical', color: '#f97316' },
+    { name: 'Software', color: '#3b82f6' },
+    { name: 'Modeling', color: '#8b5cf6' },
+    { name: 'Logistics', color: '#22c55e' },
+    { name: 'Electrical', color: '#eab308' },
+    { name: 'Business', color: '#14b8a6' },
+    { name: 'Leadership', color: '#ef4444' },
+  ]),
+  roles: jsonb("roles").$type<{ name: string; tier: string }[]>().notNull().default([
+    { name: 'Coach', tier: 'leadership' },
+    { name: 'Team Captain', tier: 'leadership' },
+    { name: 'SCRUM Master', tier: 'leadership' },
+    { name: 'Department Head', tier: 'lead' },
+    { name: 'Safety Trainer', tier: 'lead' },
+    { name: 'Team Member', tier: 'member' },
+    { name: 'Class Member', tier: 'member' },
+  ]),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

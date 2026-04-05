@@ -168,7 +168,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           {isCoachOrCaptain && (
-            <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+            <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL PANEL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           )}
           
           {/* Utility buttons — separated but compact */}
