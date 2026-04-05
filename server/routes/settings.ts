@@ -1,6 +1,49 @@
 import { Router } from "express";
+import { PNG } from "pngjs";
 import { storage } from "../storage";
 import { getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3
+    ? clean.split('').map(c => c + c).join('')
+    : clean;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+
+function fillRect(png: PNG, x0: number, y0: number, w: number, h: number, r: number, g: number, b: number, a = 255) {
+  for (let y = y0; y < y0 + h; y++) {
+    for (let x = x0; x < x0 + w; x++) {
+      const i = (y * png.width + x) * 4;
+      png.data[i] = r;
+      png.data[i + 1] = g;
+      png.data[i + 2] = b;
+      png.data[i + 3] = a;
+    }
+  }
+}
+
+function compositeCenter(dst: PNG, src: PNG, targetX: number, targetY: number, targetW: number, targetH: number) {
+  for (let dy = 0; dy < targetH; dy++) {
+    for (let dx = 0; dx < targetW; dx++) {
+      const sx = Math.round(dx * src.width / targetW);
+      const sy = Math.round(dy * src.height / targetH);
+      const si = (Math.min(sy, src.height - 1) * src.width + Math.min(sx, src.width - 1)) * 4;
+      const di = ((targetY + dy) * dst.width + (targetX + dx)) * 4;
+      const srcA = src.data[si + 3] / 255;
+      if (srcA > 0) {
+        dst.data[di]     = Math.round(src.data[si]     * srcA + dst.data[di]     * (1 - srcA));
+        dst.data[di + 1] = Math.round(src.data[si + 1] * srcA + dst.data[di + 1] * (1 - srcA));
+        dst.data[di + 2] = Math.round(src.data[si + 2] * srcA + dst.data[di + 2] * (1 - srcA));
+        dst.data[di + 3] = 255;
+      }
+    }
+  }
+}
 
 const router = Router();
 
@@ -76,18 +119,36 @@ router.post("/settings/reset", async (req, res) => {
 router.get("/settings/pwa-icon.png", async (req, res) => {
   try {
     const settings = await storage.getTeamSettings();
-    const iconPng = settings.iconPng as string | null;
-    if (iconPng) {
-      const base64 = iconPng.replace(/^data:image\/png;base64,/, '');
-      const buffer = Buffer.from(base64, 'base64');
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'no-cache');
-      return res.send(buffer);
+    const themeHex = (settings.themeColor as string) || '#dc2626';
+    const logoUrl  = settings.logoUrl as string | null;
+    const teamNum  = (settings.teamNumber as number) || 10991;
+    const SIZE = 512;
+    const c = hexToRgb(themeHex);
+
+    const dst = new PNG({ width: SIZE, height: SIZE, filterType: -1 });
+    // Initialise buffer to theme color
+    fillRect(dst, 0, 0, SIZE, SIZE, c.r, c.g, c.b);
+
+    if (logoUrl) {
+      // White inset (the "border" effect)
+      fillRect(dst, 36, 36, SIZE - 72, SIZE - 72, 255, 255, 255);
+      // Decode stored base64 logo and composite centred
+      const base64 = logoUrl.replace(/^data:image\/\w+;base64,/, '');
+      const logoBuf = Buffer.from(base64, 'base64');
+      const logoPng = PNG.sync.read(logoBuf);
+      compositeCenter(dst, logoPng, 64, 64, SIZE - 128, SIZE - 128);
+    } else {
+      // No logo: just the solid colour background (iOS masks to rounded square)
+      // Optionally write team number as simple pixel text — skip for now, solid colour is clean
+      void teamNum;
     }
-    // No icon stored yet — redirect to the static fallback
-    res.redirect('/icon-192.png');
+
+    const out = PNG.sync.write(dst);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(out);
   } catch (error) {
-    console.error("Error serving PWA PNG icon:", error);
+    console.error("Error generating PWA PNG icon:", error);
     res.redirect('/icon-192.png');
   }
 });

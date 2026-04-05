@@ -414,7 +414,6 @@ export const teamSettings = pgTable("team_settings", {
   teamName: text("team_name").notNull().default("piobyte"),
   themeColor: text("theme_color").notNull().default("#dc2626"),
   logoUrl: text("logo_url"),
-  iconPng: text("icon_png"),
   departments: jsonb("departments").$type<{ name: string; color: string }[]>().notNull().default([
     { name: 'Mechanical', color: '#f97316' },
     { name: 'Software', color: '#3b82f6' },

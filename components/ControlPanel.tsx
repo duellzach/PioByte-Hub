@@ -38,58 +38,6 @@ const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.
   </div>
 );
 
-async function buildIconPng(logoUrl: string | null, themeColor: string, teamNumber: number): Promise<string> {
-  const SIZE = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const ctx = canvas.getContext('2d')!;
-
-  const rr = (x: number, y: number, w: number, h: number, r: number) => {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  };
-
-  ctx.fillStyle = themeColor;
-  rr(0, 0, SIZE, SIZE, 80);
-  ctx.fill();
-
-  if (logoUrl) {
-    ctx.fillStyle = '#ffffff';
-    rr(36, 36, SIZE - 72, SIZE - 72, 56);
-    ctx.fill();
-
-    const img = new Image();
-    if (!logoUrl.startsWith('data:')) img.crossOrigin = 'anonymous';
-    await new Promise<void>((resolve) => {
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
-      img.src = logoUrl;
-    });
-
-    ctx.save();
-    rr(64, 64, SIZE - 128, SIZE - 128, 44);
-    ctx.clip();
-    if (img.naturalWidth > 0) {
-      ctx.drawImage(img, 64, 64, SIZE - 128, SIZE - 128);
-    }
-    ctx.restore();
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold 200px "Arial Black", Arial, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(teamNumber), SIZE / 2, SIZE / 2 + 10);
-  }
-
-  return canvas.toDataURL('image/png');
-}
-
 const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUserId }) => {
   const { settings, setSettings } = useTeamSettings();
 
@@ -116,19 +64,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
     setSaveSuccess(false);
     setSaveError(null);
     try {
-      let iconPng: string | undefined;
-      try {
-        iconPng = await buildIconPng(form.logoUrl, form.themeColor, form.teamNumber);
-      } catch (iconErr) {
-        console.warn('Icon generation failed, saving without PNG icon:', iconErr);
-      }
       const updated = await api.settings.update({
         requesterId: currentUserId ? parseInt(currentUserId) : 0,
         teamNumber: form.teamNumber,
         teamName: form.teamName,
         themeColor: form.themeColor,
         logoUrl: form.logoUrl,
-        ...(iconPng ? { iconPng } : {}),
         departments: form.departments,
         roles: form.roles,
       });
