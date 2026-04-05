@@ -37,7 +37,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
       <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center">
             <Download size={20} />
           </div>
           <div>
@@ -66,7 +66,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
                       if (e.target.checked) next.add(m.id); else next.delete(m.id);
                       setSelectedMatchIds(next);
                     }}
-                    className="w-4 h-4 accent-red-600" />
+                    style={{ accentColor: 'var(--team-color)' }} className="w-4 h-4" />
                   <span className="text-xs font-black text-slate-700 dark:text-slate-300">M{m.matchNumber}</span>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Team {m.teamNumber}</span>
                   <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
@@ -101,7 +101,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
                       if (e.target.checked) next.add(r.id); else next.delete(r.id);
                       setSelectedRobotIds(next);
                     }}
-                    className="w-4 h-4 accent-red-600" />
+                    style={{ accentColor: 'var(--team-color)' }} className="w-4 h-4" />
                   <span className="text-xs font-black text-slate-700 dark:text-slate-300">{r.teamNumber}</span>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{r.teamName || 'Unknown'}</span>
                 </label>
@@ -114,7 +114,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
         )}
 
         <button onClick={onGenerateQR}
-          className="w-full py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 shadow-lg transition-all flex items-center justify-center gap-2">
+          className="w-full py-4 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 shadow-lg transition-all flex items-center justify-center gap-2">
           <QrCode size={16} /> Generate QR Code
         </button>
 

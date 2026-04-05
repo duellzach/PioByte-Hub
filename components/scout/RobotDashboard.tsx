@@ -102,7 +102,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
               <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Offense</span>
-              <span className="text-lg font-black text-red-600">{selectedRobot.offenseRating}/10</span>
+              <span className="text-lg font-black text-teamColor">{selectedRobot.offenseRating}/10</span>
             </div>
             <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
               <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Defense</span>
@@ -114,7 +114,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => onEditPit(selectedRobot)} className="flex-1 py-3 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 transition-all">
+            <button onClick={() => onEditPit(selectedRobot)} className="flex-1 py-3 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 transition-all">
               Edit
             </button>
             <button onClick={() => onDeletePit(selectedRobot.id)} className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-red-600 font-black rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all">
@@ -158,7 +158,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
 
       {tbaYearLoading ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-6 flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-teamColor border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-bold text-slate-400 dark:text-slate-500">Loading TBA season data...</p>
         </div>
       ) : tbaYearEvents.length > 0 ? (
@@ -179,7 +179,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
                 const record = status?.qual?.ranking?.record;
                 const isCurrentEvent = activeEvent?.tbaEventKey === event.key;
                 return (
-                  <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10' : 'border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30'}`}>
+                  <div key={event.key} className={`p-4 rounded-xl border-2 ${isCurrentEvent ? 'border-teamColor/30 dark:border-teamColor/20 bg-teamColor/5 dark:bg-teamColor/5' : 'border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{event.name}</p>
@@ -191,7 +191,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
                         {overallStatus && <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{overallStatus}</p>}
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        {isCurrentEvent && <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded-full">Current</span>}
+                        {isCurrentEvent && <span className="px-2 py-0.5 bg-teamColor text-white text-[8px] font-black uppercase rounded-full">Current</span>}
                         {rank && <span className="text-xs font-black text-slate-700 dark:text-slate-300">#{rank}{numTeams ? ` / ${numTeams}` : ''}</span>}
                         {record && <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{record.wins}-{record.losses}-{record.ties}</span>}
                       </div>
@@ -246,9 +246,9 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
                   <p className="text-2xl font-black text-blue-600">{avgTeleopFuel}</p>
                   <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Avg Teleop Fuel</p>
                 </div>
-                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-center">
-                  <p className="text-2xl font-black text-red-600">{avgTotalFuel}</p>
-                  <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mt-1">Avg Total Fuel</p>
+                <div className="bg-teamColor/5 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-black text-teamColor">{avgTotalFuel}</p>
+                  <p className="text-[9px] font-black text-teamColor/70 uppercase tracking-widest mt-1">Avg Total Fuel</p>
                 </div>
                 <div className="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-4 text-center">
                   <p className="text-2xl font-black text-orange-600">{avgAccuracy}<span className="text-sm">/5</span></p>

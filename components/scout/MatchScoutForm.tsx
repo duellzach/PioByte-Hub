@@ -64,7 +64,7 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-teamColor">
         <div className="flex justify-between items-start mb-6 md:mb-8">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">
@@ -96,13 +96,13 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Match Number</span>
               <input type="number" value={matchForm.matchNumber || ''} onChange={(e) => setMatchForm({ ...matchForm, matchNumber: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
                 placeholder="1" min={1} />
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team Number</span>
               <input type="number" value={matchForm.teamNumber || ''} onChange={(e) => setMatchForm({ ...matchForm, teamNumber: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
                 placeholder={String(settings.teamNumber)} />
             </div>
           </div>
@@ -126,7 +126,7 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
             <select
               value={isCustomSelected ? '__custom__' : (matchForm.autoUsed || '')}
               onChange={(e) => handleAutoSelect(e.target.value)}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
             >
               <option value="">— None / Not recorded —</option>
               {pitAutoOptions.length > 0 && (
@@ -144,7 +144,7 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
                 value={customAutoInput}
                 onChange={(e) => handleCustomInput(e.target.value)}
                 placeholder="Describe the auto routine…"
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-red-300 dark:border-red-700 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-teamColor/30 dark:border-teamColor/20 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
                 autoFocus
               />
             )}
@@ -204,12 +204,12 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
           <div className="space-y-1">
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</span>
             <textarea value={matchForm.notes} onChange={(e) => setMatchForm({ ...matchForm, notes: e.target.value })}
-              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-medium text-sm resize-none"
+              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
               placeholder="Match observations..." />
           </div>
 
           <button onClick={onSave} disabled={!matchForm.teamNumber}
-            className="w-full py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            className="w-full py-4 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {editingMatch ? 'Update Match' : 'Save Match'}
           </button>
         </div>

@@ -58,7 +58,7 @@ export const RatingSlider: React.FC<{
   <div className="flex flex-col gap-2">
     <div className="flex justify-between items-center">
       <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
-      <span className="text-sm font-black text-red-600">{value}/10</span>
+      <span className="text-sm font-black text-teamColor">{value}/10</span>
     </div>
     <input
       type="range"
@@ -66,7 +66,8 @@ export const RatingSlider: React.FC<{
       max={10}
       value={value}
       onChange={(e) => onChange(parseInt(e.target.value))}
-      className="w-full accent-red-600"
+      className="w-full"
+      style={{ accentColor: 'var(--team-color)' }}
     />
   </div>
 );
@@ -92,9 +93,9 @@ export const TagInput: React.FC<{
       <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
       <div className="flex flex-wrap gap-2 mb-2">
         {tags.map((tag, i) => (
-          <span key={i} className="flex items-center gap-1 px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs font-bold">
+          <span key={i} className="flex items-center gap-1 px-3 py-1 bg-teamColor/10 text-teamColor rounded-full text-xs font-bold">
             {tag}
-            <button type="button" onClick={() => onChange(tags.filter((_, j) => j !== i))} className="hover:text-red-900 dark:hover:text-red-100">
+            <button type="button" onClick={() => onChange(tags.filter((_, j) => j !== i))} className="hover:opacity-70">
               <X size={12} />
             </button>
           </span>
@@ -105,7 +106,7 @@ export const TagInput: React.FC<{
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder || 'Type and press Enter'}
-        className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white dark:placeholder:text-slate-400 dark:text-slate-500"
+        className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white dark:placeholder:text-slate-400 dark:text-slate-500"
       />
     </div>
   );

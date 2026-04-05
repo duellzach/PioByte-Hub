@@ -20,7 +20,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
   if (!show) return null;
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-teamColor">
         <div className="flex justify-between items-start mb-6 md:mb-8">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">
@@ -41,7 +41,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
                 type="number"
                 value={pitForm.teamNumber || ''}
                 onChange={(e) => setPitForm({ ...pitForm, teamNumber: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
                 placeholder={String(settings.teamNumber)}
               />
             </div>
@@ -50,7 +50,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
               <input
                 value={pitForm.teamName}
                 onChange={(e) => setPitForm({ ...pitForm, teamName: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
                 placeholder="Team Name"
               />
             </div>
@@ -62,7 +62,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
               <input
                 value={pitForm.robotName}
                 onChange={(e) => setPitForm({ ...pitForm, robotName: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
                 placeholder="Robot Name"
               />
             </div>
@@ -71,7 +71,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
               <select
                 value={pitForm.drivetrain}
                 onChange={(e) => setPitForm({ ...pitForm, drivetrain: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
               >
                 <option value="">Select...</option>
                 <option value="Swerve">Swerve</option>
@@ -86,17 +86,17 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Weight (lbs)</span>
               <input type="number" value={pitForm.weight || ''} onChange={(e) => setPitForm({ ...pitForm, weight: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Speed (ft/s)</span>
               <input type="number" value={pitForm.speed || ''} onChange={(e) => setPitForm({ ...pitForm, speed: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Height (in)</span>
               <input type="number" value={pitForm.height || ''} onChange={(e) => setPitForm({ ...pitForm, height: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
             </div>
           </div>
 
@@ -104,7 +104,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             <div className="space-y-1">
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Fuel Capacity</span>
               <input type="number" value={pitForm.fuelCapacity || ''} onChange={(e) => setPitForm({ ...pitForm, fuelCapacity: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
                 placeholder="0" min={0} />
             </div>
             <div className="col-span-2 space-y-1">
@@ -114,7 +114,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
                   <button key={t} type="button"
                     onClick={() => setPitForm({ ...pitForm, shooterType: pitForm.shooterType === t ? '' : t })}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                      pitForm.shooterType === t ? 'bg-red-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                      pitForm.shooterType === t ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
                     }`}
                   >{t}</button>
                 ))}
@@ -146,7 +146,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
           <div className="space-y-1">
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</span>
             <textarea value={pitForm.notes} onChange={(e) => setPitForm({ ...pitForm, notes: e.target.value })}
-              className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-medium text-sm resize-none"
+              className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
               placeholder="Additional observations..." />
           </div>
 
@@ -161,7 +161,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
                 </button>
               </div>
             )}
-            <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-red-600 hover:bg-red-50/30 dark:bg-slate-700 transition-all">
+            <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-teamColor hover:bg-teamColor/5 dark:bg-slate-700 transition-all">
               <Camera size={16} className="text-slate-400 dark:text-slate-500" />
               <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                 {pitForm.photoUrl ? 'Change Photo' : 'Take / Upload Photo'}
@@ -188,7 +188,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
           <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} max={5} label="FIRST Core Values Rating" />
 
           <button onClick={onSave} disabled={!pitForm.teamNumber}
-            className="w-full py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            className="w-full py-4 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {editingPit ? 'Update Robot' : 'Save Robot'}
           </button>
         </div>

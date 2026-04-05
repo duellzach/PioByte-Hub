@@ -37,7 +37,7 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
         </div>
         {isCoachOrCaptain && (
           <button onClick={onCreateEvent}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest">
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest">
             <Plus size={16} /> Create Event
           </button>
         )}
@@ -46,9 +46,9 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {events.map(evt => (
           <div key={evt.id} onClick={() => onEnterEvent(evt)}
-            className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 hover:border-red-600/30 transition-all cursor-pointer group">
+            className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 hover:border-teamColor/30 transition-all cursor-pointer group">
             <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all">
+              <div className="w-12 h-12 bg-teamColor/10 text-teamColor rounded-2xl flex items-center justify-center group-hover:bg-teamColor group-hover:text-white transition-all">
                 <Trophy size={22} />
               </div>
               {isCoachOrCaptain && (
@@ -103,7 +103,7 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
 
       {showEventForm && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-12 shadow-2xl border-t-8 border-red-600">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-12 shadow-2xl border-t-8 border-teamColor">
             <div className="flex justify-between items-start mb-6 md:mb-10">
               <div>
                 <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">New Event</h2>
@@ -118,35 +118,35 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
                 <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Event Name *</label>
                 <input autoFocus value={eventForm.name} onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
                   placeholder="e.g. Arizona North Regional"
-                  className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-black text-base md:text-lg uppercase tracking-tight" />
+                  className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-black text-base md:text-lg uppercase tracking-tight" />
               </div>
               <div className="space-y-2">
                 <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Location</label>
                 <input value={eventForm.location} onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
                   placeholder="e.g. Phoenix, AZ"
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Start Date</label>
                   <input type="date" value={eventForm.startDate} onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">End Date</label>
                   <input type="date" value={eventForm.endDate} onChange={(e) => setEventForm({ ...eventForm, endDate: e.target.value })}
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Event Key (TBA & Nexus)</label>
                 <input value={eventForm.tbaEventKey} onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value, nexusEventKey: e.target.value })}
                   placeholder="e.g. 2026azgl"
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
                 <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Used for both TBA and Nexus live data — find it on thebluealliance.com (optional)</p>
               </div>
               <button onClick={onCreateEventSubmit} disabled={!eventForm.name.trim()}
-                className="w-full py-4 md:py-6 bg-red-600 text-white font-black rounded-xl md:rounded-[32px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-widest text-xs md:text-sm flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50">
+                className="w-full py-4 md:py-6 bg-teamColor text-white font-black rounded-xl md:rounded-[32px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-widest text-xs md:text-sm flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50">
                 <Trophy size={16} /> Create Event
               </button>
             </div>

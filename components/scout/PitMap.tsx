@@ -310,7 +310,7 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search by team # or name"
             type="text"
-            className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 transition-all font-bold text-sm"
+            className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor transition-all font-bold text-sm"
           />
           {searchTeam && (
             <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -335,7 +335,7 @@ const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRe
 
       {highlightedTeam && searchedAddress && (
         <div className="text-xs text-slate-600 dark:text-slate-300 font-bold px-1">
-          Team {highlightedTeam}{searchedNickname ? ` (${searchedNickname})` : ''} is in pit <span className="text-red-600 font-black">{searchedAddress}</span>
+          Team {highlightedTeam}{searchedNickname ? ` (${searchedNickname})` : ''} is in pit <span className="text-teamColor font-black">{searchedAddress}</span>
         </div>
       )}
 

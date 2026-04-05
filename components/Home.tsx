@@ -303,7 +303,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         const username = part.slice(1).toLowerCase();
         const exists = state.users.some(u => u.username.toLowerCase() === username);
         if (exists) {
-          return <span key={i} className="text-red-600 font-black bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded-lg border border-red-100 dark:border-red-700">{part}</span>;
+          return <span key={i} className="text-teamColor font-black bg-teamColor/10 px-1.5 py-0.5 rounded-lg border border-teamColor/20">{part}</span>;
         }
       }
       return part;
@@ -314,18 +314,18 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
     <div className="w-full h-full animate-in fade-in duration-700">
       <div className="flex flex-col lg:flex-row justify-between items-start gap-8 mb-12">
         <div className="flex-1">
-          <p className="text-[11px] font-black text-red-600 uppercase tracking-[0.2em]">Operational Dashboard</p>
+          <p className="text-[11px] font-black text-teamColor uppercase tracking-[0.2em]">Operational Dashboard</p>
           <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-tight">Welcome, {user?.name.split(' ')[0]}</h1>
           <div className="flex items-center gap-6 mt-3">
               <p className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs">Team {settings.teamNumber} • {settings.teamName}</p>
               <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
               <div className="flex items-center gap-2">
-                <TrendingUp size={14} className="text-red-600" />
+                <TrendingUp size={14} className="text-teamColor" />
                 <span className="text-[10px] font-black text-slate-950 dark:text-white uppercase tracking-widest">Wk Effort: {currentWeekEffort} PTS</span>
               </div>
               <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
               <div className="flex items-center gap-2">
-                <Clock size={14} className="text-red-600" />
+                <Clock size={14} className="text-teamColor" />
                 <span className="text-[10px] font-black text-slate-950 dark:text-white uppercase tracking-widest">
                   Total Hours: {myTotalHours.hours > 0 ? `${myTotalHours.hours}h ${myTotalHours.mins}m` : `${myTotalHours.mins}m`}
                 </span>
@@ -339,7 +339,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               setIsBroadcasting(true);
               setBroadcastScope(canBroadcastGlobal ? 'Global' : 'Department');
             }}
-            className="flex items-center gap-3 px-8 py-4 bg-red-600 text-white font-black rounded-[28px] hover:bg-red-700 shadow-xl shadow-red-600/20 transition-all uppercase text-xs tracking-widest"
+            className="flex items-center gap-3 px-8 py-4 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-xl shadow-teamColor/20 transition-all uppercase text-xs tracking-widest"
           >
             <Megaphone size={18} />
             New Broadcast
@@ -352,7 +352,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-3">
-                        <BarChart3 className="text-red-600" /> System Velocity
+                        <BarChart3 className="text-teamColor" /> System Velocity
                     </h2>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Accomplished Effort Points per Week</p>
                 </div>
@@ -362,8 +362,8 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     <AreaChart data={velocityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#E11D48" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#E11D48" stopOpacity={0}/>
+                                <stop offset="5%" stopColor={settings.themeColor} stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor={settings.themeColor} stopOpacity={0}/>
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" className="opacity-10" />
@@ -387,12 +387,12 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                                 boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)'
                             }}
                             itemStyle={{ color: '#FFFFFF', fontWeight: 900, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
-                            labelStyle={{ color: '#E11D48', fontWeight: 900, fontSize: '8px', marginBottom: '4px', textTransform: 'uppercase' }}
+                            labelStyle={{ color: settings.themeColor, fontWeight: 900, fontSize: '8px', marginBottom: '4px', textTransform: 'uppercase' }}
                         />
                         <Area 
                             type="monotone" 
                             dataKey="points" 
-                            stroke="#E11D48" 
+                            stroke={settings.themeColor} 
                             strokeWidth={4}
                             fillOpacity={1} 
                             fill="url(#colorPoints)" 
@@ -404,7 +404,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
         {/* Announcements Preview in a compact column */}
         <section className="bg-slate-950 rounded-[40px] p-10 flex flex-col h-[400px]">
-          <h2 className="text-xs font-black text-red-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+          <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
              <Megaphone size={16} /> Team Briefings
           </h2>
           <div className="flex-1 overflow-auto space-y-4 pr-2 kanban-scroll">
@@ -427,7 +427,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   )}
                   <p className="text-white text-xs font-bold leading-relaxed line-clamp-3 mb-4 italic">"{ann.text}"</p>
                   <div className="flex justify-between items-center border-t border-white/5 pt-3">
-                     <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">@{author?.username}</span>
+                     <span className="text-[8px] font-black text-teamColor uppercase tracking-widest">@{author?.username}</span>
                      <span className="text-[8px] font-bold text-slate-500 uppercase">{new Date(ann.timestamp).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })}</span>
                   </div>
                 </div>
@@ -445,7 +445,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
       {scoutEvents.length > 0 && (
         <div className="mb-12">
-          <h2 className="text-xs font-black text-red-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+          <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
             <Calendar size={14} /> Upcoming Events
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -458,7 +458,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   key={evt.id}
                   onClick={() => navigate('/scout', { state: { openEventId: evt.id } })}
                   className={`relative overflow-hidden rounded-2xl border-2 p-6 cursor-pointer transition-shadow hover:shadow-md ${
-                    isNow ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700 hover:border-green-400' : isDone ? 'border-slate-200 bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700 hover:border-slate-300' : 'border-red-200 bg-white dark:bg-slate-800 dark:border-red-900/30 hover:border-red-400'
+                    isNow ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700 hover:border-green-400' : isDone ? 'border-slate-200 bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700 hover:border-slate-300' : 'border-teamColor/30 bg-white dark:bg-slate-800 dark:border-teamColor/20 hover:border-teamColor/70'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -482,7 +482,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                       </p>
                     </div>
                     {!isDone && (
-                      <p className={`text-lg font-black tabular-nums ${isNow ? 'text-green-600' : 'text-red-600'}`}>
+                      <p className={`text-lg font-black tabular-nums ${isNow ? 'text-green-600' : 'text-teamColor'}`}>
                         {countdownText}
                       </p>
                     )}
@@ -499,7 +499,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
       {mySchedule && (
         <div className="mb-12">
-          <h2 className="text-xs font-black text-red-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+          <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
             <Calendar size={14} /> My Event Schedule
           </h2>
           <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-6">
@@ -532,9 +532,9 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         <section className="space-y-8">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase flex items-center gap-3">
-              <Clock className="text-red-600" /> My Active Tasks
+              <Clock className="text-teamColor" /> My Active Tasks
             </h2>
-            <span className="px-4 py-1 bg-red-600 text-white text-[10px] font-black rounded-full shadow-lg">
+            <span className="px-4 py-1 bg-teamColor text-white text-[10px] font-black rounded-full shadow-lg">
               {myTasks.length} PENDING
             </span>
           </div>
@@ -544,7 +544,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               <button
                 key={task.id}
                 onClick={() => onTaskClick(task)}
-                className="w-full text-left bg-white dark:bg-slate-800 p-8 rounded-[32px] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-red-600/50 dark:hover:border-red-600/50 hover:scale-[1.01] transition-all group"
+                className="w-full text-left bg-white dark:bg-slate-800 p-8 rounded-[32px] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-teamColor/50 dark:hover:border-teamColor/50 hover:scale-[1.01] transition-all group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-2">
@@ -555,11 +555,11 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                       {task.effort} PTS
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 group-hover:text-red-600 transition-colors">
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 group-hover:text-teamColor transition-colors">
                     DUE {new Date(task.dueDate).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })}
                   </span>
                 </div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-red-600 transition-colors">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-teamColor transition-colors">
                   {task.title.toUpperCase()}
                 </h3>
                 <p className="text-slate-400 dark:text-slate-500 text-sm line-clamp-1 mb-6">
@@ -571,7 +571,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                       <span key={d} className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">{d}</span>
                     ))}
                   </div>
-                  <ArrowRight size={18} className="text-slate-200 dark:text-slate-700 group-hover:text-red-600 group-hover:translate-x-2 transition-all" />
+                  <ArrowRight size={18} className="text-slate-200 dark:text-slate-700 group-hover:text-teamColor group-hover:translate-x-2 transition-all" />
                 </div>
               </button>
             )) : (
@@ -587,7 +587,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         <section className="space-y-8">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase flex items-center gap-3">
-              <Bell className="text-red-600" /> Notifications
+              <Bell className="text-teamColor" /> Notifications
             </h2>
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Personal Mentions</span>
           </div>
@@ -604,7 +604,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 key={n.id} 
                 className={`p-8 rounded-[32px] border transition-all flex items-start gap-6 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 ${!n.read ? 'shadow-lg border-l-4 border-l-red-600' : 'opacity-60'}`}
               >
-                <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${isBroadcast ? 'bg-slate-900 dark:bg-slate-700 text-white' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${isBroadcast ? 'bg-slate-900 dark:bg-slate-700 text-white' : 'bg-teamColor/10 text-teamColor'}`}>
                   {isBroadcast ? <Megaphone size={20} /> : <MessageSquare size={20} />}
                 </div>
                 <div className="flex-1">
@@ -624,7 +624,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                             const ann = state.announcements.find(a => String(a.id) === broadcastId);
                             if (ann) setSelectedAnnouncement(ann);
                         }}
-                        className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest hover:underline"
+                        className="text-[10px] font-black text-teamColor uppercase tracking-widest hover:underline"
                       >
                         Launch Discussion
                       </button>
@@ -634,7 +634,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                           const task = state.tasks.find(t => String(t.id) === String(n.taskId));
                           if (task) onTaskClick(task);
                         }}
-                        className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest hover:underline"
+                        className="text-[10px] font-black text-teamColor uppercase tracking-widest hover:underline"
                       >
                         Examine Task
                       </button>
@@ -663,7 +663,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
       {selectedAnnouncement && (
          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl overflow-hidden border-t-8 border-red-600">
+          <div className="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl overflow-hidden border-t-8 border-teamColor">
              <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
                 <div>
                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Broadcast Thread</h2>
@@ -688,12 +688,12 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
              <div className="flex-1 overflow-auto p-8 space-y-8 kanban-scroll">
                 <div className="bg-slate-950 text-white p-8 rounded-[32px] shadow-xl border border-white/5">
                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center font-black text-xs">
+                      <div className="w-8 h-8 bg-teamColor rounded-lg flex items-center justify-center font-black text-xs">
                          {state.users.find(u => u.id === selectedAnnouncement.authorId)?.name[0]}
                       </div>
                       <div>
                          <p className="text-[10px] font-black uppercase tracking-tight">{state.users.find(u => u.id === selectedAnnouncement.authorId)?.name}</p>
-                         <p className="text-[8px] font-bold text-red-500 uppercase tracking-widest mt-0.5">Originator</p>
+                         <p className="text-[8px] font-bold text-teamColor uppercase tracking-widest mt-0.5">Originator</p>
                       </div>
                    </div>
                    <p className="text-lg font-bold leading-relaxed italic">"{selectedAnnouncement.text}"</p>
@@ -743,7 +743,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                         onClick={() => insertMention(u.username)}
                         className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-600 text-left transition-colors border-b border-slate-100 dark:border-slate-600 last:border-0"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-[10px]">
+                        <div className="w-8 h-8 rounded-lg bg-teamColor text-white flex items-center justify-center font-black text-[10px]">
                           {u.name[0]}
                         </div>
                         <div>
@@ -763,13 +763,13 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                          onChange={handleInputChange}
                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                          placeholder="Post response... @handle"
-                         className="w-full text-sm p-5 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 dark:text-white transition-all pr-12 font-medium"
+                         className="w-full text-sm p-5 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor dark:text-white transition-all pr-12 font-medium"
                       />
                       <AtSign size={16} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-500" />
                    </div>
                    <button 
                     onClick={handleAddComment}
-                    className="px-8 bg-red-600 text-white rounded-[24px] hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all flex items-center justify-center"
+                    className="px-8 bg-teamColor text-white rounded-[24px] hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all flex items-center justify-center"
                    >
                       <Plus size={24} />
                    </button>
@@ -782,7 +782,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       {/* Broadcast Create Modal */}
       {isBroadcasting && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-xl p-12 shadow-2xl border-t-8 border-red-600">
+          <div className="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-xl p-12 shadow-2xl border-t-8 border-teamColor">
             <div className="flex justify-between items-start mb-8">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Initialize Broadcast</h2>
@@ -836,14 +836,14 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   value={broadcastText}
                   onChange={(e) => setBroadcastText(e.target.value)}
                   placeholder="Type briefing message..."
-                  className="w-full h-40 p-8 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[32px] outline-none focus:border-red-600 transition-all font-bold text-slate-700 dark:text-white resize-none"
+                  className="w-full h-40 p-8 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[32px] outline-none focus:border-teamColor transition-all font-bold text-slate-700 dark:text-white resize-none"
                 />
               </div>
 
               <button 
                 onClick={handleSendBroadcast}
                 disabled={!broadcastText.trim()}
-                className="w-full py-6 bg-red-600 text-white font-black rounded-[32px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full py-6 bg-teamColor text-white font-black rounded-[32px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 disabled:opacity-50"
               >
                 <Send size={18} />
                 Commence Transmission
