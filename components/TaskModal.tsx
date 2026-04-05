@@ -242,7 +242,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
         const username = part.slice(1).toLowerCase();
         const exists = users.some(u => u.username.toLowerCase() === username);
         if (exists) {
-          return <span key={i} className="text-red-600 font-black bg-red-50 px-1.5 py-0.5 rounded-lg border border-red-100">{part}</span>;
+          return <span key={i} className="text-teamColor font-black bg-teamColor/5 px-1.5 py-0.5 rounded-lg border border-teamColor/20">{part}</span>;
         }
       }
       return part;
@@ -266,7 +266,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   value={editedTask.title}
                   onChange={(e) => setEditedTask({...editedTask, title: e.target.value})}
                   placeholder="Task Title"
-                  className="text-3xl font-black text-slate-900 dark:text-white bg-transparent border-none outline-none focus:ring-4 focus:ring-red-600/10 rounded-xl px-2 w-full uppercase tracking-tighter"
+                  className="text-3xl font-black text-slate-900 dark:text-white bg-transparent border-none outline-none focus:ring-4 focus:ring-teamColor/10 rounded-xl px-2 w-full uppercase tracking-tighter"
                 />
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
                    <Clock size={10} /> POSTED {new Date(editedTask.createdAt).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })} {new Date(editedTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
@@ -304,7 +304,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
               <textarea 
                 value={editedTask.description}
                 onChange={(e) => setEditedTask({...editedTask, description: e.target.value})}
-                className="w-full h-40 p-8 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[32px] focus:ring-4 focus:ring-red-600/10 focus:border-red-600 focus:bg-white dark:focus:bg-slate-800 outline-none transition-all resize-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium"
+                className="w-full h-40 p-8 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[32px] focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor focus:bg-white dark:focus:bg-slate-800 outline-none transition-all resize-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium"
                 placeholder="What needs to be done?"
               />
             </section>
@@ -361,7 +361,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 <div className="flex items-center gap-3">
                     <input 
                         id="new-criterion"
-                        className="flex-1 text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold uppercase placeholder:font-normal dark:text-white" 
+                        className="flex-1 text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold uppercase placeholder:font-normal dark:text-white" 
                         placeholder="Add success criterion..."
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -396,7 +396,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                             onClick={() => insertMention(u.username)}
                             className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-600 text-left transition-colors border-b border-slate-100 dark:border-slate-600 last:border-0"
                           >
-                            <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-[10px]">
+                            <div className="w-8 h-8 rounded-lg bg-teamColor text-white flex items-center justify-center font-black text-[10px]">
                               {u.name[0]}
                             </div>
                             <div>
@@ -444,14 +444,14 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addComment())}
                               placeholder="Write a comment... Use @handle to mention someone. Press Enter to send, Shift+Enter for new line."
                               rows={4}
-                              className="w-full text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all pr-12 font-medium resize-none dark:text-white"
+                              className="w-full text-sm p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all pr-12 font-medium resize-none dark:text-white"
                           />
                           <AtSign size={16} className="absolute right-5 top-5 text-slate-300 dark:text-slate-600" />
                         </div>
                         <button 
                           onClick={addComment} 
                           disabled={isMuted || !newComment.trim()}
-                          className="w-full py-3 bg-red-600 text-white rounded-[24px] hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all font-black text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          className="w-full py-3 bg-teamColor text-white rounded-[24px] hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all font-black text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             <Plus size={16} /> Post Comment
                         </button>
@@ -498,7 +498,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     setEditedTask({...editedTask, status: newStatus});
                     logActivity(`Status changed to ${newStatus.toUpperCase()}`);
                 }}
-                className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black uppercase tracking-[0.2em] outline-none focus:border-red-600 transition-all ${STATUS_COLORS[editedTask.status]} dark:bg-slate-800`}
+                className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black uppercase tracking-[0.2em] outline-none focus:border-teamColor transition-all ${STATUS_COLORS[editedTask.status]} dark:bg-slate-800`}
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -552,18 +552,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     type="date"
                     value={editedTask.startDate}
                     onChange={(e) => setEditedTask({...editedTask, startDate: e.target.value})}
-                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all dark:text-white"
+                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-teamColor transition-all dark:text-white"
                   />
                </div>
                <div className="space-y-3">
-                  <label className="block text-[10px] font-black text-red-600 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                  <label className="block text-[10px] font-black text-teamColor uppercase tracking-widest ml-1 flex items-center gap-1.5">
                     <Calendar size={12} /> Due Date
                   </label>
                   <input 
                     type="date"
                     value={editedTask.dueDate}
                     onChange={(e) => setEditedTask({...editedTask, dueDate: e.target.value})}
-                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all dark:text-white"
+                    className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-teamColor transition-all dark:text-white"
                   />
                </div>
             </div>
@@ -577,7 +577,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       setEditedTask({...editedTask, priority: e.target.value as Priority});
                       logActivity(`Priority changed to ${e.target.value.toUpperCase()}`);
                   }}
-                  className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest outline-none focus:border-red-600 transition-all ${PRIORITY_COLORS[editedTask.priority]} dark:bg-slate-800`}
+                  className={`w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest outline-none focus:border-teamColor transition-all ${PRIORITY_COLORS[editedTask.priority]} dark:bg-slate-800`}
                 >
                   {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -592,7 +592,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       setEditedTask({...editedTask, effort: parseInt(e.target.value)});
                       logActivity(`Effort set to ${e.target.value} PTS`);
                   }}
-                  className="w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-800 outline-none focus:border-red-600 transition-all dark:text-white"
+                  className="w-full p-5 rounded-[24px] border-2 border-slate-100 dark:border-slate-700 text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-800 outline-none focus:border-teamColor transition-all dark:text-white"
                 >
                   {EFFORT_POINTS.map(pt => <option key={pt} value={pt}>{pt} points</option>)}
                 </select>
@@ -701,7 +701,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   placeholder="Search by username..."
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-colors dark:text-white"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-teamColor transition-colors dark:text-white"
                 />
               </div>
               {editedTask.departments.length === 0 && (
@@ -739,7 +739,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                           title={!isCertified && !isAssigned ? `${u.name} is not certified for ${equipmentName} — they cannot be assigned` : isAssignedUncertified ? `${u.name} is assigned but lacks ${equipmentName} certification — click to unassign` : ''}
                           className={`w-full flex items-center gap-4 p-4 rounded-[20px] text-[10px] font-black border-2 transition-all uppercase tracking-tight ${
                             isAssigned && isCertified
-                              ? 'bg-red-50 dark:bg-red-900/30 border-red-600/20 dark:border-red-600 text-red-600 shadow-sm'
+                              ? 'bg-teamColor/5 dark:bg-teamColor/10 border-teamColor/20 dark:border-teamColor text-teamColor shadow-sm'
                               : isAssignedUncertified
                               ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-400'
                               : !isCertified
@@ -747,7 +747,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                               : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
                           }`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${isAssigned && isCertified ? 'bg-red-600 text-white' : isAssignedUncertified ? 'bg-amber-500 text-white' : !isCertified ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500' : 'bg-slate-950 dark:bg-slate-900 text-white'}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${isAssigned && isCertified ? 'bg-teamColor text-white' : isAssignedUncertified ? 'bg-amber-500 text-white' : !isCertified ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500' : 'bg-slate-950 dark:bg-slate-900 text-white'}`}>
                             {u.name[0]}
                           </div>
                           <div className="text-left flex-1">
@@ -859,7 +859,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   value={depSearch}
                   onChange={(e) => setDepSearch(e.target.value)}
                   placeholder="Search tasks to depend on..."
-                  className="w-full pl-8 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-medium outline-none focus:border-red-600 transition-colors dark:text-white"
+                  className="w-full pl-8 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-medium outline-none focus:border-teamColor transition-colors dark:text-white"
                 />
               </div>
               <div className="space-y-1 max-h-36 overflow-auto kanban-scroll">
@@ -909,7 +909,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                       : editedTask;
                     onSave(taskToSave);
                   }}
-                  className="w-full py-6 bg-red-600 text-white font-black rounded-[28px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-[0.2em] text-sm"
+                  className="w-full py-6 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-[0.2em] text-sm"
                 >
                   Commit Mission
                 </button>

@@ -141,7 +141,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   const ASSIGNMENT_ROLES = ['Scout - Stands', 'Pit Crew', 'Networking', 'Media', 'Free Time', 'Driver/Coach Support'];
   const ROLE_CHIP_COLORS: Record<string, string> = {
-    'Scout - Stands': 'bg-red-500 text-white',
+    'Scout - Stands': 'bg-teamColor text-white',
     'Pit Crew': 'bg-orange-500 text-white',
     'Networking': 'bg-blue-500 text-white',
     'Media': 'bg-violet-500 text-white',
@@ -1392,12 +1392,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </button>
             )}
             <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-100 dark:border-slate-700">
-              <Bot size={14} className="text-red-600" />
+              <Bot size={14} className="text-teamColor" />
               <span className="font-black text-slate-800">{pitScouts.length}</span>
               <span className="text-slate-400 dark:text-slate-500 font-bold">robots</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-100 dark:border-slate-700">
-              <Swords size={14} className="text-red-600" />
+              <Swords size={14} className="text-teamColor" />
               <span className="font-black text-slate-800">{matchScoutsData.length}</span>
               <span className="text-slate-400 dark:text-slate-500 font-bold">matches</span>
             </div>
@@ -1451,7 +1451,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search teams..."
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-bold text-sm"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
                 />
               </div>
               <button
@@ -1472,7 +1472,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               )}
               <button
                 onClick={() => { resetPitForm(); setEditingPit(null); setShowPitForm(true); }}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
               >
                 <Plus size={16} /> Scout Robot
               </button>
@@ -1500,7 +1500,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <div
                   key={ps.id}
                   onClick={() => setSelectedRobot(ps)}
-                  className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-5 md:p-6 hover:border-red-600/30 transition-all cursor-pointer"
+                  className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-5 md:p-6 hover:border-teamColor/30 transition-all cursor-pointer"
                 >
                   {ps.photoUrl && (
                     <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-slate-100 dark:bg-slate-700">
@@ -1509,7 +1509,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   )}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center font-black text-sm">
+                      <div className="w-10 h-10 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center font-black text-sm">
                         {ps.teamNumber}
                       </div>
                       <div className="min-w-0">
@@ -1519,7 +1519,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <span className="px-2 py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded-lg text-[9px] font-black">OFF {ps.offenseRating}</span>
+                    <span className="px-2 py-1 bg-teamColor/5 text-teamColor rounded-lg text-[9px] font-black">OFF {ps.offenseRating}</span>
                     <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-lg text-[9px] font-black">DEF {ps.defenseRating}</span>
                     <span className="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-lg text-[9px] font-black">OVR {ps.overallRating}</span>
                   </div>
@@ -1551,7 +1551,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               const teammates = assignments.filter(a => a.userId !== myId && a.role === myAssignment.role && a.fromMatch <= myAssignment.toMatch && a.toMatch >= myAssignment.fromMatch);
               const badge = ROLE_COLORS[myAssignment.role] || 'bg-slate-100 text-slate-600';
               return (
-                <div className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${myAssignment.role === 'Scout - Stands' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'}`}>
+                <div className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${myAssignment.role === 'Scout - Stands' ? 'border-teamColor/30 bg-teamColor/5' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Your Role</span>
@@ -1566,7 +1566,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     )}
                   </div>
                   {myAssignment.role === 'Scout - Stands' && tbaMatches.length > 0 && (
-                    <div className="text-[9px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest bg-red-100 dark:bg-red-900/30 px-3 py-2 rounded-xl">
+                    <div className="text-[9px] font-black text-teamColor uppercase tracking-widest bg-teamColor/10 px-3 py-2 rounded-xl">
                       Scouting: M{myAssignment.fromMatch}–M{myAssignment.toMatch}
                     </div>
                   )}
@@ -1590,7 +1590,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
               <button
                 onClick={() => { resetMatchForm(); setEditingMatch(null); setShowMatchForm(true); }}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
               >
                 <Plus size={16} /> Record Match
               </button>
@@ -1692,10 +1692,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 };
 
                 return (
-                  <div key={m.key} className={`rounded-2xl border-2 p-4 ${isOnDeck ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 opacity-80' : 'border-red-200 dark:border-red-700 bg-white dark:bg-slate-800 shadow-sm'}`}>
+                  <div key={m.key} className={`rounded-2xl border-2 p-4 ${isOnDeck ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 opacity-80' : 'border-teamColor/30 bg-white dark:bg-slate-800 shadow-sm'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase text-white ${isOnDeck ? 'bg-slate-500' : 'bg-red-600'}`}>
+                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase text-white ${isOnDeck ? 'bg-slate-500' : 'bg-teamColor'}`}>
                           {isOnDeck ? 'On Deck' : 'Up Next'}
                         </span>
                         <span className="text-xs font-black text-slate-900 dark:text-white">{getMatchLabel(m)}</span>
@@ -1954,7 +1954,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       setEditingMatch(null);
                                       setShowMatchForm(true);
                                     }}
-                                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
+                                    className="px-3 py-1.5 bg-teamColor text-white rounded-lg text-[9px] font-black hover:opacity-90 transition-all"
                                   >Scout</button>
                                 </div>
                               </div>
@@ -1979,7 +1979,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
                           const time = m.predicted_time || m.time;
                           return (
-                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : claim ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700' : 'border-slate-100 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-red-200 hover:bg-red-50/30 dark:hover:border-red-700 dark:hover:bg-red-900/20'} transition-all`}>
+                            <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : claim ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700' : 'border-slate-100 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-teamColor/30 hover:bg-teamColor/5'} transition-all`}>
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
                                 <div className="min-w-0">
@@ -2019,7 +2019,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
                                     setShowMatchForm(true);
                                   }}
-                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition-all"
+                                  className="px-3 py-1.5 bg-teamColor text-white rounded-lg text-[9px] font-black hover:opacity-90 transition-all"
                                 >Scout</button>
                               </div>
                             </div>
@@ -2089,7 +2089,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 {matchRosters.map(roster => (
                   <div key={roster.matchNumber} className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-4 md:p-6">
                     <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4 flex items-center gap-2">
-                      <Swords size={16} className="text-red-600" />
+                      <Swords size={16} className="text-teamColor" />
                       Match {roster.matchNumber}
                     </h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -2217,7 +2217,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       value={(eventInfoForm as any)[field.key]}
                       onChange={e => setEventInfoForm({ ...eventInfoForm, [field.key]: e.target.value })}
                       placeholder={field.placeholder}
-                      className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500"
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
                 ))}
@@ -2232,14 +2232,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       console.error('Failed to save event info:', err);
                     }
                   }}
-                  className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs"
+                  className="w-full py-4 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase tracking-widest text-xs"
                 >Save Event Info</button>
               </div>
             ) : (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                    <MapPin size={18} className="text-red-600" /> Event Info
+                    <MapPin size={18} className="text-teamColor" /> Event Info
                   </h3>
                   {isCoachOrCaptain && (
                     <button
@@ -2301,7 +2301,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     setEditingAssignment(null);
                     setShowAssignmentForm(true);
                   }}
-                  className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-widest"
+                  className="flex items-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
                 ><Plus size={16} /> Add Assignment</button>
               </div>
             )}
@@ -2371,7 +2371,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden">
                       <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
                         <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                          <Grid3X3 size={15} className="text-red-600" /> Match Schedule Grid
+                          <Grid3X3 size={15} className="text-teamColor" /> Match Schedule Grid
                         </h3>
                         <div className="flex flex-wrap gap-1.5">
                           {ASSIGNMENT_ROLES.map(role => (
@@ -2398,10 +2398,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 return (
                                   <th
                                     key={n}
-                                    style={{ width: 22, minWidth: 22, ...(isOur ? { borderBottom: '2px solid #dc2626' } : {}) }}
+                                    style={{ width: 22, minWidth: 22, ...(isOur ? { borderBottom: '2px solid var(--team-color)' } : {}) }}
                                     className={`text-center py-1 select-none overflow-hidden ${
                                       isOur
-                                        ? 'text-red-600 dark:text-red-400 font-black text-[7px] border-l-2 border-red-200 dark:border-red-900/60 bg-red-50/80 dark:bg-red-900/15'
+                                        ? 'text-teamColor font-black text-[7px] border-l-2 border-teamColor/20 bg-teamColor/10'
                                         : n % 10 === 0
                                         ? 'text-slate-600 dark:text-slate-300 font-black text-[7px] border-l-2 border-slate-200 dark:border-slate-600'
                                         : n % 5 === 0
@@ -2435,7 +2435,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     <td
                                       key={matchNum}
                                       style={{ width: 22, minWidth: 22 }}
-                                      className={`text-center py-1 ${ourMatchNums.has(matchNum) ? 'bg-red-50/60 dark:bg-red-900/10' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
+                                      className={`text-center py-1 ${ourMatchNums.has(matchNum) ? 'bg-teamColor/5' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : 'border-l border-slate-100 dark:border-slate-700/50'}`}
                                     >
                                       {(() => {
                                         const hasAnyScout = rows.some(([uid, { userAssigns }]) => {
@@ -2461,11 +2461,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   style={{ width: 140, minWidth: 140 }}
                                   className={`sticky left-0 z-10 pl-5 pr-3 py-1.5 text-xs font-bold whitespace-nowrap border-r-2 border-slate-100 dark:border-slate-700 ${
                                     isMe
-                                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                                      ? 'bg-teamColor/5 text-teamColor'
                                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                                   }`}
                                 >
-                                  {name}{isMe ? <span className="ml-1 text-red-400 text-[9px]">you</span> : ''}
+                                  {name}{isMe ? <span className="ml-1 text-teamColor text-[9px] opacity-70">you</span> : ''}
                                 </td>
                                 {matchNums.map(matchNum => {
                                   const a = userAssigns.find((ua: any) => matchNum >= ua.fromMatch && matchNum <= ua.toMatch);
@@ -2477,7 +2477,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                         key={matchNum}
                                         style={{ width: 22, minWidth: 22 }}
                                         title={isCoachOrCaptain ? `Assign ${name} to match ${matchNum}` : undefined}
-                                        className={`h-8 text-center ${ourMatchNums.has(matchNum) ? 'bg-red-50/40 dark:bg-red-900/10' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
+                                        className={`h-8 text-center ${ourMatchNums.has(matchNum) ? 'bg-teamColor/5' : ''} ${isTick10 ? 'border-l-2 border-slate-200 dark:border-slate-600' : isTick5 ? 'border-l border-slate-100 dark:border-slate-700' : 'border-l border-slate-50 dark:border-slate-700/30'} ${isCoachOrCaptain ? 'cursor-pointer hover:bg-teamColor/5' : ''}`}
                                         onClick={isCoachOrCaptain ? () => {
                                           setEditingAssignment(null);
                                           setAssignmentForm({ userId: userId as number, fromMatch: matchNum, toMatch: matchNum, role: 'Scout - Stands', notes: '' });
@@ -2575,7 +2575,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         const badge = ROLE_COLORS[a.role] || 'bg-slate-100 text-slate-600';
                         const isMe = a.userId === parseInt(currentUser?.id);
                         return (
-                          <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-red-200 dark:border-red-800' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
+                          <div key={a.id} className={`bg-white dark:bg-slate-800 rounded-2xl border-2 ${isMe ? 'border-teamColor/40' : 'border-slate-100 dark:border-slate-700'} p-5 flex items-center gap-4`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <p className="text-sm font-black text-slate-900 dark:text-white">{a.userName}{isMe ? ' (you)' : ''}</p>
@@ -2659,7 +2659,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       </button>
                     )}
                     <button
-                      className="w-full px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl text-sm font-black hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-left"
+                      className="w-full px-4 py-3 bg-teamColor/5 text-teamColor rounded-xl text-sm font-black hover:bg-teamColor/10 transition-colors text-left"
                       onClick={() => {
                         setEditingAssignment(cellPopover.assign);
                         setAssignmentForm({ userId: cellPopover.assign.userId, fromMatch: cellPopover.assign.fromMatch, toMatch: cellPopover.assign.toMatch, role: cellPopover.assign.role, notes: cellPopover.assign.notes || '' });
@@ -2712,7 +2712,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
             {showAssignmentForm && (
               <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-md max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-md max-h-[90vh] overflow-auto p-6 md:p-10 shadow-2xl border-t-8 border-teamColor">
                   <div className="flex justify-between items-start mb-6">
                     <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingAssignment ? 'Edit Assignment' : 'Add Assignment'}</h2>
                     <button onClick={() => { setShowAssignmentForm(false); setEditingAssignment(null); }} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700"><X size={18} className="text-slate-500" /></button>
@@ -2723,7 +2723,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <select
                         value={assignmentForm.userId}
                         onChange={e => setAssignmentForm({ ...assignmentForm, userId: parseInt(e.target.value) })}
-                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white"
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white"
                       >
                         <option value={0}>Select member...</option>
                         {allUsers.map(u => (
@@ -2736,13 +2736,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">From Match #</label>
                         <input type="number" min={1} value={assignmentForm.fromMatch}
                           onChange={e => setAssignmentForm({ ...assignmentForm, fromMatch: parseInt(e.target.value) || 1 })}
-                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white" />
+                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white" />
                       </div>
                       <div className="space-y-2">
                         <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">To Match #</label>
                         <input type="number" min={1} value={assignmentForm.toMatch}
                           onChange={e => setAssignmentForm({ ...assignmentForm, toMatch: parseInt(e.target.value) || 1 })}
-                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white" />
+                          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white" />
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -2750,7 +2750,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <select
                         value={assignmentForm.role}
                         onChange={e => setAssignmentForm({ ...assignmentForm, role: e.target.value })}
-                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm dark:text-white"
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white"
                       >
                         {ASSIGNMENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
@@ -2760,7 +2760,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       <textarea rows={2} value={assignmentForm.notes}
                         onChange={e => setAssignmentForm({ ...assignmentForm, notes: e.target.value })}
                         placeholder="Any specific instructions..."
-                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500" />
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm resize-none dark:text-white dark:placeholder:text-slate-500" />
                     </div>
                     <button
                       disabled={!assignmentForm.userId || assignmentForm.fromMatch < 1 || assignmentForm.toMatch < assignmentForm.fromMatch}
@@ -2778,7 +2778,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           fetchAssignments(activeEvent.id);
                         } catch (err) { console.error('Failed to save assignment:', err); }
                       }}
-                      className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
+                      className="w-full py-4 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
                     >{editingAssignment ? 'Update Assignment' : 'Create Assignment'}</button>
                   </div>
                 </div>
@@ -2865,7 +2865,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TBA Event Key</label>
                   <input value={eventSettingsForm.tbaEventKey} onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, tbaEventKey: e.target.value })}
                     placeholder="e.g. 2026azgl"
-                    className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-sm" />
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm" />
                   <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Find your event key on thebluealliance.com</p>
                 </div>
                 <div className="space-y-2">

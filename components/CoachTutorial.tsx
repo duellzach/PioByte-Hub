@@ -17,7 +17,7 @@ interface TutorialStep {
 
 const STEPS: TutorialStep[] = [
   {
-    icon: <Zap size={28} className="text-red-500" fill="currentColor" />,
+    icon: <Zap size={28} className="text-teamColor" fill="currentColor" />,
     label: 'Welcome',
     title: "Coach view — full access unlocked",
     body:
@@ -60,7 +60,7 @@ const STEPS: TutorialStep[] = [
     routeLabel: 'Go to Home',
   },
   {
-    icon: <Crosshair size={28} className="text-red-500" />,
+    icon: <Crosshair size={28} className="text-teamColor" />,
     label: 'Scout',
     title: "FRC scouting + TBA / Nexus live feeds",
     body:
@@ -141,9 +141,9 @@ const CoachTutorial: React.FC<CoachTutorialProps> = ({ onNavigate }) => {
                 onClick={() => setStep(i)}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === step
-                    ? 'w-6 bg-red-600'
+                    ? 'w-6 bg-teamColor'
                     : i < step
-                    ? 'w-3 bg-red-300 dark:bg-red-800'
+                    ? 'w-3 bg-teamColor/40'
                     : 'w-3 bg-slate-200 dark:bg-slate-700'
                 }`}
                 aria-label={`Go to step ${i + 1}`}
@@ -163,7 +163,7 @@ const CoachTutorial: React.FC<CoachTutorialProps> = ({ onNavigate }) => {
           <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-5">
             {current.icon}
           </div>
-          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">
+          <p className="text-[10px] font-black text-teamColor uppercase tracking-widest mb-2">
             {current.label} &middot; Step {step + 1} of {STEPS.length}
           </p>
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 leading-tight mb-3">
@@ -204,7 +204,7 @@ const CoachTutorial: React.FC<CoachTutorialProps> = ({ onNavigate }) => {
 
           <button
             onClick={goNext}
-            className="flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-red-600/20 active:scale-95"
+            className="flex items-center gap-2 px-6 py-2.5 bg-teamColor hover:opacity-90 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-teamColor/20 active:scale-95"
           >
             {isLast ? 'All done!' : 'Got it'}
             {!isLast && <ArrowRight size={13} />}

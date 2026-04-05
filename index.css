@@ -4,6 +4,7 @@
 
 :root {
   --team-color: #dc2626;
+  --team-color-rgb: 220, 38, 38;
 }
 
 body { font-family: 'Inter', sans-serif; }

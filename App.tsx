@@ -26,7 +26,7 @@ const Resources = lazy(() => import('./components/Resources'));
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
     <div className="flex flex-col items-center gap-3">
-      <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-teamColor border-t-transparent rounded-full animate-spin" />
       <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Loading</p>
     </div>
   </div>
@@ -223,7 +223,14 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const hex = teamSettings.themeColor.replace('#', '');
     document.documentElement.style.setProperty('--team-color', teamSettings.themeColor);
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      document.documentElement.style.setProperty('--team-color-rgb', `${r}, ${g}, ${b}`);
+    }
   }, [teamSettings.themeColor]);
 
   useEffect(() => {
@@ -339,10 +346,10 @@ const App: React.FC = () => {
     return (
       <TeamSettingsContext.Provider value={{ settings: teamSettings, setSettings: setTeamSettings }}>
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="bg-white dark:bg-slate-900 rounded-[40px] p-16 w-full max-w-xl shadow-[0_0_100px_rgba(225,29,72,0.15)] animate-in zoom-in duration-500">
+        <div className="bg-white dark:bg-slate-900 rounded-[40px] p-16 w-full max-w-xl shadow-2xl animate-in zoom-in duration-500">
           <div className="text-center mb-12">
-            <div className="w-32 h-32 mx-auto mb-8 shadow-2xl shadow-red-600/40 transform rotate-3">
-                <TeamLogo className="w-full h-full text-red-600" />
+            <div className="w-32 h-32 mx-auto mb-8 shadow-2xl shadow-teamColor/40 transform rotate-3">
+                <TeamLogo className="w-full h-full text-teamColor" />
             </div>
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-3 leading-tight">{teamSettings.teamName} HUB</h1>
             <p className="text-slate-400 font-black text-sm uppercase tracking-widest">TEAM {teamSettings.teamNumber} ROBOTICS</p>
@@ -350,7 +357,7 @@ const App: React.FC = () => {
 
           {state.users.length === 0 && isCloudSynced ? (
             <div className="bg-slate-50 border-2 border-slate-100 p-8 rounded-[32px] text-center space-y-6">
-                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+                <div className="w-16 h-16 bg-teamColor/10 text-teamColor rounded-2xl flex items-center justify-center mx-auto">
                     <Database size={32} />
                 </div>
                 <div>
@@ -375,13 +382,13 @@ const App: React.FC = () => {
               }} className="space-y-8">
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Secure Username</label>
-                    <input name="username" placeholder="coach_mentor / captain10991" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-red-600/10 focus:border-red-600 transition-all font-black uppercase text-sm" />
+                    <input name="username" placeholder="coach_mentor / captain10991" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black uppercase text-sm" />
                 </div>
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Access Key</label>
-                    <input type="password" name="password" placeholder="••••••••" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-red-600/10 focus:border-red-600 transition-all font-black text-sm" />
+                    <input type="password" name="password" placeholder="••••••••" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black text-sm" />
                 </div>
-                <button type="submit" className="w-full py-6 bg-red-600 text-white font-black rounded-3xl hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all transform active:scale-95 text-xl tracking-widest uppercase">
+                <button type="submit" className="w-full py-6 bg-teamColor text-white font-black rounded-3xl hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all transform active:scale-95 text-xl tracking-widest uppercase">
                     Initialize System
                 </button>
               </form>

@@ -19,11 +19,24 @@ module.exports = {
     'hover:bg-slate-200',
     'dark:bg-slate-900/30',
     'dark:text-slate-300',
+    'bg-teamColor',
+    'text-teamColor',
+    'border-teamColor',
+    'ring-teamColor',
+    'shadow-teamColor',
   ],
   theme: {
     extend: {
       colors: {
-        teamColor: 'var(--team-color)',
+        teamColor: ({ opacityVariable, opacityValue }) => {
+          if (opacityValue !== undefined) {
+            return `rgba(var(--team-color-rgb), ${opacityValue})`;
+          }
+          if (opacityVariable !== undefined) {
+            return `rgba(var(--team-color-rgb), var(${opacityVariable}, 1))`;
+          }
+          return `rgb(var(--team-color-rgb))`;
+        },
       },
     },
   },

@@ -186,7 +186,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <button
                 onClick={openAlertModal}
                 title="Push Alert"
-                className={`w-full flex items-center ${collapsed ? 'justify-center py-2' : 'gap-2.5 px-3 py-2'} rounded-xl transition-all font-black text-[10px] tracking-widest text-red-400 hover:text-white hover:bg-red-600`}
+                className={`w-full flex items-center ${collapsed ? 'justify-center py-2' : 'gap-2.5 px-3 py-2'} rounded-xl transition-all font-black text-[10px] tracking-widest text-teamColor/70 hover:text-white hover:bg-teamColor`}
               >
                 <div className="flex-shrink-0"><Bell size={16} /></div>
                 {!collapsed && <span>PUSH ALERT</span>}
@@ -199,23 +199,23 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         <div className={`${collapsed ? 'px-2 py-2' : 'px-2 py-2 md:px-3 md:py-3 lg:px-3 lg:py-3'} border-t border-white/10 bg-black/40 flex-shrink-0`}>
           <div className={`flex items-center gap-2.5 ${collapsed ? 'mb-2' : 'mb-2.5'} transition-all duration-300`}>
             <div className="relative flex-shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center font-black text-sm border border-red-400/30 shadow-inner">
+              <div className="w-8 h-8 rounded-xl bg-teamColor flex items-center justify-center font-black text-sm border border-teamColor/30 shadow-inner">
                 {user?.name?.[0] || 'U'}
               </div>
               {notificationsCount > 0 && !collapsed && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-white text-red-600 rounded-full flex items-center justify-center text-[8px] font-black shadow-lg">
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-white text-teamColor rounded-full flex items-center justify-center text-[8px] font-black shadow-lg">
                   {notificationsCount}
                 </div>
               )}
             </div>
             <div className={`flex-1 overflow-hidden min-w-0 transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
               <p className="text-xs font-bold truncate leading-tight">{user?.name}</p>
-              <p className="text-[9px] text-red-500 font-black uppercase tracking-wider truncate">{user?.roles?.[0]}</p>
+              <p className="text-[9px] text-teamColor/70 font-black uppercase tracking-wider truncate">{user?.roles?.[0]}</p>
             </div>
           </div>
           <button 
             onClick={() => { onLogout(); setMobileMenuOpen(false); }}
-            className={`w-full flex items-center justify-center gap-2 ${collapsed ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[10px] font-bold text-slate-400 hover:text-white hover:bg-red-600 transition-all border border-white/10 rounded-xl`}
+            className={`w-full flex items-center justify-center gap-2 ${collapsed ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[10px] font-bold text-slate-400 hover:text-white hover:bg-teamColor transition-all border border-white/10 rounded-xl`}
             title={collapsed ? "SIGN OUT" : ""}
           >
             <LogOut size={13} />
@@ -234,7 +234,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <Menu size={22} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="md:hidden text-red-600">
+              <div className="md:hidden text-teamColor">
                 <TeamLogo className="w-7 h-7" />
               </div>
               <h2 className="text-sm md:text-lg font-black text-slate-900 dark:text-white tracking-tight uppercase">
@@ -245,10 +245,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <div className="flex items-center gap-2 md:gap-3">
             {stats && (
               <div className="hidden md:flex items-center gap-2 text-[10px]">
-                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-lg border border-red-100">
-                  <TrendingUp size={12} className="text-red-600" />
-                  <span className="font-black text-red-600">{stats.weeklyEffort}</span>
-                  <span className="text-red-400 font-bold">pts</span>
+                <div className="flex items-center gap-1 px-2 py-1 bg-teamColor/5 rounded-lg border border-teamColor/20">
+                  <TrendingUp size={12} className="text-teamColor" />
+                  <span className="font-black text-teamColor">{stats.weeklyEffort}</span>
+                  <span className="text-teamColor/70 font-bold">pts</span>
                 </div>
                 <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
                   <Activity size={12} className="text-slate-600" />
@@ -282,13 +282,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
 
       {showAlertModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-8 border-red-600 max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-8 border-teamColor max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                  <Bell size={20} className="text-red-600" /> Push Alert
+                  <Bell size={20} className="text-teamColor" /> Push Alert
                 </h2>
-                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">Send fullscreen notification to team</p>
+                <p className="text-[10px] text-teamColor/70 font-bold uppercase tracking-widest mt-0.5">Send fullscreen notification to team</p>
               </div>
               <button onClick={() => setShowAlertModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
                 <X size={18} />
@@ -301,7 +301,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
                 <textarea
                   value={alertForm.message}
                   onChange={(e) => setAlertForm({ ...alertForm, message: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium h-24 resize-none"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium h-24 resize-none"
                   placeholder="Enter alert message..."
                 />
               </div>
@@ -371,7 +371,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <button
                 onClick={handleCreateAlert}
                 disabled={alertSaving}
-                className="w-full py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50"
+                className="w-full py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50"
               >
                 {alertSaving ? 'Sending...' : 'Send Alert'}
               </button>
@@ -432,7 +432,7 @@ const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string; coll
     className={({ isActive }) =>
       `flex items-center ${collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-3 py-2'} rounded-xl transition-all font-black text-[10px] tracking-widest ${
         isActive 
-          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' 
+          ? 'bg-teamColor text-white shadow-lg shadow-teamColor/20' 
           : 'text-slate-500 hover:text-white hover:bg-white/5'
       }`
     }

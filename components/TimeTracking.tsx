@@ -521,7 +521,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400">
               Sessions — <span className="text-slate-700 dark:text-slate-200 font-black">{myEntries.filter(e => e.status === 'completed').length}</span>
             </span>
-            <span className="px-2.5 py-1 bg-red-50 dark:bg-red-900/20 rounded-lg text-[10px] font-black text-red-600 dark:text-red-400">
+            <span className="px-2.5 py-1 bg-teamColor/5 dark:bg-teamColor/10 rounded-lg text-[10px] font-black text-teamColor">
               Total — {formatDuration(totalHours)}
             </span>
           </div>
@@ -560,7 +560,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                   myOpenEntry.status === 'pending_check_in' 
                     ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
-                    : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
+                    : 'bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20'
                 }`}
               >
                 <LogOut size={14} /> Check Out
@@ -695,7 +695,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                           <button
                             onClick={handleCompCheckOut}
                             disabled={compLoading}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-2 bg-teamColor text-white rounded-xl font-black text-xs uppercase hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all disabled:opacity-50"
                           >
                             <LogOut size={14} /> Check Out
                           </button>
@@ -1233,7 +1233,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   </span>
                   <button
                     onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
-                    className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                    className="flex items-center gap-1 px-3 py-2 bg-teamColor text-white rounded-lg font-bold text-[10px] uppercase hover:opacity-90 transition-all shadow-lg shadow-teamColor/20"
                   >
                     <LogOut size={12} /> Check Out
                   </button>
@@ -1353,7 +1353,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
       {editingEntry && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] w-full max-w-lg p-6 md:p-10 shadow-2xl border-t-8 border-red-600">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] w-full max-w-lg p-6 md:p-10 shadow-2xl border-t-8 border-teamColor">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Edit Time Entry</h2>
@@ -1371,7 +1371,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   type="datetime-local"
                   value={editForm.checkInAt}
                   onChange={(e) => setEditForm({ ...editForm, checkInAt: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-bold"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold"
                 />
               </div>
               <div>
@@ -1380,7 +1380,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   type="datetime-local"
                   value={editForm.checkOutAt}
                   onChange={(e) => setEditForm({ ...editForm, checkOutAt: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-bold"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold"
                 />
               </div>
               <div>
@@ -1388,13 +1388,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 <textarea
                   value={editForm.notes}
                   onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium h-20 resize-none"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium h-20 resize-none"
                   placeholder="Optional notes..."
                 />
               </div>
               <button
                 onClick={handleSaveEdit}
-                className="w-full py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 uppercase tracking-widest text-sm"
+                className="w-full py-4 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 uppercase tracking-widest text-sm"
               >
                 Save Changes
               </button>
@@ -1418,7 +1418,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
             {taskPickerLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 size={28} className="animate-spin text-red-600" />
+                <Loader2 size={28} className="animate-spin text-teamColor" />
               </div>
             ) : (
               <div className="flex-1 overflow-auto space-y-4">
@@ -1595,7 +1595,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   onChange={e => setCheckoutHandoffNote(e.target.value)}
                   rows={3}
                   placeholder={checkoutMarkComplete ? 'Optional completion notes...' : 'What did you accomplish? What\'s next for this task?'}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium resize-none text-sm"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium resize-none text-sm"
                 />
               </div>
 
@@ -1608,7 +1608,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     className={`w-full py-3.5 font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
                       checkoutLoading || noteRequired
                         ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                        : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'
+                        : 'bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20'
                     }`}
                   >
                     {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
@@ -1640,14 +1640,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 value={genTaskForm.name}
                 onChange={e => setGenTaskForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Task name (e.g. Scouting matches)"
-                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-bold text-sm"
+                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-sm"
               />
               <input
                 type="text"
                 value={genTaskForm.description}
                 onChange={e => setGenTaskForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Description (optional)"
-                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                className="w-full p-2.5 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
               />
               <div className="flex gap-2">
                 {editingGenTask && (
@@ -1656,7 +1656,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 <button
                   onClick={handleSaveGenTask}
                   disabled={!genTaskForm.name.trim()}
-                  className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-black text-xs uppercase hover:bg-red-700 disabled:opacity-40"
+                  className="flex-1 py-2.5 bg-teamColor text-white rounded-xl font-black text-xs uppercase hover:opacity-90 disabled:opacity-40"
                 >
                   {editingGenTask ? 'Save Changes' : 'Add Task'}
                 </button>
@@ -1665,7 +1665,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
             <div className="flex-1 overflow-auto space-y-2">
               {genTasksLoading ? (
-                <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-red-600" /></div>
+                <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-teamColor" /></div>
               ) : genTasks.length === 0 ? (
                 <p className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm font-bold">No general tasks yet</p>
               ) : (

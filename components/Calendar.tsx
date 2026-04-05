@@ -392,7 +392,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Calendar</h1>
-          <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-0.5">Season Schedule & Events</p>
+          <p className="text-[10px] font-black text-teamColor uppercase tracking-[0.3em] mt-0.5">Season Schedule & Events</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {isCoachOrCaptain && (
@@ -405,7 +405,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               </button>
               <button
                 onClick={() => openAdd()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-teamColor text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-teamColor/20"
               >
                 <Plus size={12} /> Add Event
               </button>
@@ -475,14 +475,14 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                       onClick={() => setSelectedDate(isSelected ? null : dateStr)}
                       className={`relative p-1 rounded-lg min-h-[52px] text-left transition-all ${
                         isSelected ? 'bg-slate-900 dark:bg-white ring-2 ring-slate-900 dark:ring-white' :
-                        isToday ? 'bg-red-50 dark:bg-red-900/20 ring-2 ring-red-600' :
+                        isToday ? 'bg-teamColor/5 dark:bg-teamColor/10 ring-2 ring-teamColor' :
                         dayEvents.length > 0 ? 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700' :
                         'hover:bg-slate-50 dark:hover:bg-slate-700/30'
                       }`}
                     >
                       <span className={`text-[10px] font-black block mb-0.5 ${
                         isSelected ? 'text-white dark:text-slate-900' :
-                        isToday ? 'text-red-600' :
+                        isToday ? 'text-teamColor' :
                         'text-slate-700 dark:text-slate-200'
                       }`}>{day}</span>
                       <div className="space-y-0.5">
@@ -775,14 +775,14 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[300] p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-4 border-red-600 max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-4 border-teamColor max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                  <CalendarDays size={18} className="text-red-600" />
+                  <CalendarDays size={18} className="text-teamColor" />
                   {editingEvent ? 'Edit Event' : 'Add Event'}
                 </h2>
-                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">
+                <p className="text-[10px] text-teamColor font-bold uppercase tracking-widest mt-0.5">
                   {editingEvent ? 'Update calendar event' : 'Add to season calendar'}
                 </p>
               </div>
@@ -796,7 +796,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                 <input
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   placeholder="Event title"
                 />
               </div>
@@ -847,7 +847,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     type="date"
                     value={form.startDate}
                     onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   />
                 </div>
                 <div>
@@ -856,7 +856,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     type="date"
                     value={form.endDate}
                     onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   />
                 </div>
               </div>
@@ -868,7 +868,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     type="time"
                     value={form.startTime}
                     onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   />
                 </div>
                 <div>
@@ -877,7 +877,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     type="time"
                     value={form.endTime}
                     onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   />
                 </div>
               </div>
@@ -905,7 +905,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                       type="date"
                       value={form.recurrenceEndsOn}
                       onChange={e => setForm(f => ({ ...f, recurrenceEndsOn: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                     />
                   </div>
                 )}
@@ -916,7 +916,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                 <input
                   value={form.location}
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm"
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
                   placeholder="Location or venue"
                 />
               </div>
@@ -926,7 +926,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                 <textarea
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white font-medium text-sm resize-none h-20"
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm resize-none h-20"
                   placeholder="Additional notes"
                 />
               </div>
@@ -936,7 +936,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 uppercase tracking-widest text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : (editingEvent ? 'Update Event' : 'Add Event')}
               </button>

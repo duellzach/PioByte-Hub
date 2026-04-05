@@ -353,7 +353,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
           value={certForm.name}
           onChange={(e) => setCertForm({ ...certForm, name: e.target.value })}
           placeholder="e.g. Drill Press Operation"
-          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 font-black uppercase tracking-tight dark:text-white transition-all"
+          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-black uppercase tracking-tight dark:text-white transition-all"
         />
       </div>
       <div>
@@ -362,7 +362,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
           value={certForm.equipment}
           onChange={(e) => setCertForm({ ...certForm, equipment: e.target.value })}
           placeholder="e.g. Drill Press, CNC Router"
-          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 font-medium dark:text-white transition-all"
+          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-medium dark:text-white transition-all"
         />
       </div>
       <div>
@@ -372,7 +372,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
           onChange={(e) => setCertForm({ ...certForm, description: e.target.value })}
           placeholder="What does this certification cover?"
           rows={3}
-          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 font-medium dark:text-white resize-none transition-all"
+          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-medium dark:text-white resize-none transition-all"
         />
       </div>
       <div>
@@ -382,7 +382,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
           onChange={(e) => setCertForm({ ...certForm, safetyGuide: e.target.value })}
           placeholder="Safety procedures, rules, and guidelines..."
           rows={4}
-          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-red-600 font-medium dark:text-white resize-none transition-all"
+          className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-medium dark:text-white resize-none transition-all"
         />
       </div>
       <div>
@@ -437,7 +437,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               }
             }}
             placeholder="Add checklist item (press Enter)"
-            className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 text-sm font-medium dark:text-white transition-all"
+            className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor text-sm font-medium dark:text-white transition-all"
           />
           <button
             onClick={() => {
@@ -487,7 +487,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
         {canManageCerts && activeTab === 'certs' && (
           <button
             onClick={() => { resetCertForm(); setShowCreateModal(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] tracking-wider"
+            className="flex items-center gap-2 px-5 py-2.5 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-wider"
           >
             <Plus size={15} /> New Certification
           </button>
@@ -528,13 +528,13 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                     onClick={() => loadCertDetail(cert)}
                     className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
                       selectedCert?.id === cert.id
-                        ? 'bg-red-50 dark:bg-red-900/20 border-red-600/40 dark:border-red-600'
-                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-red-600/30'
+                        ? 'bg-teamColor/5 border-teamColor/40'
+                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-teamColor/30'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedCert?.id === cert.id ? 'bg-red-600 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedCert?.id === cert.id ? 'bg-teamColor text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
                           <ShieldCheck size={16} />
                         </div>
                         <div className="min-w-0">
@@ -688,7 +688,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                         <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                           <button
                             onClick={async () => { await handleRequestCert(selectedCert.id); await loadCertDetail(selectedCert); }}
-                            className="w-full py-3 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
                           >
                             <ClipboardList size={14} /> Request Training Certification
                           </button>
@@ -726,7 +726,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                         <select
                           value={grantUserId}
                           onChange={(e) => setGrantUserId(e.target.value)}
-                          className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-all dark:text-white"
+                          className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-medium outline-none focus:border-teamColor transition-all dark:text-white"
                         >
                           <option value="">Select user...</option>
                           {allUsers
@@ -979,13 +979,13 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
       {(showCreateModal || showEditModal) && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-xl shadow-2xl border-t-8 border-red-600 max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-xl shadow-2xl border-t-8 border-teamColor max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
                   {showCreateModal ? 'New Certification' : 'Edit Certification'}
                 </h2>
-                <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">Safety training configuration</p>
+                <p className="text-[10px] text-teamColor font-bold uppercase tracking-widest mt-0.5">Safety training configuration</p>
               </div>
               <button
                 onClick={() => { setShowCreateModal(false); setShowEditModal(false); setEditingCert(null); resetCertForm(); }}
@@ -1007,7 +1007,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               <button
                 onClick={showCreateModal ? handleCreateCert : handleEditCert}
                 disabled={!certForm.name.trim()}
-                className="flex-1 py-3 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
+                className="flex-1 py-3 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
               >
                 {showCreateModal ? 'Create Certification' : 'Save Changes'}
               </button>

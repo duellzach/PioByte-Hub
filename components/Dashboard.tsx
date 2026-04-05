@@ -147,7 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
               onClick={() => setAutoScroll(!autoScroll)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
                 autoScroll 
-                  ? 'bg-red-600 text-white' 
+                  ? 'bg-teamColor text-white' 
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600'
               }`}
             >
@@ -172,10 +172,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-black text-white tracking-tight uppercase">Live Pulse</h2>
-              <p className="text-[8px] font-black text-red-500 uppercase tracking-[0.3em]">Operational Flow</p>
+              <p className="text-[8px] font-black text-teamColor uppercase tracking-[0.3em]">Operational Flow</p>
             </div>
             <div className="flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_rgba(225,29,72,0.8)]" />
+               <div className="w-2 h-2 rounded-full bg-teamColor animate-pulse" />
             </div>
           </div>
 
@@ -259,7 +259,7 @@ const ProjectRow: React.FC<{
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <p className="text-[9px] md:text-[10px] text-slate-400 dark:text-slate-500 font-bold line-clamp-1 uppercase">{project.description}</p>
             {scrumMasterDisplay && (
-              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-700">
+              <span className="inline-flex items-center gap-1 text-[8px] md:text-[9px] font-black text-teamColor bg-teamColor/5 dark:bg-teamColor/10 px-2 py-0.5 rounded-full border border-teamColor/20">
                 <UserCheck size={10} />
                 SM: {scrumMasterDisplay}
               </span>
@@ -267,7 +267,7 @@ const ProjectRow: React.FC<{
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1 text-[9px] font-black text-red-600 dark:text-red-500">
+          <div className="hidden sm:flex items-center gap-1 text-[9px] font-black text-teamColor">
             <Activity size={12} />
             <span>{tasks[TaskStatus.InProgress].length} ACTIVE</span>
           </div>
@@ -309,7 +309,7 @@ const StatusColumn: React.FC<{
           isBlocked ? 'bg-red-600 animate-pulse' :
           status === TaskStatus.Backlog ? 'bg-purple-400' :
           status === TaskStatus.NotStarted ? 'bg-slate-300 dark:bg-slate-600' :
-          'bg-red-600'
+          'bg-teamColor'
         }`} />
         <span className={`text-[8px] font-black uppercase tracking-widest ${
           isBlocked ? 'text-red-600 dark:text-red-500' : 'text-slate-500 dark:text-slate-400'
@@ -327,7 +327,7 @@ const StatusColumn: React.FC<{
                 ? 'border-2 border-red-300 dark:border-red-700 ring-2 ring-red-500 ring-offset-1 dark:ring-offset-red-950'
                 : task.helpRequested
                   ? 'border border-red-600 dark:border-red-500'
-                  : 'border border-slate-100 dark:border-slate-600 hover:border-red-600/30'
+                  : 'border border-slate-100 dark:border-slate-600 hover:border-teamColor/30'
             }`}
           >
             <div className="flex justify-between items-center mb-0.5">
@@ -359,14 +359,14 @@ const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
     {livePulse.map((pulse: any, idx) => {
       if (pulse.type === 'announcement') {
         return (
-          <div key={`ann-${pulse.id}`} className="p-3 md:p-4 2xl:p-6 rounded-xl 2xl:rounded-2xl border-2 border-red-600/30 bg-red-600/10 overflow-hidden">
+          <div key={`ann-${pulse.id}`} className="p-3 md:p-4 2xl:p-6 rounded-xl 2xl:rounded-2xl border-2 border-teamColor/30 bg-teamColor/10 overflow-hidden">
             <div className="flex items-center gap-2 md:gap-3 mb-2 min-w-0">
-              <div className="w-8 h-8 2xl:w-10 2xl:h-10 bg-red-600 rounded-lg 2xl:rounded-xl flex items-center justify-center text-white flex-shrink-0">
+              <div className="w-8 h-8 2xl:w-10 2xl:h-10 bg-teamColor rounded-lg 2xl:rounded-xl flex items-center justify-center text-white flex-shrink-0">
                 <Megaphone size={14} />
               </div>
               <div className="min-w-0">
                 <p className="text-[9px] 2xl:text-[10px] font-black text-white uppercase truncate">{pulse.userName}</p>
-                <p className="text-[7px] 2xl:text-[8px] font-bold text-red-500 uppercase tracking-widest truncate">
+                <p className="text-[7px] 2xl:text-[8px] font-bold text-teamColor/70 uppercase tracking-widest truncate">
                   {pulse.scope === 'Global' ? 'GLOBAL' : pulse.targetDepartment}
                 </p>
               </div>

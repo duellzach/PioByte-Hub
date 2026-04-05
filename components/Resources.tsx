@@ -166,12 +166,12 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Resources</h1>
-          <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-0.5">Team Links & External Information Hub</p>
+          <p className="text-[10px] font-black text-teamColor uppercase tracking-[0.3em] mt-0.5">Team Links & External Information Hub</p>
         </div>
         {isPrivilegedUser && !showForm && (
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 text-xs uppercase tracking-widest transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 text-xs uppercase tracking-widest transition-all"
           >
             <Plus size={14} /> Add Resource
           </button>
@@ -179,13 +179,13 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
       </div>
 
       {showForm && (
-        <div className="bg-white dark:bg-slate-800 border-2 border-red-600/30 rounded-2xl p-5 animate-in slide-in-from-top duration-200">
+        <div className="bg-white dark:bg-slate-800 border-2 border-teamColor/30 rounded-2xl p-5 animate-in slide-in-from-top duration-200">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
                 {editTarget ? 'Edit Resource' : 'Add Resource'}
               </h2>
-              <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest mt-0.5">
+              <p className="text-[9px] text-teamColor font-bold uppercase tracking-widest mt-0.5">
                 {editTarget ? 'Update link details' : 'Add a new link to the hub'}
               </p>
             </div>
@@ -201,7 +201,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="e.g. WPILib Documentation"
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white text-sm font-medium transition-colors"
               />
             </div>
 
@@ -211,7 +211,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 value={form.url}
                 onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
                 placeholder="https://..."
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white text-sm font-medium transition-colors"
               />
             </div>
 
@@ -226,7 +226,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                 placeholder="e.g. Software, Scouting, Safety..."
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white text-sm font-medium transition-colors"
               />
               <datalist id="resource-categories">
                 {availableCategories.map(cat => (
@@ -259,7 +259,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Short description of this resource..."
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 dark:text-white text-sm font-medium transition-colors"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white text-sm font-medium transition-colors"
               />
             </div>
 
@@ -270,7 +270,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                   onClick={() => setForm(f => ({ ...f, pinned: !f.pinned }))}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${
                     form.pinned
-                      ? 'bg-red-600 text-white'
+                      ? 'bg-teamColor text-white'
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                   }`}
                 >
@@ -295,7 +295,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-black rounded-xl text-sm uppercase tracking-widest hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-teamColor text-white font-black rounded-xl text-sm uppercase tracking-widest hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all disabled:opacity-50"
             >
               {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Check size={14} /> {editTarget ? 'Save Changes' : 'Add Resource'}</>}
             </button>
@@ -311,7 +311,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search resources..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:border-red-600 transition-colors dark:text-white dark:placeholder-slate-400"
+            className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:border-teamColor transition-colors dark:text-white dark:placeholder-slate-400"
           />
         </div>
       </div>
@@ -343,7 +343,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
           {pinned.length > 0 && (
             <div>
               <h2 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Zap size={10} className="text-red-600" fill="currentColor" /> Pinned
+                <Zap size={10} className="text-teamColor" fill="currentColor" /> Pinned
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {pinned.map(r => (
@@ -399,7 +399,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                   <>
                     <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No {activeCategory} resources yet</p>
                     {isPrivilegedUser && !showForm && (
-                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
+                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-teamColor text-white text-xs font-black rounded-lg hover:opacity-90 uppercase tracking-widest transition-all">
                         Add a {activeCategory} resource
                       </button>
                     )}
@@ -408,7 +408,7 @@ const Resources: React.FC<ResourcesProps> = ({ currentUser, users }) => {
                   <>
                     <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-sm">No resources yet</p>
                     {isPrivilegedUser && !showForm && (
-                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black rounded-lg hover:bg-red-700 uppercase tracking-widest transition-all">
+                      <button onClick={openAdd} className="mt-4 px-4 py-2 bg-teamColor text-white text-xs font-black rounded-lg hover:opacity-90 uppercase tracking-widest transition-all">
                         Add the first resource
                       </button>
                     )}
@@ -463,14 +463,14 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, allC
   const meta = getCatMeta(resource.category, allCategories);
 
   return (
-    <div className="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-red-600/40 hover:shadow-lg hover:shadow-red-600/5 transition-all flex flex-col">
+    <div className="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-teamColor/40 hover:shadow-lg hover:shadow-teamColor/5 transition-all flex flex-col">
       {canEdit && (
         <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
           {isCoach && (
             <button
               onClick={e => { e.preventDefault(); onPinToggle(); }}
               title={resource.pinned ? 'Unpin' : 'Pin to top'}
-              className={`p-1.5 rounded-lg transition-colors ${resource.pinned ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-red-600'}`}
+              className={`p-1.5 rounded-lg transition-colors ${resource.pinned ? 'bg-teamColor/10 text-teamColor' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-teamColor'}`}
             >
               <Zap size={11} fill={resource.pinned ? 'currentColor' : 'none'} />
             </button>
@@ -503,12 +503,12 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, allC
             {meta.icon}
             {resource.category}
           </div>
-          {resource.pinned && <Zap size={9} className="text-red-600 flex-shrink-0 mt-1.5" fill="currentColor" />}
+          {resource.pinned && <Zap size={9} className="text-teamColor flex-shrink-0 mt-1.5" fill="currentColor" />}
         </div>
 
-        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1 group-hover:text-red-600 transition-colors flex items-center gap-1.5">
+        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1 group-hover:text-teamColor transition-colors flex items-center gap-1.5">
           {resource.title}
-          <ChevronRight size={12} className="text-slate-300 dark:text-slate-600 group-hover:text-red-600 transition-colors ml-auto flex-shrink-0" />
+          <ChevronRight size={12} className="text-slate-300 dark:text-slate-600 group-hover:text-teamColor transition-colors ml-auto flex-shrink-0" />
         </h3>
 
         {resource.description && (

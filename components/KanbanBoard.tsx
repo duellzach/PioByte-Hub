@@ -233,7 +233,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               <select 
                 value={activeBoardKey} 
                 onChange={(e) => selectBoard(e.target.value)}
-                className="flex-1 min-w-0 sm:flex-none sm:min-w-[160px] md:min-w-[200px] px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 font-bold text-sm text-slate-800 dark:text-white shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
+                className="flex-1 min-w-0 sm:flex-none sm:min-w-[160px] md:min-w-[200px] px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 font-bold text-sm text-slate-800 dark:text-white shadow-sm outline-none focus:ring-2 focus:ring-teamColor/20"
               >
                 <optgroup label="Projects">
                   {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -275,7 +275,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                 <select 
                   value={deptFilter} 
                   onChange={(e) => setDeptFilter(e.target.value as Department | 'All')}
-                  className="hidden sm:block px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm outline-none focus:ring-2 focus:ring-red-600/20"
+                  className="hidden sm:block px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm outline-none focus:ring-2 focus:ring-teamColor/20"
                 >
                   <option value="All">All Depts</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -292,7 +292,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
           {canCreateTask && (
             <button 
               onClick={() => setShowAddModal(true)}
-              className="ml-auto flex items-center justify-center gap-1 md:gap-2 px-4 md:px-6 py-2 md:py-3 bg-red-600 text-white font-black rounded-xl md:rounded-2xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase text-[10px] md:text-xs tracking-wider"
+              className="ml-auto flex items-center justify-center gap-1 md:gap-2 px-4 md:px-6 py-2 md:py-3 bg-teamColor text-white font-black rounded-xl md:rounded-2xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] md:text-xs tracking-wider"
             >
               <Plus size={16} />
               <span className="hidden sm:inline">New</span> Task
@@ -454,7 +454,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 
       {showNewProjectModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-12 shadow-2xl border-t-8 border-red-600">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-12 shadow-2xl border-t-8 border-teamColor">
             <div className="flex justify-between items-start mb-6 md:mb-10">
               <div>
                 <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">New Project</h2>
@@ -473,7 +473,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="e.g. Robot Build 2025"
-                  className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-black text-base md:text-lg uppercase tracking-tight text-slate-900 dark:text-white"
+                  className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-black text-base md:text-lg uppercase tracking-tight text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -483,14 +483,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   value={newProjectDesc}
                   onChange={(e) => setNewProjectDesc(e.target.value)}
                   placeholder="What's this project about?"
-                  className="w-full h-24 md:h-32 p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-red-600 transition-all font-bold text-slate-700 dark:text-slate-300 resize-none"
+                  className="w-full h-24 md:h-32 p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-slate-700 dark:text-slate-300 resize-none"
                 />
               </div>
 
               <button 
                 onClick={handleCreateProject}
                 disabled={!newProjectName.trim()}
-                className="w-full py-4 md:py-6 bg-red-600 text-white font-black rounded-xl md:rounded-[32px] hover:bg-red-700 shadow-2xl shadow-red-600/20 transition-all uppercase tracking-widest text-xs md:text-sm flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50"
+                className="w-full py-4 md:py-6 bg-teamColor text-white font-black rounded-xl md:rounded-[32px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-widest text-xs md:text-sm flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50"
               >
                 <Folder size={16} />
                 Create Project
