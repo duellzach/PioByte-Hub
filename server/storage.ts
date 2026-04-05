@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -1125,7 +1125,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(matchExceptions).where(and(eq(matchExceptions.eventId, eventId), eq(matchExceptions.userId, userId), eq(matchExceptions.matchNumber, matchNumber)));
   }
 
-  private defaultTeamSettings() {
+  private defaultTeamSettings(): InsertTeamSettings {
     return {
       teamNumber: 10991,
       teamName: 'piobyte',
@@ -1156,7 +1156,7 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(teamSettings);
     if (row) return row;
     const defaults = this.defaultTeamSettings();
-    const [created] = await db.insert(teamSettings).values(defaults as any).returning();
+    const [created] = await db.insert(teamSettings).values(defaults).returning();
     return created;
   }
 
@@ -1164,13 +1164,13 @@ export class DatabaseStorage implements IStorage {
     const existing = await db.select().from(teamSettings);
     if (existing.length > 0) {
       const [updated] = await db.update(teamSettings)
-        .set({ ...data, updatedAt: new Date() } as any)
+        .set({ ...(data as Partial<InsertTeamSettings>), updatedAt: new Date() })
         .where(eq(teamSettings.id, existing[0].id))
         .returning();
       return updated;
     }
-    const defaults = this.defaultTeamSettings();
-    const [created] = await db.insert(teamSettings).values({ ...defaults, ...data } as any).returning();
+    const merged: InsertTeamSettings = { ...this.defaultTeamSettings(), ...data };
+    const [created] = await db.insert(teamSettings).values(merged).returning();
     return created;
   }
 

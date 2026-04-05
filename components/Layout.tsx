@@ -136,7 +136,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <TeamLogo className="w-7 h-7 rounded" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-black text-sm leading-tight tracking-tighter uppercase truncate">{settings.teamName}</h1>
+              <h1 className="font-black text-sm leading-tight tracking-tighter uppercase truncate">{settings.teamName} Hub</h1>
               <p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: settings.themeColor }}>Team {settings.teamNumber}</p>
             </div>
           </div>
@@ -238,7 +238,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
                 <TeamLogo className="w-7 h-7" />
               </div>
               <h2 className="text-sm md:text-lg font-black text-slate-900 dark:text-white tracking-tight uppercase">
-                <span className="hidden sm:inline">PIO-BYTES </span>HUB
+                <span className="hidden sm:inline">{settings.teamName.toUpperCase()} </span>HUB
               </h2>
             </div>
           </div>

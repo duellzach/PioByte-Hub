@@ -91,9 +91,11 @@ router.get("/settings/tba-logo", async (req, res) => {
       });
       if (!response.ok) continue;
       const media: any[] = await response.json();
-      const avatar = media.find((m: any) => m.type === 'avatar' && m.details?.base64Image);
-      if (avatar) {
-        return res.json({ logoUrl: `data:image/png;base64,${avatar.details.base64Image}` });
+      const match = media.find((m: any) =>
+        ['avatar', 'logo'].includes(m.type) && m.details?.base64Image
+      );
+      if (match) {
+        return res.json({ logoUrl: `data:image/png;base64,${match.details.base64Image}` });
       }
     }
 

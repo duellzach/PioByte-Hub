@@ -42,7 +42,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const { settings, setSettings } = useTeamSettings();
 
   const isCoachOrCaptain = currentUserRoles.some(r =>
-    ['Coach', 'Team Captain', 'SCRUM Master'].includes(r)
+    ['Coach', 'Team Captain'].includes(r)
   );
 
   const [form, setForm] = useState<TeamSettingsData>({ ...settings });
@@ -193,7 +193,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 value={form.teamNumber}
                 onChange={e => setForm(f => ({ ...f, teamNumber: parseInt(e.target.value) || 0 }))}
                 className="w-full px-3 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-1"
-                style={{ '--tw-ring-color': form.themeColor } as any}
+                style={{ '--tw-ring-color': form.themeColor } as React.CSSProperties & Record<string, string>}
                 placeholder="10991"
               />
             </div>
