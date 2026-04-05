@@ -75,7 +75,9 @@ async function buildIconPng(logoUrl: string | null, themeColor: string, teamNumb
     ctx.save();
     rr(64, 64, SIZE - 128, SIZE - 128, 44);
     ctx.clip();
-    ctx.drawImage(img, 64, 64, SIZE - 128, SIZE - 128);
+    if (img.naturalWidth > 0) {
+      ctx.drawImage(img, 64, 64, SIZE - 128, SIZE - 128);
+    }
     ctx.restore();
   } else {
     ctx.fillStyle = '#ffffff';
@@ -98,6 +100,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [form, setForm] = useState<TeamSettingsData>({ ...settings });
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [logoLoading, setLogoLoading] = useState(false);
   const [logoMsg, setLogoMsg] = useState<string | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -111,15 +114,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const handleSave = async () => {
     setSaving(true);
     setSaveSuccess(false);
+    setSaveError(null);
     try {
-      const iconPng = await buildIconPng(form.logoUrl, form.themeColor, form.teamNumber);
+      let iconPng: string | undefined;
+      try {
+        iconPng = await buildIconPng(form.logoUrl, form.themeColor, form.teamNumber);
+      } catch (iconErr) {
+        console.warn('Icon generation failed, saving without PNG icon:', iconErr);
+      }
       const updated = await api.settings.update({
         requesterId: currentUserId ? parseInt(currentUserId) : 0,
         teamNumber: form.teamNumber,
         teamName: form.teamName,
         themeColor: form.themeColor,
         logoUrl: form.logoUrl,
-        iconPng,
+        ...(iconPng ? { iconPng } : {}),
         departments: form.departments,
         roles: form.roles,
       });
@@ -127,7 +136,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
-      console.error(err);
+      console.error('Save failed:', err);
+      setSaveError('Save failed — please try again.');
+      setTimeout(() => setSaveError(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -213,6 +224,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {saveError && (
+            <span className="text-xs font-bold text-red-500 flex items-center gap-1">
+              <AlertTriangle size={12} /> {saveError}
+            </span>
+          )}
           <button
             onClick={() => { setResetConfirm(false); handleReset(); }}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl hover:border-slate-300 dark:hover:border-slate-500 transition-colors"
