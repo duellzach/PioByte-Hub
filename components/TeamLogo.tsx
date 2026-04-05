@@ -1,8 +1,21 @@
 import React from 'react';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
-const TeamLogo: React.FC<{ className?: string }> = ({ className }) => {
+interface TeamLogoProps {
+  className?: string;
+  teamNumber?: number;
+  logoUrl?: string | null;
+}
+
+const TeamLogo: React.FC<TeamLogoProps> = ({ className, teamNumber: teamNumberProp, logoUrl: logoUrlProp }) => {
   const { settings } = useTeamSettings();
+  const teamNumber = teamNumberProp ?? settings.teamNumber;
+  const logoUrl = logoUrlProp !== undefined ? logoUrlProp : settings.logoUrl;
+
+  if (logoUrl) {
+    return <img src={logoUrl} alt="Team logo" className={className} style={{ objectFit: 'contain' }} />;
+  }
+
   return (
     <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
       <rect width="100" height="100" rx="10" fill="currentColor" />
@@ -14,7 +27,7 @@ const TeamLogo: React.FC<{ className?: string }> = ({ className }) => {
       <circle cx="50" cy="48" r="16" fill="white" />
       <circle cx="50" cy="48" r="6" fill="black" />
       <circle cx="56" cy="48" r="2" fill="black" />
-      <text x="50" y="82" fontFamily="monospace" fontWeight="900" fontSize="19" fill="white" textAnchor="middle" letterSpacing="-1">{settings.teamNumber}</text>
+      <text x="50" y="82" fontFamily="monospace" fontWeight="900" fontSize="19" fill="white" textAnchor="middle" letterSpacing="-1">{teamNumber}</text>
     </svg>
   );
 };

@@ -133,10 +133,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         <div className="px-2 py-2 md:px-3 md:py-3 lg:px-3 lg:py-3 flex items-center justify-between border-b border-white/10 flex-shrink-0">
           <div className={`flex items-center gap-2.5 overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
             <div className="flex-shrink-0" style={{ color: settings.themeColor }}>
-              {settings.logoUrl
-                ? <img src={settings.logoUrl} alt="Team logo" className="w-7 h-7 rounded object-contain" />
-                : <TeamLogo className="w-7 h-7" />
-              }
+              <TeamLogo className="w-7 h-7 rounded" />
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="font-black text-sm leading-tight tracking-tighter uppercase truncate">{settings.teamName}</h1>

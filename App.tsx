@@ -519,7 +519,10 @@ const App: React.FC = () => {
               <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
               <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
               <Route path="/control-panel" element={
-                <ControlPanel currentUserRoles={state.currentUser?.roles || []} />
+                <ControlPanel
+                  currentUserRoles={state.currentUser?.roles || []}
+                  currentUserId={state.currentUser?.id || null}
+                />
               } />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

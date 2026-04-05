@@ -6,6 +6,7 @@ import { api } from '../services/api';
 
 interface ControlPanelProps {
   currentUserRoles: string[];
+  currentUserId: string | null;
 }
 
 const THEME_PRESETS = [
@@ -37,7 +38,7 @@ const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.
   </div>
 );
 
-const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles }) => {
+const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUserId }) => {
   const { settings, setSettings } = useTeamSettings();
 
   const isCoachOrCaptain = currentUserRoles.some(r =>
@@ -62,6 +63,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles }) => {
     setSaveSuccess(false);
     try {
       const updated = await api.settings.update({
+        requesterId: currentUserId ? parseInt(currentUserId) : 0,
         teamNumber: form.teamNumber,
         teamName: form.teamName,
         themeColor: form.themeColor,
@@ -83,7 +85,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles }) => {
     if (!resetConfirm) { setResetConfirm(true); return; }
     setSaving(true);
     try {
-      const updated = await api.settings.reset();
+      const updated = await api.settings.reset(currentUserId ? parseInt(currentUserId) : 0);
       setForm({ ...updated });
       setSettings(updated);
       setResetConfirm(false);

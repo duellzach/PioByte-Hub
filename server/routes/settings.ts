@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
 
 const router = Router();
 
@@ -35,7 +36,13 @@ router.get("/settings", async (req, res) => {
 
 router.put("/settings", async (req, res) => {
   try {
-    const settings = await storage.upsertTeamSettings(req.body);
+    const { requesterId, ...data } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can modify team settings" });
+    }
+    const settings = await storage.upsertTeamSettings(data);
     res.json(settings);
   } catch (error) {
     console.error("Error updating team settings:", error);
@@ -45,6 +52,12 @@ router.put("/settings", async (req, res) => {
 
 router.post("/settings/reset", async (req, res) => {
   try {
+    const { requesterId } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can reset team settings" });
+    }
     const settings = await storage.upsertTeamSettings({
       teamNumber: 10991,
       teamName: 'piobyte',

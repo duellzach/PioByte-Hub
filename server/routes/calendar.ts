@@ -93,7 +93,9 @@ router.get("/calendar/tba-preview", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can import events" });
     }
-    const data = await tbaFetch("/team/frc10991/events/2026");
+    const teamSettings = await storage.getTeamSettings();
+    const year = new Date().getFullYear();
+    const data = await tbaFetch(`/team/frc${teamSettings.teamNumber}/events/${year}`);
     const events = Array.isArray(data) ? data : [];
     const mapped = events.map((e: any) => ({
       key: e.key,
