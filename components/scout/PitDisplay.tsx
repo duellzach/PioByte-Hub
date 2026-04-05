@@ -520,7 +520,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                     const hasScouted = pitScouts.some((ps: any) => ps.teamNumber === num);
                     return (
                       <span key={teamKey} onClick={(e) => { e.stopPropagation(); if (hasScouted) onOpenRobotByNumber(num); }}
-                        className={`${hasScouted ? 'text-red-600 underline cursor-pointer hover:text-red-800' : 'text-slate-700 dark:text-slate-300'} font-black`}>
+                        className={`${hasScouted ? 'text-teamColor underline cursor-pointer hover:opacity-70' : 'text-slate-700 dark:text-slate-300'} font-black`}>
                         {num}
                       </span>
                     );
@@ -530,8 +530,8 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                     <div className="space-y-6">
                       {upcomingMatches.length > 0 && (
                         <div>
-                          <h4 className="text-xs font-black text-red-600 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                          <h4 className="text-xs font-black text-teamColor uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-teamColor rounded-full animate-pulse" />
                             Up Next
                           </h4>
                           <div className="space-y-2">
@@ -684,7 +684,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                       .map(([teamNum, r]) => {
                         const isOurTeam = teamNum === teamNumber;
                         return (
-                          <tr key={teamNum} className={`transition-colors ${isOurTeam ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                          <tr key={teamNum} className={`transition-colors ${isOurTeam ? 'bg-teamColor/5' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
                             <td className="py-2.5 pr-4">
                               <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-black ${
                                 r.rank === 1 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' :
@@ -695,12 +695,12 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                             </td>
                             <td className="py-2.5">
                               <div className="flex items-center gap-2">
-                                <span className={`font-black ${isOurTeam ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>Team {teamNum}</span>
-                                {isOurTeam && <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black rounded uppercase tracking-widest">Us</span>}
+                                <span className={`font-black ${isOurTeam ? 'text-teamColor' : 'text-slate-900 dark:text-white'}`}>Team {teamNum}</span>
+                                {isOurTeam && <span className="px-2 py-0.5 bg-teamColor text-white text-[9px] font-black rounded uppercase tracking-widest">Us</span>}
                               </div>
                             </td>
                             <td className="py-2.5 text-right">
-                              <span className={`text-xs font-black tabular-nums ${isOurTeam ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>{r.rp.toFixed(2)}</span>
+                              <span className={`text-xs font-black tabular-nums ${isOurTeam ? 'text-teamColor' : 'text-slate-700 dark:text-slate-300'}`}>{r.rp.toFixed(2)}</span>
                             </td>
                             <td className="py-2.5 text-right">
                               <span className="text-xs font-bold text-slate-600 dark:text-slate-400 tabular-nums">{r.record}</span>
@@ -751,7 +751,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                       : null;
                     return (
                       <div key={ps.id} onClick={() => onSetSelectedRobot(ps)}
-                        className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all">
+                        className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 cursor-pointer hover:border-teamColor/40 hover:bg-teamColor/5 transition-all">
                         <span className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-lg ${
                           idx === 0 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' :
                           idx === 1 ? 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300' :

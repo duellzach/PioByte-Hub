@@ -568,11 +568,11 @@ const App: React.FC = () => {
         {annToast && (
           <div className="fixed bottom-6 right-6 z-[400] animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-sm w-full">
             <div className="bg-slate-950 dark:bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center">
+              <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: teamSettings.themeColor }}>
                 <Bell size={14} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-0.5">
+                <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: teamSettings.themeColor }}>
                   {annToast.scope === 'Global' ? 'Global Announcement' : `${annToast.dept} Announcement`}
                 </p>
                 {annToast.authorName && (
@@ -583,7 +583,8 @@ const App: React.FC = () => {
                 </p>
                 <button
                   onClick={() => { window.location.hash = '#/'; setAnnToast(null); }}
-                  className="mt-2 text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest transition-colors"
+                  className="mt-2 text-[9px] font-black uppercase tracking-widest transition-colors hover:opacity-70"
+                  style={{ color: teamSettings.themeColor }}
                 >
                   View &rarr;
                 </button>
