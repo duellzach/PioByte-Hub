@@ -73,6 +73,25 @@ router.post("/settings/reset", async (req, res) => {
   }
 });
 
+router.get("/settings/pwa-icon.png", async (req, res) => {
+  try {
+    const settings = await storage.getTeamSettings();
+    const iconPng = settings.iconPng as string | null;
+    if (iconPng) {
+      const base64 = iconPng.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64, 'base64');
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.send(buffer);
+    }
+    // No icon stored yet — redirect to the static fallback
+    res.redirect('/icon-192.png');
+  } catch (error) {
+    console.error("Error serving PWA PNG icon:", error);
+    res.redirect('/icon-192.png');
+  }
+});
+
 router.get("/settings/pwa-icon.svg", async (req, res) => {
   try {
     const settings = await storage.getTeamSettings();
