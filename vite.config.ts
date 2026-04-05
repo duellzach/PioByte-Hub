@@ -13,7 +13,11 @@ export default defineConfig(({ mode }) => {
           '/api': {
             target: 'http://localhost:3001',
             changeOrigin: true,
-          }
+          },
+          '/manifest.json': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
         }
       },
       plugins: [react()],

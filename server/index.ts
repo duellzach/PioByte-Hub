@@ -27,6 +27,35 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 const isProduction = process.env.NODE_ENV === "production";
+
+// Dynamic manifest.json — always served before static files so it reflects current team settings
+app.get("/manifest.json", async (req, res) => {
+  try {
+    const settings = await storage.getTeamSettings();
+    const name = (settings.teamName as string) || 'PioByte Hub';
+    const color = (settings.themeColor as string) || '#dc2626';
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.json({
+      name,
+      short_name: name,
+      description: `FRC Team ${settings.teamNumber} Project Management & Scouting`,
+      start_url: "/",
+      display: "standalone",
+      background_color: "#0f172a",
+      theme_color: color,
+      orientation: "any",
+      icons: [
+        { src: "/api/settings/pwa-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+        { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      ],
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to generate manifest" });
+  }
+});
+
 if (isProduction) {
   app.use('/sw.js', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-cache');

@@ -73,6 +73,44 @@ router.post("/settings/reset", async (req, res) => {
   }
 });
 
+router.get("/settings/pwa-icon.svg", async (req, res) => {
+  try {
+    const settings = await storage.getTeamSettings();
+    const color = (settings.themeColor as string) || '#dc2626';
+    const logo = settings.logoUrl as string | null;
+    const teamNumber = (settings.teamNumber as number) || 10991;
+
+    let innerContent: string;
+    if (logo) {
+      // Logo image centered inside a white padded inset (border = theme color background)
+      innerContent = `
+  <rect x="36" y="36" width="440" height="440" rx="56" fill="white"/>
+  <image x="64" y="64" width="384" height="384" href="${logo}" preserveAspectRatio="xMidYMid meet" clip-path="url(#imgClip)"/>`;
+    } else {
+      // Fallback: team number text on colored background
+      innerContent = `
+  <text x="256" y="310" font-family="Arial Black, Arial" font-size="200" font-weight="900" fill="white" text-anchor="middle">${teamNumber}</text>`;
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="imgClip">
+      <rect x="64" y="64" width="384" height="384" rx="44"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="80" fill="${color}"/>
+  ${innerContent}
+</svg>`;
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(svg);
+  } catch (error) {
+    console.error("Error generating PWA icon:", error);
+    res.status(500).send('Error generating icon');
+  }
+});
+
 router.get("/settings/tba-logo", async (req, res) => {
   try {
     const teamNum = req.query.team as string;
