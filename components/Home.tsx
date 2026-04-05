@@ -3,6 +3,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, Task, Notification, TaskStatus, Role, Announcement, Department, Comment } from '../types';
 import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X, AtSign, Plus, BarChart3, TrendingUp, Trash2, Calendar } from 'lucide-react';
 import { api } from '../services/api';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +19,7 @@ interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, onAddAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement, onNotify }) => {
+  const { settings } = useTeamSettings();
   const user = state.currentUser;
   const navigate = useNavigate();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -315,7 +317,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           <p className="text-[11px] font-black text-red-600 uppercase tracking-[0.2em]">Operational Dashboard</p>
           <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-tight">Welcome, {user?.name.split(' ')[0]}</h1>
           <div className="flex items-center gap-6 mt-3">
-              <p className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs">Team 10991 • PioBytes Robotics</p>
+              <p className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs">Team {settings.teamNumber} • {settings.teamName}</p>
               <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
               <div className="flex items-center gap-2">
                 <TrendingUp size={14} className="text-red-600" />

@@ -21,7 +21,11 @@ module.exports = {
     'dark:text-slate-300',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        teamColor: 'var(--team-color)',
+      },
+    },
   },
   plugins: [
     require('tailwindcss-animate'),

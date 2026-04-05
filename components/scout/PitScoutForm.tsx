@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Camera } from 'lucide-react';
 import { RatingSlider, StarRating, TagInput } from './shared';
+import { useTeamSettings } from '../../contexts/TeamSettingsContext';
 
 interface PitScoutFormProps {
   show: boolean;
@@ -15,6 +16,7 @@ interface PitScoutFormProps {
 const PitScoutForm: React.FC<PitScoutFormProps> = ({
   show, editingPit, pitForm, setPitForm, onClose, onSave, compressImage,
 }) => {
+  const { settings } = useTeamSettings();
   if (!show) return null;
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -40,7 +42,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
                 value={pitForm.teamNumber || ''}
                 onChange={(e) => setPitForm({ ...pitForm, teamNumber: parseInt(e.target.value) || 0 })}
                 className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
-                placeholder="10991"
+                placeholder={String(settings.teamNumber)}
               />
             </div>
             <div className="space-y-1">

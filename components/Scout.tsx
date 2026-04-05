@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
 import pako from 'pako';
@@ -21,6 +22,9 @@ interface ScoutProps {
 
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const location = useLocation();
+  const { settings } = useTeamSettings();
+  const teamNumber = settings.teamNumber;
+  const frcKey = `frc${teamNumber}`;
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display' | 'map'>('robots');
@@ -261,7 +265,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (!nexusData?.matches) return;
 
     const isOurMatch = (m: any) =>
-      (m.redTeams || []).includes(10991) || (m.blueTeams || []).includes(10991);
+      (m.redTeams || []).includes(teamNumber) || (m.blueTeams || []).includes(teamNumber);
 
     const getNextQueueTime = () => {
       const ourActive = nexusData.matches.find(
@@ -405,7 +409,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     try {
       const [allMatches, teamMatches, rankingsData] = await Promise.all([
         api.tba.getEventMatches(tbaEventKey),
-        api.tba.getTeamMatches('frc10991', tbaEventKey),
+        api.tba.getTeamMatches(frcKey, tbaEventKey),
         api.tba.getEventRankings(tbaEventKey).catch(() => null),
       ]);
       setTbaMatches(allMatches || []);
@@ -428,8 +432,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         for (const m of teamMatches) {
           if (m.winning_alliance === undefined || m.winning_alliance === null) continue;
           if (m.alliances?.red?.score === -1 && m.alliances?.blue?.score === -1) continue;
-          const isRed = m.alliances?.red?.team_keys?.includes('frc10991');
-          const isBlue = m.alliances?.blue?.team_keys?.includes('frc10991');
+          const isRed = m.alliances?.red?.team_keys?.includes(frcKey);
+          const isBlue = m.alliances?.blue?.team_keys?.includes(frcKey);
           const ourAlliance = isRed ? 'red' : isBlue ? 'blue' : null;
           if (!ourAlliance) continue;
           if (m.winning_alliance === '') { ties++; }
@@ -1621,7 +1625,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
                 const renderTeamBtn = (teamKey: string, alliance: 'Red' | 'Blue') => {
                   const teamNum = parseInt(teamKey.replace('frc', ''));
-                  const isOurTeam = teamNum === 10991;
+                  const isOurTeam = teamNum === teamNumber;
                   const alreadyScouted = matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === teamNum);
                   const claimKey = `${m.key}:${teamNum}`;
                   const claim = teamClaims[claimKey];
@@ -1885,7 +1889,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     const suggestedRobots = suggestedMatches.flatMap((m: any) => {
                       const redKeys: string[] = m.alliances?.red?.team_keys || [];
                       const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
-                      const ourAlliance = redKeys.includes('frc10991') ? 'red' : blueKeys.includes('frc10991') ? 'blue' : null;
+                      const ourAlliance = redKeys.includes(frcKey) ? 'red' : blueKeys.includes(frcKey) ? 'blue' : null;
                       const opponentKeys = ourAlliance === 'red' ? blueKeys : ourAlliance === 'blue' ? redKeys : [...redKeys, ...blueKeys];
                       const matchClaim = matchClaims[m.key];
                       const isClaimed = !!matchClaim;
@@ -1896,7 +1900,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       const matchType = m.comp_level === 'qm' ? 'qualification' : 'elimination';
                       return opponentKeys
                         .map((k: string) => parseInt(k.replace('frc', '')))
-                        .filter(n => n !== 10991)
+                        .filter(n => n !== teamNumber)
                         .filter(n => !pitScoutedNums.has(n))
                         .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === n))
                         .map(n => ({
@@ -2352,13 +2356,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     }
                   }
 
-                  // Build set of qual match numbers where Team 10991 is competing
+                  // Build set of qual match numbers where our team is competing
                   const ourMatchNums = new Set<number>();
                   for (const m of tbaMatches) {
                     if (m.comp_level !== 'qm') continue;
                     const redKeys: string[] = m.alliances?.red?.team_keys ?? [];
                     const blueKeys: string[] = m.alliances?.blue?.team_keys ?? [];
-                    if (redKeys.includes('frc10991') || blueKeys.includes('frc10991')) {
+                    if (redKeys.includes(frcKey) || blueKeys.includes(frcKey)) {
                       ourMatchNums.add(m.match_number as number);
                     }
                   }

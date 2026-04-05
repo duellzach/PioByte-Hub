@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Calendar, AlertCircle, Zap, Brain } from 'lucide-react';
+import { useTeamSettings } from '../../contexts/TeamSettingsContext';
 
 interface PitDisplayProps {
   pitSubTab: 'live' | 'rankings';
@@ -50,6 +51,9 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
   dismissedAnnouncements, setDismissedAnnouncements, dismissedParts, setDismissedParts,
   onOpenRobotByNumber, onSetSelectedRobot, onGenerateGeminiReport,
 }) => {
+  const { settings } = useTeamSettings();
+  const teamNumber = settings.teamNumber;
+  const frcKey = `frc${teamNumber}`;
   return (
     <div className="space-y-6 md:space-y-8">
 
@@ -237,7 +241,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   <div className="p-6 space-y-6">
                     {(() => {
                       const ourMatches = (nexusData.matches || []).filter(
-                        (m: any) => (m.redTeams || []).includes(10991) || (m.blueTeams || []).includes(10991)
+                        (m: any) => (m.redTeams || []).includes(teamNumber) || (m.blueTeams || []).includes(teamNumber)
                       );
                       const activeMatch = ourMatches.find((m: any) =>
                         m.status === 'Now queuing' || m.status === 'On deck' || m.status === 'On field'
@@ -254,13 +258,13 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
 
                       const teamBadge = (num: number, alliance: 'red' | 'blue') => (
                         <span key={num} className={`px-2 py-1 rounded-lg text-[11px] font-black ${
-                          num === 10991
+                          num === teamNumber
                             ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-black'
                             : alliance === 'red'
                             ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                             : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                         }`}>
-                          {num === 10991 ? '★ ' : ''}{num}
+                          {num === teamNumber ? '★ ' : ''}{num}
                         </span>
                       );
 
@@ -377,7 +381,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                                     </thead>
                                     <tbody>
                                       {next10.map((m: any, i: number) => {
-                                        const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(10991);
+                                        const isOurs = [...(m.redTeams || []), ...(m.blueTeams || [])].includes(teamNumber);
                                         const queueTime = m.times?.estimatedQueueTime;
                                         const startTime = m.times?.estimatedStartTime;
                                         return (
@@ -476,8 +480,8 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                 ) : (() => {
                   const teamMatches = tbaMatches
                     .filter((m: any) =>
-                      m.alliances?.red?.team_keys?.includes('frc10991') ||
-                      m.alliances?.blue?.team_keys?.includes('frc10991')
+                      m.alliances?.red?.team_keys?.includes(frcKey) ||
+                      m.alliances?.blue?.team_keys?.includes(frcKey)
                     )
                     .sort((a: any, b: any) => {
                       if (a.predicted_time && b.predicted_time) return a.predicted_time - b.predicted_time;
@@ -507,7 +511,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   };
 
                   const getOurAlliance = (m: any) => {
-                    if (m.alliances?.red?.team_keys?.includes('frc10991')) return 'red';
+                    if (m.alliances?.red?.team_keys?.includes(frcKey)) return 'red';
                     return 'blue';
                   };
 
@@ -533,7 +537,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                           <div className="space-y-2">
                             {upcomingMatches.slice(0, 10).map((m: any) => {
                               const ourAlliance = getOurAlliance(m);
-                              const partnerKeys = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== 'frc10991');
+                              const partnerKeys = (m.alliances?.[ourAlliance]?.team_keys || []).filter((t: string) => t !== frcKey);
                               const opponentKeys = (m.alliances?.[ourAlliance === 'red' ? 'blue' : 'red']?.team_keys || []);
                               const time = m.predicted_time || m.time;
                               return (
@@ -647,7 +651,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
               </h3>
               {tbaRecord && (
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team 10991</span>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team {teamNumber}</span>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-black text-xs rounded-lg">{tbaRecord.wins}W</span>
                     <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-black text-xs rounded-lg">{tbaRecord.losses}L</span>
@@ -678,7 +682,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                     {Array.from(tbaRankings.entries())
                       .sort((a, b) => a[1].rank - b[1].rank)
                       .map(([teamNum, r]) => {
-                        const isOurTeam = teamNum === 10991;
+                        const isOurTeam = teamNum === teamNumber;
                         return (
                           <tr key={teamNum} className={`transition-colors ${isOurTeam ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
                             <td className="py-2.5 pr-4">

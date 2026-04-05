@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, X, MapPin, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-
-const OUR_TEAM = 10991;
-const ACCENT_COLOR = '#dc2626';
+import { useTeamSettings } from '../../contexts/TeamSettingsContext';
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.25;
@@ -18,6 +16,9 @@ interface PitMapProps {
 }
 
 const PitMap: React.FC<PitMapProps> = ({ mapData, loading, error, eventKey, onRefresh, teamNames, scoutedTeams }) => {
+  const { settings } = useTeamSettings();
+  const OUR_TEAM = settings.teamNumber;
+  const ACCENT_COLOR = settings.themeColor;
   const [searchTeam, setSearchTeam] = useState('');
   const [highlightedTeam, setHighlightedTeam] = useState<string | null>(null);
   const [teamNicknames, setTeamNicknames] = useState<Record<string, string>>({});

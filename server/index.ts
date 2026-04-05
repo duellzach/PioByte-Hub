@@ -16,6 +16,7 @@ import alertsRouter from "./routes/alerts";
 import safetyRouter from "./routes/safety";
 import calendarRouter from "./routes/calendar";
 import resourcesRouter from "./routes/resources";
+import settingsRouter from "./routes/settings";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +46,7 @@ app.use("/api", alertsRouter);
 app.use("/api", safetyRouter);
 app.use("/api", calendarRouter);
 app.use("/api", resourcesRouter);
+app.use("/api", settingsRouter);
 
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {

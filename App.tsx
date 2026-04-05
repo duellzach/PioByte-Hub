@@ -9,6 +9,9 @@ import CoachTutorial from './components/CoachTutorial';
 import { api } from './services/api';
 import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
 import TeamLogo from './components/TeamLogo';
+import { TeamSettingsContext, TeamSettingsData, DEFAULT_TEAM_SETTINGS } from './contexts/TeamSettingsContext';
+
+const ControlPanel = lazy(() => import('./components/ControlPanel'));
 
 const Home = lazy(() => import('./components/Home'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -45,6 +48,7 @@ const App: React.FC = () => {
   const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('piobyte_dark_mode') === 'true');
+  const [teamSettings, setTeamSettings] = useState<TeamSettingsData>(DEFAULT_TEAM_SETTINGS);
   const [globalAlerts, setGlobalAlerts] = useState<any[]>([]);
   const [annToast, setAnnToast] = useState<{ text: string; scope: string; dept?: string; authorName?: string } | null>(null);
   const lastShownAnnRef = useRef<string | null>(localStorage.getItem('lastSeenAnnouncementId'));
@@ -213,6 +217,16 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    api.settings.get().then((s: TeamSettingsData) => {
+      setTeamSettings(s);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--team-color', teamSettings.themeColor);
+  }, [teamSettings.themeColor]);
+
+  useEffect(() => {
     const savedUserId = localStorage.getItem('frc_hub_active_user');
     if (savedUserId && state.users.length > 0 && !state.currentUser) {
       const user = state.users.find(u => u.id === savedUserId);
@@ -323,14 +337,15 @@ const App: React.FC = () => {
 
   if (!isLoggedIn) {
     return (
+      <TeamSettingsContext.Provider value={{ settings: teamSettings, setSettings: setTeamSettings }}>
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
         <div className="bg-white dark:bg-slate-900 rounded-[40px] p-16 w-full max-w-xl shadow-[0_0_100px_rgba(225,29,72,0.15)] animate-in zoom-in duration-500">
           <div className="text-center mb-12">
             <div className="w-32 h-32 mx-auto mb-8 shadow-2xl shadow-red-600/40 transform rotate-3">
                 <TeamLogo className="w-full h-full text-red-600" />
             </div>
-            <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-3 leading-tight">PIO-BYTES HUB</h1>
-            <p className="text-slate-400 font-black text-sm uppercase tracking-widest">TEAM 10991 ROBOTICS</p>
+            <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-3 leading-tight">{teamSettings.teamName} HUB</h1>
+            <p className="text-slate-400 font-black text-sm uppercase tracking-widest">TEAM {teamSettings.teamNumber} ROBOTICS</p>
           </div>
 
           {state.users.length === 0 && isCloudSynced ? (
@@ -380,6 +395,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+      </TeamSettingsContext.Provider>
     );
   }
 
@@ -405,6 +421,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <TeamSettingsContext.Provider value={{ settings: teamSettings, setSettings: setTeamSettings }}>
     <HashRouter>
       <Layout user={state.currentUser} notificationsCount={unreadCount} onLogout={handleLogout} isSynced={isCloudSynced} stats={layoutStats} darkMode={darkMode} onToggleDarkMode={() => setDarkMode(!darkMode)}>
         <ErrorBoundary>
@@ -501,6 +518,9 @@ const App: React.FC = () => {
               } />
               <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
               <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
+              <Route path="/control-panel" element={
+                <ControlPanel currentUserRoles={state.currentUser?.roles || []} />
+              } />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </Suspense>
@@ -613,6 +633,7 @@ const App: React.FC = () => {
         })()}
       </Layout>
     </HashRouter>
+    </TeamSettingsContext.Provider>
   );
 };
 

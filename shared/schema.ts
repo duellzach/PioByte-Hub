@@ -408,6 +408,20 @@ export const resources = pgTable("resources", {
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = typeof resources.$inferInsert;
 
+export const teamSettings = pgTable("team_settings", {
+  id: serial("id").primaryKey(),
+  teamNumber: integer("team_number").notNull().default(10991),
+  teamName: text("team_name").notNull().default("piobyte"),
+  themeColor: text("theme_color").notNull().default("#dc2626"),
+  logoUrl: text("logo_url"),
+  departments: jsonb("departments").$type<{ name: string; color: string }[]>().notNull().default([]),
+  roles: jsonb("roles").$type<{ name: string; tier: string }[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type TeamSettings = typeof teamSettings.$inferSelect;
+export type InsertTeamSettings = typeof teamSettings.$inferInsert;
+
 export const matchExceptions = pgTable("match_exceptions", {
   id: serial("id").primaryKey(),
   eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),

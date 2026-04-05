@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen, Settings } from 'lucide-react';
 import { api } from '../services/api';
 import TeamLogo from './TeamLogo';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,7 @@ const EXPIRY_OPTIONS = [
 ];
 
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
+  const { settings } = useTeamSettings();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -130,12 +132,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         {/* Logo header — compact */}
         <div className="px-2 py-2 md:px-3 md:py-3 lg:px-3 lg:py-3 flex items-center justify-between border-b border-white/10 flex-shrink-0">
           <div className={`flex items-center gap-2.5 overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
-            <div className="text-red-600 flex-shrink-0">
-              <TeamLogo className="w-7 h-7" />
+            <div className="flex-shrink-0" style={{ color: settings.themeColor }}>
+              {settings.logoUrl
+                ? <img src={settings.logoUrl} alt="Team logo" className="w-7 h-7 rounded object-contain" />
+                : <TeamLogo className="w-7 h-7" />
+              }
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-black text-sm leading-tight tracking-tighter uppercase truncate">PIO-BYTES</h1>
-              <p className="text-[9px] text-red-500 font-bold tracking-widest uppercase">Team 10991</p>
+              <h1 className="font-black text-sm leading-tight tracking-tighter uppercase truncate">{settings.teamName}</h1>
+              <p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: settings.themeColor }}>Team {settings.teamNumber}</p>
             </div>
           </div>
           
@@ -165,6 +170,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           <NavItem to="/safety" icon={<ShieldCheck size={16} />} label="SAFETY" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          {isCoachOrCaptain && (
+            <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          )}
           
           {/* Utility buttons — separated but compact */}
           <div className="mt-auto pt-2 border-t border-white/10 flex flex-col gap-0.5">

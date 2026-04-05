@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -187,6 +187,9 @@ export interface IStorage {
   getMatchExceptions(eventId: number): Promise<MatchException[]>;
   upsertMatchException(data: { eventId: number; userId: number; matchNumber: number; type: string; createdBy: number }): Promise<MatchException>;
   deleteMatchException(eventId: number, userId: number, matchNumber: number): Promise<void>;
+
+  getTeamSettings(): Promise<TeamSettings>;
+  upsertTeamSettings(data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>): Promise<TeamSettings>;
 
   seedDatabase(): Promise<void>;
 }
@@ -1120,6 +1123,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMatchException(eventId: number, userId: number, matchNumber: number): Promise<void> {
     await db.delete(matchExceptions).where(and(eq(matchExceptions.eventId, eventId), eq(matchExceptions.userId, userId), eq(matchExceptions.matchNumber, matchNumber)));
+  }
+
+  private defaultTeamSettings() {
+    return {
+      teamNumber: 10991,
+      teamName: 'piobyte',
+      themeColor: '#dc2626',
+      logoUrl: null,
+      departments: [
+        { name: 'Mechanical', color: '#f97316' },
+        { name: 'Software', color: '#3b82f6' },
+        { name: 'Modeling', color: '#8b5cf6' },
+        { name: 'Logistics', color: '#22c55e' },
+        { name: 'Electrical', color: '#eab308' },
+        { name: 'Business', color: '#14b8a6' },
+        { name: 'Leadership', color: '#ef4444' },
+      ],
+      roles: [
+        { name: 'Coach', tier: 'leadership' },
+        { name: 'Team Captain', tier: 'leadership' },
+        { name: 'SCRUM Master', tier: 'leadership' },
+        { name: 'Department Head', tier: 'lead' },
+        { name: 'Safety Trainer', tier: 'lead' },
+        { name: 'Team Member', tier: 'member' },
+        { name: 'Class Member', tier: 'member' },
+      ],
+    };
+  }
+
+  async getTeamSettings(): Promise<TeamSettings> {
+    const [row] = await db.select().from(teamSettings);
+    if (row) return row;
+    const defaults = this.defaultTeamSettings();
+    const [created] = await db.insert(teamSettings).values(defaults as any).returning();
+    return created;
+  }
+
+  async upsertTeamSettings(data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>): Promise<TeamSettings> {
+    const existing = await db.select().from(teamSettings);
+    if (existing.length > 0) {
+      const [updated] = await db.update(teamSettings)
+        .set({ ...data, updatedAt: new Date() } as any)
+        .where(eq(teamSettings.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    const defaults = this.defaultTeamSettings();
+    const [created] = await db.insert(teamSettings).values({ ...defaults, ...data } as any).returning();
+    return created;
   }
 
   async seedDatabase(): Promise<void> {

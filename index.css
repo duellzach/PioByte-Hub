@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --team-color: #dc2626;
+}
+
 body { font-family: 'Inter', sans-serif; }
 
 .kanban-scroll::-webkit-scrollbar { width: 6px; }

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
 interface CalendarEvent {
   id: number;
@@ -108,6 +109,7 @@ function expandRecurring(events: CalendarEvent[]): (CalendarEvent | VirtualInsta
 }
 
 const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
+  const { settings } = useTeamSettings();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -952,7 +954,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   <Trophy size={18} className="text-blue-600" /> Import from TBA
                 </h2>
                 <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mt-0.5">
-                  Team 10991 · 2026 Season Events
+                  Team {settings.teamNumber} · {today.getFullYear()} Season Events
                 </p>
               </div>
               <button onClick={() => setTbaModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
@@ -970,7 +972,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   <p className="text-sm font-bold">{tbaError}</p>
                 </div>
               ) : tbaEvents.length === 0 ? (
-                <p className="text-slate-400 dark:text-slate-500 text-sm font-bold text-center py-8">No events found for team 10991 in 2026.</p>
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-bold text-center py-8">No events found for team {settings.teamNumber} in {today.getFullYear()}.</p>
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between mb-3">

@@ -231,6 +231,12 @@ export const api = {
     tbaImport: (requesterId: number, events: any[]) =>
       apiRequest<{ created: number; skipped: number }>('/calendar/tba-import', { method: 'POST', body: JSON.stringify({ requesterId, events }) }),
   },
+  settings: {
+    get: () => apiRequest<any>('/settings'),
+    update: (data: any) => apiRequest<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+    reset: () => apiRequest<any>('/settings/reset', { method: 'POST' }),
+    fetchTbaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/tba-logo?team=${teamNumber}`),
+  },
   resources: {
     getAll: (category?: string) =>
       apiRequest<any[]>(`/resources${category ? `?category=${encodeURIComponent(category)}` : ''}`),

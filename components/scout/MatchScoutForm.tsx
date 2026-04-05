@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Counter, StarRating } from './shared';
+import { useTeamSettings } from '../../contexts/TeamSettingsContext';
 
 interface MatchScoutFormProps {
   show: boolean;
@@ -18,6 +19,7 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
   show, editingMatch, matchForm, setMatchForm, onClose, onSave,
   pitScouts, activeTeamClaimRef, onUnclaim,
 }) => {
+  const { settings } = useTeamSettings();
   const [customAutoInput, setCustomAutoInput] = useState('');
 
   const scoutedTeam = pitScouts.find((p: any) => p.teamNumber === matchForm.teamNumber);
@@ -101,7 +103,7 @@ const MatchScoutForm: React.FC<MatchScoutFormProps> = ({
               <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team Number</span>
               <input type="number" value={matchForm.teamNumber || ''} onChange={(e) => setMatchForm({ ...matchForm, teamNumber: parseInt(e.target.value) || 0 })}
                 className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-red-600 transition-all font-black text-lg"
-                placeholder="10991" />
+                placeholder={String(settings.teamNumber)} />
             </div>
           </div>
 
