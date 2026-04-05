@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Project, User, Department, Role } from '../types';
-import { DEPARTMENTS } from '../constants';
+import { Project, User, Role } from '../types';
 import { X, Settings, Archive, Eye, EyeOff, Users, Building2, UserPlus, UserCheck } from 'lucide-react';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
 interface BoardSettingsModalProps {
   project: Project;
@@ -20,6 +20,9 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
   onSave,
   onArchive 
 }) => {
+  const { settings } = useTeamSettings();
+  const deptNames = settings.departments.map(d => d.name);
+
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description);
   const [department, setDepartment] = useState<string>(project.department || '');
@@ -87,7 +90,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
             <input 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-black text-lg uppercase tracking-tight dark:text-white"
+              className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-black text-lg uppercase tracking-tight dark:text-white"
             />
           </div>
 
@@ -96,7 +99,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
             <textarea 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full h-24 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-medium text-slate-700 dark:text-slate-300 resize-none"
+              className="w-full h-24 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-medium text-slate-700 dark:text-slate-300 resize-none"
             />
           </div>
 
@@ -109,10 +112,10 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
               <select 
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-red-600 transition-all font-bold text-slate-700 dark:text-white"
+                className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-slate-700 dark:text-white"
               >
                 <option value="" className="dark:bg-slate-700">All Departments (Open)</option>
-                {DEPARTMENTS.map(d => (
+                {deptNames.map(d => (
                   <option key={d} value={d} className="dark:bg-slate-700">{d} Only</option>
                 ))}
               </select>
@@ -174,7 +177,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
                   onClick={() => handleScrumMasterToggle(user.id)}
                   className={`p-3 rounded-xl border-2 transition-all text-left ${
                     scrumMasters.includes(user.id)
-                      ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-600 text-red-700 dark:text-red-400'
+                      ? 'bg-teamColor/10 border-teamColor text-teamColor'
                       : 'bg-slate-50 dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-500'
                   }`}
                 >
@@ -215,7 +218,7 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
           <button 
             onClick={handleSave}
             disabled={!name.trim()}
-            className="flex-1 py-4 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
+            className="flex-1 py-4 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
           >
             Save Settings
           </button>

@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
 import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList } from 'lucide-react';
-import { DEPARTMENT_COLORS, ROLES, DEPARTMENTS } from '../constants';
 import { api } from '../services/api';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
 interface TeamProps {
   state: AppState;
@@ -12,6 +12,10 @@ interface TeamProps {
 }
 
 const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, onDeleteUser }) => {
+  const { settings } = useTeamSettings();
+  const deptNames = settings.departments.map(d => d.name);
+  const roleNames = settings.roles.map(r => r.name);
+
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
   const [roleFilter, setRoleFilter] = useState<Role | 'All'>('All');
@@ -344,7 +348,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     className="px-3 md:px-4 py-2 md:py-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest text-slate-700 dark:text-slate-200 focus:border-teamColor outline-none"
                 >
                     <option value="All">All Departments</option>
-                    {DEPARTMENTS.map(dept => (
+                    {deptNames.map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
                     ))}
                 </select>
@@ -354,7 +358,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     className="px-3 md:px-4 py-2 md:py-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest text-slate-700 dark:text-slate-200 focus:border-teamColor outline-none"
                 >
                     <option value="All">All Roles</option>
-                    {ROLES.map(role => (
+                    {roleNames.map(role => (
                         <option key={role} value={role}>{role}</option>
                     ))}
                 </select>
@@ -534,11 +538,15 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                               <div>
                                 <p className="text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 md:mb-3">Departments</p>
                                 <div className="flex flex-wrap gap-1 md:gap-2">
-                                    {user.departments.map(dept => (
-                                        <span key={dept} className="px-2 md:px-3 py-1 md:py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-tighter">
+                                    {user.departments.map(dept => {
+                                        const dc = settings.departments.find(d => d.name === dept)?.color || settings.themeColor;
+                                        return (
+                                          <span key={dept} className="px-2 md:px-3 py-1 md:py-1.5 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-tighter border"
+                                            style={{ backgroundColor: dc + '18', color: dc, borderColor: dc + '50' }}>
                                             {dept}
-                                        </span>
-                                    ))}
+                                          </span>
+                                        );
+                                    })}
                                 </div>
                               </div>
                             )}
@@ -553,7 +561,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                         </div>
                                         <div className="text-center">
                                             <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">EFFORT</p>
-                                            <p className="text-lg md:text-2xl font-black text-red-600">{stats.effort}</p>
+                                            <p className="text-lg md:text-2xl font-black text-teamColor">{stats.effort}</p>
                                         </div>
                                         <div className="text-center">
                                             <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">ACTIVE</p>
@@ -562,7 +570,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                     </div>
                                     <button 
                                         onClick={() => setSelectedUserForStats(user)}
-                                        className="w-full mt-4 md:mt-8 flex items-center justify-center gap-2 md:gap-3 py-2.5 md:py-4 text-[9px] md:text-[10px] font-black text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 rounded-xl md:rounded-2xl hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all uppercase tracking-widest"
+                                        className="w-full mt-4 md:mt-8 flex items-center justify-center gap-2 md:gap-3 py-2.5 md:py-4 text-[9px] md:text-[10px] font-black text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 rounded-xl md:rounded-2xl hover:bg-teamColor hover:text-white transition-all uppercase tracking-widest"
                                     >
                                         <BarChart2 size={12} /> View Performance
                                     </button>
@@ -702,7 +710,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         {isCoach && (
                           <section>
                             <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 md:mb-4 flex items-center gap-2">
-                                <Edit3 size={12} className="text-red-600" /> Profile Information
+                                <Edit3 size={12} className="text-teamColor" /> Profile Information
                             </label>
                             <div className="space-y-3 md:space-y-4">
                               <div>
@@ -710,7 +718,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 <input 
                                   value={editingUser.name}
                                   onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                                  className="w-full p-3 md:p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-2xl outline-none focus:border-red-600 transition-all font-black text-sm md:text-base uppercase dark:text-white"
+                                  className="w-full p-3 md:p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-2xl outline-none focus:border-teamColor transition-all font-black text-sm md:text-base uppercase dark:text-white"
                                 />
                               </div>
                               <div>
@@ -723,7 +731,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                     const taken = state.users.some(u => u.id !== editingUser.id && u.username.toLowerCase() === newUsername);
                                     setUsernameError(taken ? 'This handle is already taken by another team member' : '');
                                   }}
-                                  className={`w-full p-3 md:p-4 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl md:rounded-2xl outline-none transition-all font-bold text-sm md:text-base dark:text-white ${usernameError ? 'border-red-500 focus:border-red-500' : 'border-slate-100 dark:border-slate-600 focus:border-red-600'}`}
+                                  className={`w-full p-3 md:p-4 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl md:rounded-2xl outline-none transition-all font-bold text-sm md:text-base dark:text-white ${usernameError ? 'border-red-500 focus:border-red-500' : 'border-slate-100 dark:border-slate-600 focus:border-teamColor'}`}
                                 />
                                 {usernameError && (
                                   <p className="text-red-500 text-[9px] md:text-[10px] font-bold mt-1 ml-2 flex items-center gap-1">
@@ -737,26 +745,26 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
 
                         <section>
                             <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 md:mb-4 flex items-center gap-2">
-                                <Shield size={12} className="text-red-600" /> Authorized Roles
+                                <Shield size={12} className="text-teamColor" /> Authorized Roles
                             </label>
                             <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                {ROLES.map(role => (
+                                {roleNames.map(role => (
                                     <button
                                         key={role}
                                         onClick={() => {
-                                            const newRoles = editingUser.roles.includes(role)
+                                            const newRoles = (editingUser.roles as string[]).includes(role)
                                                 ? editingUser.roles.filter(r => r !== role)
-                                                : [...editingUser.roles, role];
+                                                : [...editingUser.roles, role as any];
                                             setEditingUser({ ...editingUser, roles: newRoles });
                                         }}
                                         className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 text-[10px] md:text-xs font-black uppercase transition-all text-left flex items-center justify-between ${
-                                            editingUser.roles.includes(role)
-                                            ? 'bg-red-600 border-red-600 text-white shadow-lg'
+                                            (editingUser.roles as string[]).includes(role)
+                                            ? 'bg-teamColor border-teamColor text-white shadow-lg'
                                             : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
                                         }`}
                                     >
                                         {role}
-                                        {editingUser.roles.includes(role) && <Plus size={12} className="rotate-45" />}
+                                        {(editingUser.roles as string[]).includes(role) && <Plus size={12} className="rotate-45" />}
                                     </button>
                                 ))}
                             </div>
@@ -764,26 +772,26 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
 
                         <section>
                             <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 md:mb-4 flex items-center gap-2">
-                                <Settings size={12} className="text-red-600" /> Departments
+                                <Settings size={12} className="text-teamColor" /> Departments
                             </label>
                             <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                {DEPARTMENTS.map(dept => (
+                                {deptNames.map(dept => (
                                     <button
                                         key={dept}
                                         onClick={() => {
-                                            const newDepts = editingUser.departments.includes(dept)
+                                            const newDepts = (editingUser.departments as string[]).includes(dept)
                                                 ? editingUser.departments.filter(d => d !== dept)
-                                                : [...editingUser.departments, dept];
+                                                : [...editingUser.departments, dept as any];
                                             setEditingUser({ ...editingUser, departments: newDepts });
                                         }}
                                         className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 text-[10px] md:text-xs font-black uppercase transition-all text-left flex items-center justify-between ${
-                                            editingUser.departments.includes(dept)
+                                            (editingUser.departments as string[]).includes(dept)
                                             ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
                                             : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-200 dark:hover:border-slate-600'
                                         }`}
                                     >
                                         {dept}
-                                        {editingUser.departments.includes(dept) && <Plus size={12} className="rotate-45" />}
+                                        {(editingUser.departments as string[]).includes(dept) && <Plus size={12} className="rotate-45" />}
                                     </button>
                                 ))}
                             </div>
@@ -792,7 +800,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         {isCoach && (
                           <section className="pt-4 md:pt-6 border-t border-slate-100 dark:border-slate-700">
                              <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 md:mb-4 flex items-center gap-2">
-                                <Key size={12} className="text-red-600" /> Security Override
+                                <Key size={12} className="text-teamColor" /> Security Override
                             </label>
                             <button 
                               onClick={handleResetPassword}
@@ -814,7 +822,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 setUsernameError('');
                             }}
                             disabled={!!usernameError}
-                            className={`w-full py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${usernameError ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/20'}`}
+                            className={`w-full py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${usernameError ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-teamColor text-white hover:opacity-90 shadow-teamColor/20'}`}
                         >
                             Save Changes
                         </button>
@@ -1041,7 +1049,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                 {auditLogs.map(log => (
                   <div key={log.id} className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
+                      <span className="text-[10px] font-black text-teamColor uppercase">{log.actionType.replace('_', ' ')}</span>
                       <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
                         {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
                       </span>
@@ -1078,6 +1086,7 @@ const AddMemberModal: React.FC<{
   onAdd: (user: User) => void;
   onCancel: () => void;
 }> = ({ users, onAdd, onCancel }) => {
+  const { settings } = useTeamSettings();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
@@ -1093,20 +1102,21 @@ const AddMemberModal: React.FC<{
     e.preventDefault();
     if (error || !name.trim() || !username.trim()) return;
     
+    const defaultDept = (settings.departments[0]?.name || Department.Mechanical) as Department;
     const newUser: User = {
       id: Date.now().toString(),
       name: name.trim(),
       username: username.toLowerCase(),
       password: 'password',
       roles: [Role.TeamMember],
-      departments: [Department.Mechanical]
+      departments: [defaultDept]
     };
     onAdd(newUser);
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-6 animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[48px] w-full max-w-2xl p-6 md:p-16 shadow-2xl animate-in zoom-in duration-300 border-t-8 border-red-600">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[48px] w-full max-w-2xl p-6 md:p-16 shadow-2xl animate-in zoom-in duration-300 border-t-8 border-teamColor">
         <h2 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase mb-6 md:mb-10 text-center">Add New Member</h2>
         <form onSubmit={handleSubmit} className="space-y-4 md:space-y-8">
           <div>
@@ -1116,7 +1126,7 @@ const AddMemberModal: React.FC<{
               onChange={(e) => setName(e.target.value)}
               required 
               placeholder="e.g. ALEX RIVERA" 
-              className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[32px] outline-none focus:border-red-600 transition-all font-black text-sm md:text-lg uppercase tracking-tight dark:text-white" 
+              className="w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[32px] outline-none focus:border-teamColor transition-all font-black text-sm md:text-lg uppercase tracking-tight dark:text-white" 
             />
           </div>
           <div>
@@ -1126,7 +1136,7 @@ const AddMemberModal: React.FC<{
               onChange={(e) => handleUsernameChange(e.target.value)}
               required 
               placeholder="arivera" 
-              className={`w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl md:rounded-[32px] outline-none transition-all font-black text-sm md:text-lg tracking-tight dark:text-white ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-100 dark:border-slate-600 focus:border-red-600'}`} 
+              className={`w-full p-4 md:p-6 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl md:rounded-[32px] outline-none transition-all font-black text-sm md:text-lg tracking-tight dark:text-white ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-100 dark:border-slate-600 focus:border-teamColor'}`} 
             />
             {error && (
               <p className="text-red-500 text-[9px] md:text-[10px] font-bold mt-2 ml-2 flex items-center gap-1">
@@ -1140,7 +1150,7 @@ const AddMemberModal: React.FC<{
             <button 
               type="submit" 
               disabled={!!error}
-              className={`flex-1 py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${error ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/20'}`}
+              className={`flex-1 py-4 md:py-6 font-black rounded-xl md:rounded-[32px] shadow-2xl transition-all uppercase tracking-widest text-xs md:text-sm ${error ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-teamColor text-white hover:opacity-90 shadow-teamColor/20'}`}
             >
               Add Member
             </button>

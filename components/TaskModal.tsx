@@ -3,7 +3,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
-import { STATUS_COLORS, PRIORITY_COLORS, DEPARTMENTS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
+import { STATUS_COLORS, PRIORITY_COLORS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 
 interface TaskModalProps {
@@ -19,6 +20,9 @@ interface TaskModalProps {
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
+  const { settings } = useTeamSettings();
+  const deptNames = settings.departments.map(d => d.name);
+
   const [editedTask, setEditedTask] = useState<Task>(task || {
     id: Math.random().toString(36).substr(2, 9),
     projectId: 'default',
@@ -602,13 +606,13 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             <div>
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 ml-1">Assigned Sectors</label>
               <div className="flex flex-wrap gap-2">
-                {DEPARTMENTS.map(dept => (
+                {deptNames.map(dept => (
                   <button
                     key={dept}
                     onClick={() => {
-                        const newDepts = editedTask.departments.includes(dept)
+                        const newDepts = editedTask.departments.includes(dept as any)
                             ? editedTask.departments.filter(d => d !== dept)
-                            : [...editedTask.departments, dept];
+                            : [...editedTask.departments, dept as any];
                         setEditedTask({...editedTask, departments: newDepts});
                     }}
                     className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl border transition-all ${

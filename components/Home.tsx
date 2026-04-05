@@ -822,7 +822,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     className="w-full p-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none font-black text-xs uppercase dark:text-white"
                   >
                     {state.currentUser?.roles.some(r => r === Role.TeamCaptain || r === Role.Coach) 
-                      ? Object.values(Department).map(d => <option key={d} value={d} className="dark:bg-slate-800">{d}</option>)
+                      ? settings.departments.map(d => <option key={d.name} value={d.name} className="dark:bg-slate-800">{d.name}</option>)
                       : user?.departments.map(d => <option key={d} value={d} className="dark:bg-slate-800">{d}</option>)
                     }
                   </select>

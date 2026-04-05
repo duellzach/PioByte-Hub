@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
-import { STATUSES, DEPARTMENTS, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS, DEPARTMENT_COLORS } from '../constants';
+import { STATUSES, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS } from '../constants';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import TaskModal from './TaskModal';
@@ -19,6 +20,9 @@ interface KanbanBoardProps {
 }
 
 const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify }) => {
+  const { settings } = useTeamSettings();
+  const deptNames = settings.departments.map(d => d.name);
+
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
   const [view, setView] = useState<'board' | 'help'>('board');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -239,7 +243,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </optgroup>
                 <optgroup label="Department Boards">
-                  {DEPARTMENTS.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
+                  {deptNames.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
                 </optgroup>
               </select>
               <button 
@@ -278,11 +282,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   className="hidden sm:block px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm outline-none focus:ring-2 focus:ring-teamColor/20"
                 >
                   <option value="All">All Depts</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {deptNames.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               )}
               {isDeptBoard && activeDept && (
-                <span className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border ${DEPARTMENT_COLORS[activeDept]}`}>
+                <span
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border"
+                  style={(() => {
+                    const deptColor = settings.departments.find(d => d.name === activeDept)?.color || settings.themeColor;
+                    return { borderColor: deptColor + '60', backgroundColor: deptColor + '18', color: deptColor };
+                  })()}
+                >
                   ⬡ {activeDept} Board
                 </span>
               )}
