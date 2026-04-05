@@ -72,6 +72,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   };
 
   React.useEffect(() => {
+    if (accessibleProjects.length === 0) return;
     const isDeptBoardKey = activeBoardKey.startsWith('dept:');
     const matchedProject = accessibleProjects.find(p => p.id === activeBoardKey);
     if (!activeBoardKey || (!isDeptBoardKey && !matchedProject)) {
