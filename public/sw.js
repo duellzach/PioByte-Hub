@@ -1,4 +1,4 @@
-const CACHE_NAME = 'piobyte-hub-v2';
+const CACHE_NAME = 'piobyte-hub-v3';
 
 const PRECACHE_URLS = [
   '/',
