@@ -347,8 +347,11 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                               return -1;
                             })();
                             // A Nexus match is truly done if TBA says so, its status explicitly says so,
-                            // or it's an earlier "On field" entry superseded by a later one.
+                            // it's an earlier "On field" entry superseded by a later one,
+                            // or it's a practice match and quals have already started.
                             const isTrulyDone = (m: any): boolean => {
+                              // Once any qual match is played, ALL practice matches are over
+                              if (tbaPlayedNums.size > 0 && /practice/i.test(m.label ?? '')) return true;
                               if (m.status === 'On field') {
                                 const idx = matches.indexOf(m);
                                 if (idx >= 0 && idx < lastOnFieldIdx) return true;
@@ -377,7 +380,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                               : lastCompletedIdx >= 0
                                 ? Math.min(lastCompletedIdx + 1, matches.length - 1)
                                 : 0;
-                            const next10 = matches.slice(anchorIdx, anchorIdx + 10);
+                            const next10 = matches.slice(anchorIdx, anchorIdx + 20).filter((m: any) => !isTrulyDone(m)).slice(0, 10);
                             if (next10.length === 0) return null;
                             return (
                               <div>
