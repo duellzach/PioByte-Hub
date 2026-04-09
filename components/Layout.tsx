@@ -51,6 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
   const [alertError, setAlertError] = useState('');
 
   const isCoachOrCaptain = user?.roles?.includes('Coach') || user?.roles?.includes('Team Captain');
+  const isGuest = user?.roles?.includes('Guest');
 
   const fetchActiveAlerts = async () => {
     try {
@@ -158,15 +159,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
 
         {/* Nav — no overflow, tightly spaced */}
         <nav className={`flex-1 ${collapsed ? 'px-2 py-2' : 'px-2 py-1.5 md:px-3 md:py-2 lg:px-3 lg:py-2.5'} flex flex-col gap-0.5 md:gap-1 lg:gap-1 overflow-hidden`}>
-          <NavItem to="/" icon={<HomeIcon size={16} />} label="HOME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/war-room" icon={<LayoutDashboard size={16} />} label="WAR ROOM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/boards" icon={<Kanban size={16} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/time" icon={<Clock size={16} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          {!isGuest && <NavItem to="/" icon={<HomeIcon size={16} />} label="HOME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/war-room" icon={<LayoutDashboard size={16} />} label="WAR ROOM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/boards" icon={<Kanban size={16} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/time" icon={<Clock size={16} />} label="TIME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           <NavItem to="/scout" icon={<Crosshair size={16} />} label="EVENTS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/team" icon={<Users size={16} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/safety" icon={<ShieldCheck size={16} />} label="SAFETY" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
-          <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
+          {!isGuest && <NavItem to="/team" icon={<Users size={16} />} label="TEAM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/safety" icon={<ShieldCheck size={16} />} label="SAFETY" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {isCoachOrCaptain && (
             <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL PANEL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           )}

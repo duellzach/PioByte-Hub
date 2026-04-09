@@ -495,6 +495,7 @@ const App: React.FC = () => {
     );
   }
 
+  const isGuest = state.currentUser?.roles?.includes('Guest') ?? false;
   const unreadCount = state.notifications.filter(n => n.toUserId === state.currentUser?.id && !n.read).length;
   
   const activeProjects = state.projects.filter(p => !p.archived && p.showInWarRoom !== false);
@@ -523,7 +524,7 @@ const App: React.FC = () => {
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={
+              <Route path="/" element={isGuest ? <Navigate to="/scout" replace /> :
                 <Home 
                   state={state} 
                   onTaskClick={setActiveTaskModal} 
@@ -534,7 +535,7 @@ const App: React.FC = () => {
                   onNotify={handleNotify}
                 />
               } />
-              <Route path="/war-room" element={
+              <Route path="/war-room" element={isGuest ? <Navigate to="/scout" replace /> :
                 <Dashboard 
                   state={state} 
                   onUpdateTask={handleUpdateTask} 
@@ -542,7 +543,7 @@ const App: React.FC = () => {
                   onNotify={handleNotify}
                 />
               } />
-              <Route path="/boards" element={
+              <Route path="/boards" element={isGuest ? <Navigate to="/scout" replace /> :
                 <KanbanBoard 
                   state={state} 
                   onAddTask={async (t) => {
@@ -584,16 +585,16 @@ const App: React.FC = () => {
                   }}
                 />
               } />
-              <Route path="/time" element={
+              <Route path="/time" element={isGuest ? <Navigate to="/scout" replace /> :
                 <TimeTracking state={state} onRefresh={fetchData} />
               } />
               <Route path="/scout" element={
                 <Scout currentUser={state.currentUser} />
               } />
-              <Route path="/safety" element={
+              <Route path="/safety" element={isGuest ? <Navigate to="/scout" replace /> :
                 <SafetyCertifications currentUser={state.currentUser} />
               } />
-              <Route path="/team" element={
+              <Route path="/team" element={isGuest ? <Navigate to="/scout" replace /> :
                 <TeamManagement 
                   state={state}
                   onAddUser={async (u) => {
@@ -612,15 +613,15 @@ const App: React.FC = () => {
                   }}
                 />
               } />
-              <Route path="/calendar" element={<Calendar currentUser={state.currentUser} />} />
-              <Route path="/resources" element={<Resources currentUser={state.currentUser} users={state.users} />} />
-              <Route path="/control-panel" element={
+              <Route path="/calendar" element={isGuest ? <Navigate to="/scout" replace /> : <Calendar currentUser={state.currentUser} />} />
+              <Route path="/resources" element={isGuest ? <Navigate to="/scout" replace /> : <Resources currentUser={state.currentUser} users={state.users} />} />
+              <Route path="/control-panel" element={isGuest ? <Navigate to="/scout" replace /> :
                 <ControlPanel
                   currentUserRoles={state.currentUser?.roles || []}
                   currentUserId={state.currentUser?.id || null}
                 />
               } />
-              <Route path="*" element={<Navigate to="/" />} />
+              <Route path="*" element={<Navigate to={isGuest ? "/scout" : "/"} />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
