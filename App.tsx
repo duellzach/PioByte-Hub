@@ -7,7 +7,7 @@ import Confetti from './components/Confetti';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoachTutorial from './components/CoachTutorial';
 import { api } from './services/api';
-import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle, KeyRound, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import TeamLogo from './components/TeamLogo';
 import { TeamSettingsContext, TeamSettingsData, DEFAULT_TEAM_SETTINGS } from './contexts/TeamSettingsContext';
 
@@ -44,6 +44,11 @@ const App: React.FC = () => {
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [guestSession, setGuestSession] = useState<{ eventId: number; eventName: string; pin: string; label: string } | null>(null);
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestPin, setGuestPin] = useState('');
+  const [guestLoginError, setGuestLoginError] = useState('');
+  const [guestLoading, setGuestLoading] = useState(false);
   const [activeTaskModal, setActiveTaskModal] = useState<Task | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -242,6 +247,25 @@ const App: React.FC = () => {
         setIsLoggedIn(true);
       }
     }
+    const savedGuest = localStorage.getItem('frc_hub_guest');
+    if (savedGuest && !isLoggedIn) {
+      try {
+        const g = JSON.parse(savedGuest);
+        setGuestSession(g);
+        setState(prev => ({
+          ...prev,
+          currentUser: {
+            id: 'guest',
+            name: g.label || 'Guest',
+            username: 'guest',
+            roles: ['Guest'],
+            departments: [],
+            guestEventId: g.eventId,
+          } as any,
+        }));
+        setIsLoggedIn(true);
+      } catch {}
+    }
   }, [state.users, state.currentUser]);
 
   const handleSeedDatabase = async () => {
@@ -336,10 +360,39 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGuestLogin = async (pin: string) => {
+    setGuestLoginError('');
+    setGuestLoading(true);
+    try {
+      const g = await api.auth.guestLogin(pin.trim());
+      setGuestSession(g);
+      setState(prev => ({
+        ...prev,
+        currentUser: {
+          id: 'guest',
+          name: g.label || 'Guest',
+          username: 'guest',
+          roles: ['Guest'],
+          departments: [],
+          guestEventId: g.eventId,
+        } as any,
+      }));
+      localStorage.setItem('frc_hub_guest', JSON.stringify(g));
+      setIsLoggedIn(true);
+      setTimeout(() => { window.location.hash = '#/scout'; }, 50);
+    } catch {
+      setGuestLoginError('Invalid or expired PIN. Check with the team that shared it.');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     setState(prev => ({ ...prev, currentUser: null }));
     setIsLoggedIn(false);
+    setGuestSession(null);
     localStorage.removeItem('frc_hub_active_user');
+    localStorage.removeItem('frc_hub_guest');
   };
 
   if (!isLoggedIn) {
@@ -392,6 +445,42 @@ const App: React.FC = () => {
                     Initialize System
                 </button>
               </form>
+
+              <div className="mt-8">
+                <button
+                  onClick={() => { setShowGuestForm(g => !g); setGuestLoginError(''); setGuestPin(''); }}
+                  className="w-full flex items-center justify-center gap-2 py-3 text-xs font-bold text-slate-500 border border-dashed border-slate-200 rounded-2xl hover:border-slate-300 hover:text-slate-700 transition-colors"
+                >
+                  <KeyRound size={13} />
+                  Guest / Alliance Access
+                  {showGuestForm ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {showGuestForm && (
+                  <div className="mt-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 animate-in fade-in duration-200">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Enter the 6-digit PIN shared by your alliance partner</p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={guestPin}
+                      onChange={e => { setGuestPin(e.target.value.replace(/\D/g, '')); setGuestLoginError(''); }}
+                      className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-teamColor/20 focus:border-teamColor transition-all font-black text-2xl tracking-[0.4em] text-center"
+                    />
+                    {guestLoginError && (
+                      <p className="text-red-500 text-xs font-bold text-center">{guestLoginError}</p>
+                    )}
+                    <button
+                      onClick={() => handleGuestLogin(guestPin)}
+                      disabled={guestPin.length < 6 || guestLoading}
+                      className="w-full py-3 bg-slate-800 text-white font-black rounded-2xl hover:bg-black disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest"
+                    >
+                      {guestLoading ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+                      Enter as Guest
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
 

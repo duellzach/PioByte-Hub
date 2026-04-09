@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle } from 'lucide-react';
+import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw } from 'lucide-react';
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 
@@ -52,6 +52,60 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [logoLoading, setLogoLoading] = useState(false);
   const [logoMsg, setLogoMsg] = useState<string | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+
+  const [scoutEvents, setScoutEvents] = useState<any[]>([]);
+  const [eventPins, setEventPins] = useState<Record<number, any>>({});
+  const [pinGenerating, setPinGenerating] = useState<number | null>(null);
+  const [pinDeactivating, setPinDeactivating] = useState<number | null>(null);
+  const [copiedPin, setCopiedPin] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isCoachOrCaptain) return;
+    api.scout.getEvents().then(async (evts: any[]) => {
+      setScoutEvents(evts);
+      const pins: Record<number, any> = {};
+      for (const e of evts) {
+        try {
+          const token = await api.scout.getGuestPin(e.id);
+          pins[e.id] = token;
+        } catch {
+          pins[e.id] = null;
+        }
+      }
+      setEventPins(pins);
+    }).catch(() => {});
+  }, [isCoachOrCaptain]);
+
+  const handleGeneratePin = async (eventId: number) => {
+    setPinGenerating(eventId);
+    try {
+      const token = await api.scout.createGuestPin(eventId, 'Guest', currentUserId ? parseInt(currentUserId) : 0);
+      setEventPins(p => ({ ...p, [eventId]: token }));
+    } catch (err) {
+      console.error('Failed to generate PIN:', err);
+    } finally {
+      setPinGenerating(null);
+    }
+  };
+
+  const handleDeactivatePin = async (eventId: number) => {
+    setPinDeactivating(eventId);
+    try {
+      await api.scout.deactivateGuestPin(eventId);
+      setEventPins(p => ({ ...p, [eventId]: null }));
+    } catch (err) {
+      console.error('Failed to deactivate PIN:', err);
+    } finally {
+      setPinDeactivating(null);
+    }
+  };
+
+  const handleCopyPin = (eventId: number, pin: string) => {
+    navigator.clipboard.writeText(pin).then(() => {
+      setCopiedPin(eventId);
+      setTimeout(() => setCopiedPin(null), 2000);
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     setForm({ ...settings });
@@ -386,6 +440,71 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
             <Plus size={13} /> Add Role
           </button>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Guest Access"
+        subtitle="Generate a 6-digit PIN so alliance partners can view scouting data in read-only mode"
+      >
+        {scoutEvents.length === 0 ? (
+          <p className="text-xs text-slate-400 dark:text-slate-500 font-bold">No scouting events created yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {scoutEvents.map(evt => {
+              const token = eventPins[evt.id];
+              return (
+                <div key={evt.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100 truncate">{evt.name}</p>
+                    {evt.location && <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{evt.location}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {token ? (
+                      <>
+                        <span className="font-mono font-black text-xl text-teamColor tracking-[0.3em]">{token.pin}</span>
+                        <button
+                          onClick={() => handleCopyPin(evt.id, token.pin)}
+                          className="p-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 transition-all text-slate-500"
+                          title="Copy PIN"
+                        >
+                          {copiedPin === evt.id ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
+                        </button>
+                        <button
+                          onClick={() => handleGeneratePin(evt.id)}
+                          disabled={pinGenerating === evt.id}
+                          className="p-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 transition-all text-slate-500"
+                          title="Regenerate PIN"
+                        >
+                          <RefreshCw size={13} className={pinGenerating === evt.id ? 'animate-spin' : ''} />
+                        </button>
+                        <button
+                          onClick={() => handleDeactivatePin(evt.id)}
+                          disabled={pinDeactivating === evt.id}
+                          className="p-1.5 bg-white dark:bg-slate-700 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 transition-all text-red-500"
+                          title="Deactivate PIN"
+                        >
+                          {pinDeactivating === evt.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleGeneratePin(evt.id)}
+                        disabled={pinGenerating === evt.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-teamColor text-white font-black rounded-lg text-[10px] uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50"
+                      >
+                        {pinGenerating === evt.id ? <Loader2 size={12} className="animate-spin" /> : <KeyRound size={12} />}
+                        Generate PIN
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold pt-1">
+              Share the PIN + your hub URL with alliance partners so they can view your scouting data in read-only mode.
+            </p>
+          </div>
+        )}
       </SectionCard>
 
       <div className="flex justify-end gap-2 pb-6">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap, RefreshCw } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap, RefreshCw, KeyRound } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
@@ -346,6 +346,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const isCoachOrCaptain = currentUser?.roles?.some((r: string) =>
     r === 'Coach' || r === 'Team Captain'
   );
+  const isGuest = currentUser?.roles?.includes('Guest') ?? false;
 
   const fetchEvents = useCallback(async (): Promise<any[]> => {
     try {
@@ -384,6 +385,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       enterEvent(target);
     }
   }, [events, location.state]);
+
+  const guestEventHandled = useRef(false);
+  useEffect(() => {
+    if (!isGuest || guestEventHandled.current || events.length === 0 || activeEvent) return;
+    const guestEventId = currentUser?.guestEventId;
+    if (!guestEventId) return;
+    const target = events.find((e: any) => e.id === guestEventId);
+    if (target) {
+      guestEventHandled.current = true;
+      enterEvent(target);
+    }
+  }, [isGuest, events, activeEvent, currentUser?.guestEventId]);
 
   useEffect(() => {
     api.users.getAll().then(setAllUsers).catch(() => {});
@@ -1374,6 +1387,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         onGenerateAIReport={generateRobotAIReport}
         onSetGeminiModal={setGeminiModal}
         onSetCopiedGemini={setCopiedGemini}
+        isGuest={isGuest}
       />
     );
   }
@@ -1381,11 +1395,19 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   if (activeEvent) {
     return (
       <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
+        {isGuest && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
+            <KeyRound size={12} />
+            Guest View · Read Only — {currentUser?.name}
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 md:gap-4">
-            <button onClick={() => { setActiveEvent(null); fetchEvents(); }} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all">
-              <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
-            </button>
+            {!isGuest && (
+              <button onClick={() => { setActiveEvent(null); fetchEvents(); }} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all">
+                <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
+              </button>
+            )}
             <div>
               <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{activeEvent.name}</h2>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
@@ -1439,7 +1461,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
         <div className="overflow-x-auto -mx-2 px-2">
           <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl border border-slate-200 shadow-inner min-w-max">
-            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display', 'map'] as const).filter(tab => tab !== 'schedule' || isCoachOrCaptain).map(tab => (
+            {(['robots', 'matches', 'info', 'schedule', 'qr', 'display', 'map'] as const).filter(tab => {
+              if (tab === 'schedule' && !isCoachOrCaptain) return false;
+              if (tab === 'info' && isGuest) return false;
+              return true;
+            }).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -1474,7 +1500,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               >
                 <ArrowUpDown size={14} /> {robotSort === 'number' ? '#' : 'A-Z'}
               </button>
-              {activeEvent?.tbaEventKey && (
+              <button
+                onClick={() => window.open(`/api/scout-events/${activeEvent.id}/export.csv`, '_blank')}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
+                title="Download all pit and match scout data as CSV"
+              >
+                <Download size={14} /> Export CSV
+              </button>
+              {!isGuest && activeEvent?.tbaEventKey && (
                 <button
                   onClick={importTeamsFromTba}
                   disabled={tbaImporting}
@@ -1483,15 +1516,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   <Download size={16} /> {tbaImporting ? 'Importing...' : 'Import from TBA'}
                 </button>
               )}
-              <button
-                onClick={() => { resetPitForm(); setEditingPit(null); setShowPitForm(true); }}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
-              >
-                <Plus size={16} /> Scout Robot
-              </button>
+              {!isGuest && (
+                <button
+                  onClick={() => { resetPitForm(); setEditingPit(null); setShowPitForm(true); }}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
+                >
+                  <Plus size={16} /> Scout Robot
+                </button>
+              )}
             </div>
 
-            {duplicateTeamNums.size > 0 && (
+            {!isGuest && duplicateTeamNums.size > 0 && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-2xl">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-amber-500 text-base">⚠️</span>
@@ -1609,12 +1644,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   {matchRefreshing ? 'Refreshing…' : 'Refresh'}
                 </button>
               </div>
-              <button
-                onClick={() => { resetMatchForm(); setEditingMatch(null); setShowMatchForm(true); }}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
-              >
-                <Plus size={16} /> Record Match
-              </button>
+              {!isGuest && (
+                <button
+                  onClick={() => { resetMatchForm(); setEditingMatch(null); setShowMatchForm(true); }}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest"
+                >
+                  <Plus size={16} /> Record Match
+                </button>
+              )}
             </div>
 
             {activeEvent?.tbaEventKey && tbaMatches.length > 0 && (() => {
@@ -2093,12 +2130,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">Fuel</p>
                           <p className="text-base font-black text-slate-900 dark:text-white">{(m.autoFuelTotal || 0) + (m.teleopFuelTotal || 0)}</p>
                         </div>
-                        <div className="flex gap-1">
-                          <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 transition-all text-slate-500 dark:text-slate-400 text-[10px] font-black">Edit</button>
-                          <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-red-50 transition-all text-red-500">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        {!isGuest && (
+                          <div className="flex gap-1">
+                            <button onClick={() => openEditMatch(m)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 transition-all text-slate-500 dark:text-slate-400 text-[10px] font-black">Edit</button>
+                            <button onClick={() => handleDeleteMatchScout(m.id)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-red-50 transition-all text-red-500">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {m.notes && <p className="text-[10px] text-slate-500 mt-2 pl-12 font-medium">{m.notes}</p>}
@@ -2182,6 +2221,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             setImportPreview={setImportPreview}
             setScannedChunks={setScannedChunks}
             setImportResult={setImportResult}
+            isGuest={isGuest}
           />
         ) : activeTab === 'display' ? (
           <PitDisplay

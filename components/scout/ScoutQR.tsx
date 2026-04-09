@@ -24,6 +24,7 @@ interface ScoutQRProps {
   setImportPreview: React.Dispatch<React.SetStateAction<any>>;
   setScannedChunks: React.Dispatch<React.SetStateAction<Map<string, string>>>;
   setImportResult: React.Dispatch<React.SetStateAction<any>>;
+  isGuest?: boolean;
 }
 
 const ScoutQR: React.FC<ScoutQRProps> = ({
@@ -31,7 +32,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
   selectedRobotIds, setSelectedRobotIds, qrData, qrChunkIndex, setQrChunkIndex,
   onGenerateQR, scanning, importPreview, importResult, scannedChunks,
   scannerContainerRef, onStartScanner, onStopScanner, onConfirmImport,
-  setImportPreview, setScannedChunks, setImportResult,
+  setImportPreview, setScannedChunks, setImportResult, isGuest = false,
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
@@ -144,7 +145,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
+      {!isGuest && <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
             <Upload size={20} />
@@ -226,7 +227,7 @@ const ScoutQR: React.FC<ScoutQRProps> = ({
             </button>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 };

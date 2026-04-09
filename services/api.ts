@@ -34,6 +34,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       }),
+    guestLogin: (pin: string) =>
+      apiRequest<{ eventId: number; eventName: string; pin: string; label: string }>('/guest-login', {
+        method: 'POST',
+        body: JSON.stringify({ pin }),
+      }),
   },
   users: {
     getAll: () => apiRequest<any[]>('/users'),
@@ -115,6 +120,11 @@ export const api = {
       apiRequest<any>(`/events/${eventId}/team-claims`, { method: 'POST', body: JSON.stringify(data) }),
     deleteTeamClaim: (eventId: number, matchKey: string, teamNumber: number, userId: number) =>
       apiRequest<void>(`/events/${eventId}/team-claims`, { method: 'DELETE', body: JSON.stringify({ matchKey, teamNumber, userId }) }),
+    getGuestPin: (eventId: number) => apiRequest<any>(`/events/${eventId}/guest-pin`),
+    createGuestPin: (eventId: number, label: string, createdBy: number) =>
+      apiRequest<any>(`/events/${eventId}/guest-pin`, { method: 'POST', body: JSON.stringify({ label, createdBy }) }),
+    deactivateGuestPin: (eventId: number) =>
+      apiRequest<void>(`/events/${eventId}/guest-pin`, { method: 'DELETE' }),
   },
   matchExceptions: {
     list: (eventId: number) => apiRequest<any[]>(`/events/${eventId}/match-exceptions`),

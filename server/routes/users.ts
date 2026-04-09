@@ -80,6 +80,19 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/guest-login", async (req, res) => {
+  try {
+    const { pin } = req.body;
+    if (!pin) return res.status(400).json({ error: "PIN is required" });
+    const token = await storage.getGuestTokenByPin(String(pin).trim());
+    if (!token) return res.status(404).json({ error: "Invalid or expired PIN" });
+    res.json({ eventId: token.eventId, eventName: token.eventName, pin: token.pin, label: token.label });
+  } catch (error) {
+    console.error("Error with guest login:", error);
+    res.status(500).json({ error: "Failed to process guest login" });
+  }
+});
+
 router.post("/users/:id/change-password", async (req, res) => {
   try {
     const id = parseInt(req.params.id);

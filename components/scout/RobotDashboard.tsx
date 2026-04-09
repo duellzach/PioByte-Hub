@@ -17,13 +17,14 @@ interface RobotDashboardProps {
   onGenerateAIReport: () => void;
   onSetGeminiModal: (m: { open: boolean; text: string; matchLabel: string }) => void;
   onSetCopiedGemini: (v: boolean) => void;
+  isGuest?: boolean;
 }
 
 const RobotDashboard: React.FC<RobotDashboardProps> = ({
   selectedRobot, activeEvent, robotMatches, crossEventMatches,
   tbaYearEvents, tbaYearStatuses, tbaYearLoading,
   geminiModal, copiedGemini, onBack, onEditPit, onDeletePit,
-  onGenerateAIReport, onSetGeminiModal, onSetCopiedGemini,
+  onGenerateAIReport, onSetGeminiModal, onSetCopiedGemini, isGuest = false,
 }) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -113,14 +114,16 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
               <span className="text-lg font-black text-green-600">{selectedRobot.overallRating}/10</span>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => onEditPit(selectedRobot)} className="flex-1 py-3 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 transition-all">
-              Edit
-            </button>
-            <button onClick={() => onDeletePit(selectedRobot.id)} className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-red-600 font-black rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all">
-              <Trash2 size={16} />
-            </button>
-          </div>
+          {!isGuest && (
+            <div className="flex gap-2">
+              <button onClick={() => onEditPit(selectedRobot)} className="flex-1 py-3 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 transition-all">
+                Edit
+              </button>
+              <button onClick={() => onDeletePit(selectedRobot.id)} className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-red-600 font-black rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

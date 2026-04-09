@@ -452,3 +452,16 @@ export const matchExceptions = pgTable("match_exceptions", {
 
 export type MatchException = typeof matchExceptions.$inferSelect;
 export type InsertMatchException = typeof matchExceptions.$inferInsert;
+
+export const guestTokens = pgTable("guest_tokens", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
+  pin: text("pin").notNull(),
+  label: text("label").notNull().default("Guest"),
+  active: boolean("active").notNull().default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type GuestToken = typeof guestTokens.$inferSelect;
+export type InsertGuestToken = typeof guestTokens.$inferInsert;

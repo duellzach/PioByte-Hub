@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 
 function toDate(value: any): Date | undefined {
@@ -1246,6 +1246,36 @@ export class DatabaseStorage implements IStorage {
       description: 'Build season — FRC Team 10991 PIO-BYTES',
       archived: false,
     });
+  }
+
+  async getGuestTokenByPin(pin: string): Promise<(GuestToken & { eventName: string }) | null> {
+    const rows = await db
+      .select({ token: guestTokens, eventName: scoutEvents.name })
+      .from(guestTokens)
+      .innerJoin(scoutEvents, eq(guestTokens.eventId, scoutEvents.id))
+      .where(and(eq(guestTokens.pin, pin), eq(guestTokens.active, true)))
+      .limit(1);
+    if (!rows.length) return null;
+    return { ...rows[0].token, eventName: rows[0].eventName };
+  }
+
+  async getActiveGuestToken(eventId: number): Promise<GuestToken | null> {
+    const rows = await db
+      .select()
+      .from(guestTokens)
+      .where(and(eq(guestTokens.eventId, eventId), eq(guestTokens.active, true)))
+      .limit(1);
+    return rows[0] || null;
+  }
+
+  async createGuestToken(eventId: number, pin: string, label: string, createdBy: number): Promise<GuestToken> {
+    await db.update(guestTokens).set({ active: false }).where(eq(guestTokens.eventId, eventId));
+    const [row] = await db.insert(guestTokens).values({ eventId, pin, label, active: true, createdBy }).returning();
+    return row;
+  }
+
+  async deactivateGuestToken(eventId: number): Promise<void> {
+    await db.update(guestTokens).set({ active: false }).where(eq(guestTokens.eventId, eventId));
   }
 }
 
