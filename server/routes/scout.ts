@@ -239,18 +239,20 @@ async function sendScoutCsv(eventId: number, res: any) {
   rows.push('=== PIT SCOUTS ===');
   rows.push([
     'Team #','Team Name','Robot Name','Drivetrain','Weight (lbs)','Speed (1-10)','Height (in)',
-    'Traversal','Shooter Type','Capabilities','Deficiencies','Auto Routine','Auto Options',
+    'Fuel Capacity','Traversal','Shooter Type','Capabilities','Deficiencies',
+    'Auto Routine','Auto Options','Auto Capable',
     'Offense Rating','Defense Rating','Overall Rating','Core Values Rating',
-    'Notes','Scouted By','Created At',
+    'Notes','Photo URL','Scouted By','Created At',
   ].join(','));
   for (const p of pitScoutsData) {
+    const autoCapable = p.autoOptions && Array.isArray(p.autoOptions) && p.autoOptions.length > 0 ? 'Yes' : (p.autonomousRoutine ? 'Yes' : 'No');
     rows.push([
       esc(p.teamNumber), esc(p.teamName), esc(p.robotName), esc(p.drivetrain),
-      esc(p.weight), esc(p.speed), esc(p.height), esc(p.traversalAbility),
-      esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
-      esc(p.autonomousRoutine), esc(p.autoOptions),
+      esc(p.weight), esc(p.speed), esc(p.height), esc(p.fuelCapacity),
+      esc(p.traversalAbility), esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
+      esc(p.autonomousRoutine), esc(p.autoOptions), autoCapable,
       esc(p.offenseRating), esc(p.defenseRating), esc(p.overallRating), esc(p.coreValuesRating),
-      esc(p.notes), esc(userMap[p.scoutedBy] ?? p.scoutedBy), esc(p.createdAt),
+      esc(p.notes), esc(p.photoUrl), esc(userMap[p.scoutedBy] ?? p.scoutedBy), esc(p.createdAt),
     ].join(','));
   }
 
