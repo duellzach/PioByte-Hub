@@ -643,7 +643,14 @@ router.post("/events/:id/guest-pin", async (req, res) => {
     const eventId = parseInt(req.params.id);
     const { label, createdBy } = req.body;
     if (!(await requireTeamMember(createdBy ? parseInt(createdBy) : undefined, res))) return;
-    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    let pin: string;
+    let attempts = 0;
+    do {
+      pin = String(Math.floor(100000 + Math.random() * 900000));
+      const collision = await storage.getGuestTokenByPin(pin);
+      if (!collision) break;
+      attempts++;
+    } while (attempts < 10);
     const token = await storage.createGuestToken(eventId, pin, label || "Guest", parseInt(createdBy));
     res.status(201).json(token);
   } catch (error) {
@@ -661,6 +668,48 @@ router.delete("/events/:id/guest-pin", async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error("Error deactivating guest pin:", error);
+    res.status(500).json({ error: "Failed to deactivate guest pin" });
+  }
+});
+
+router.get("/scout/events/:id/guest-pin", async (req, res) => {
+  try {
+    const userId = parseInt(req.query.userId as string);
+    if (!(await requireTeamMember(userId, res))) return;
+    const eventId = parseInt(req.params.id);
+    const token = await storage.getActiveGuestToken(eventId);
+    res.json(token || null);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch guest pin" });
+  }
+});
+router.post("/scout/events/:id/guest-pin", async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { label, createdBy } = req.body;
+    if (!(await requireTeamMember(createdBy ? parseInt(createdBy) : undefined, res))) return;
+    let pin: string;
+    let attempts = 0;
+    do {
+      pin = String(Math.floor(100000 + Math.random() * 900000));
+      const collision = await storage.getGuestTokenByPin(pin);
+      if (!collision) break;
+      attempts++;
+    } while (attempts < 10);
+    const token = await storage.createGuestToken(eventId, pin, label || "Guest", parseInt(createdBy));
+    res.status(201).json(token);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create guest pin" });
+  }
+});
+router.delete("/scout/events/:id/guest-pin", async (req, res) => {
+  try {
+    const userId = parseInt(req.query.userId as string);
+    if (!(await requireTeamMember(userId, res))) return;
+    const eventId = parseInt(req.params.id);
+    await storage.deactivateGuestToken(eventId);
+    res.status(204).send();
+  } catch (error) {
     res.status(500).json({ error: "Failed to deactivate guest pin" });
   }
 });
