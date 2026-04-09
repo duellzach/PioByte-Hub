@@ -215,79 +215,80 @@ router.get("/scout-events/:eventId/export", async (req, res) => {
   }
 });
 
-router.get("/scout-events/:eventId/export.csv", async (req, res) => {
-  try {
-    const eventId = parseInt(req.params.eventId);
-    const event = await storage.getScoutEvent(eventId);
-    if (!event) return res.status(404).json({ error: "Scout event not found" });
-    const pitScoutsData = await storage.getPitScouts(eventId);
-    const matchScoutsData = await storage.getMatchScouts(eventId);
-    const allUsers = await storage.getUsers();
-    const userMap: Record<number, string> = {};
-    for (const u of allUsers) userMap[u.id] = u.username;
+async function sendScoutCsv(eventId: number, res: any) {
+  const event = await storage.getScoutEvent(eventId);
+  if (!event) { res.status(404).json({ error: "Scout event not found" }); return; }
+  const pitScoutsData = await storage.getPitScouts(eventId);
+  const matchScoutsData = await storage.getMatchScouts(eventId);
+  const allUsers = await storage.getUsers();
+  const userMap: Record<number, string> = {};
+  for (const u of allUsers) userMap[u.id] = u.username;
 
-    const esc = (v: any): string => {
-      if (v === null || v === undefined) return '';
-      const s = Array.isArray(v) ? v.join('; ') : String(v);
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
+  const esc = (v: any): string => {
+    if (v === null || v === undefined) return '';
+    const s = Array.isArray(v) ? v.join('; ') : String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
 
-    const rows: string[] = [];
+  const rows: string[] = [];
+  rows.push(`PioByte Hub Scout Export — ${event.name}`);
+  rows.push(`Exported,${new Date().toISOString()}`);
+  rows.push('');
 
-    rows.push(`PioByte Hub Scout Export — ${event.name}`);
-    rows.push(`Exported,${new Date().toISOString()}`);
-    rows.push('');
-
-    rows.push('=== PIT SCOUTS ===');
-    const pitHeaders = [
-      'Team #','Team Name','Robot Name','Drivetrain','Weight (lbs)','Speed (1-10)','Height (in)',
-      'Traversal','Shooter Type','Capabilities','Deficiencies','Auto Routine','Auto Options',
-      'Offense Rating','Defense Rating','Overall Rating','Core Values Rating',
-      'Notes','Scouted By','Created At',
-    ];
-    rows.push(pitHeaders.join(','));
-    for (const p of pitScoutsData) {
-      rows.push([
-        esc(p.teamNumber), esc(p.teamName), esc(p.robotName), esc(p.drivetrain),
-        esc(p.weight), esc(p.speed), esc(p.height), esc(p.traversalAbility),
-        esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
-        esc(p.autonomousRoutine), esc(p.autoOptions),
-        esc(p.offenseRating), esc(p.defenseRating), esc(p.overallRating), esc(p.coreValuesRating),
-        esc(p.notes), esc(userMap[p.scoutedBy] ?? p.scoutedBy), esc(p.createdAt),
-      ].join(','));
-    }
-
-    rows.push('');
-    rows.push('=== MATCH SCOUTS ===');
-    const matchHeaders = [
-      'Match #','Match Type','Team #','Alliance',
-      'Auto Score','Teleop Score','Endgame Score','Penalties',
-      'Auto Climb','End Climb Level','Coral Scored','Algae Scored',
-      'Auto Fuel','Teleop Fuel','Human Player Score',
-      'Defense Rating','Driving Skill Rating','Core Values Rating',
-      'Auto Used','Notes','Scouted By','Created At',
-    ];
-    rows.push(matchHeaders.join(','));
-    for (const m of matchScoutsData) {
-      rows.push([
-        esc(m.matchNumber), esc(m.matchType), esc(m.teamNumber), esc(m.alliance),
-        esc(m.autoScore), esc(m.teleopScore), esc(m.endgameScore), esc(m.penalties),
-        esc(m.autoClimb), esc(m.endClimbLevel), esc(m.coralScored), esc(m.algaeScored),
-        esc(m.autoFuelTotal), esc(m.teleopFuelTotal), esc(m.humanPlayerScore),
-        esc(m.defenseRating), esc(m.drivingSkillRating), esc(m.coreValuesRating),
-        esc(m.autoUsed), esc(m.notes), esc(userMap[m.scoutedBy] ?? m.scoutedBy), esc(m.createdAt),
-      ].join(','));
-    }
-
-    const safeName = (event.name || 'scout').replace(/[^a-z0-9_\-]/gi, '_');
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}_export.csv"`);
-    res.send(rows.join('\r\n'));
-  } catch (error) {
-    console.error("Error exporting scout CSV:", error);
-    res.status(500).json({ error: "Failed to export scout CSV" });
+  rows.push('=== PIT SCOUTS ===');
+  rows.push([
+    'Team #','Team Name','Robot Name','Drivetrain','Weight (lbs)','Speed (1-10)','Height (in)',
+    'Traversal','Shooter Type','Capabilities','Deficiencies','Auto Routine','Auto Options',
+    'Offense Rating','Defense Rating','Overall Rating','Core Values Rating',
+    'Notes','Scouted By','Created At',
+  ].join(','));
+  for (const p of pitScoutsData) {
+    rows.push([
+      esc(p.teamNumber), esc(p.teamName), esc(p.robotName), esc(p.drivetrain),
+      esc(p.weight), esc(p.speed), esc(p.height), esc(p.traversalAbility),
+      esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
+      esc(p.autonomousRoutine), esc(p.autoOptions),
+      esc(p.offenseRating), esc(p.defenseRating), esc(p.overallRating), esc(p.coreValuesRating),
+      esc(p.notes), esc(userMap[p.scoutedBy] ?? p.scoutedBy), esc(p.createdAt),
+    ].join(','));
   }
+
+  rows.push('');
+  rows.push('=== MATCH SCOUTS ===');
+  rows.push([
+    'Match #','Match Type','Team #','Alliance',
+    'Auto Score','Teleop Score','Endgame Score','Penalties',
+    'Auto Climb','End Climb Level','Coral Scored','Algae Scored',
+    'Auto Fuel','Teleop Fuel','Human Player Score',
+    'Defense Rating','Driving Skill Rating','Core Values Rating',
+    'Auto Used','Notes','Scouted By','Created At',
+  ].join(','));
+  for (const m of matchScoutsData) {
+    rows.push([
+      esc(m.matchNumber), esc(m.matchType), esc(m.teamNumber), esc(m.alliance),
+      esc(m.autoScore), esc(m.teleopScore), esc(m.endgameScore), esc(m.penalties),
+      esc(m.autoClimb), esc(m.endClimbLevel), esc(m.coralScored), esc(m.algaeScored),
+      esc(m.autoFuelTotal), esc(m.teleopFuelTotal), esc(m.humanPlayerScore),
+      esc(m.defenseRating), esc(m.drivingSkillRating), esc(m.coreValuesRating),
+      esc(m.autoUsed), esc(m.notes), esc(userMap[m.scoutedBy] ?? m.scoutedBy), esc(m.createdAt),
+    ].join(','));
+  }
+
+  const safeName = (event.name || 'scout').replace(/[^a-z0-9_\-]/gi, '_');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}_scouting.csv"`);
+  res.send(rows.join('\r\n'));
+}
+
+router.get("/scout-events/:eventId/export.csv", async (req, res) => {
+  try { await sendScoutCsv(parseInt(req.params.eventId), res); }
+  catch (error) { console.error("Error exporting scout CSV:", error); res.status(500).json({ error: "Failed to export scout CSV" }); }
+});
+
+router.get("/scout/events/:id/export.csv", async (req, res) => {
+  try { await sendScoutCsv(parseInt(req.params.id), res); }
+  catch (error) { console.error("Error exporting scout CSV:", error); res.status(500).json({ error: "Failed to export scout CSV" }); }
 });
 
 router.get("/tba/event/:eventKey/matches", async (req, res) => {

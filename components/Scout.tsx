@@ -1431,6 +1431,13 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 <Settings size={13} /> Settings
               </button>
             )}
+            <button
+              onClick={() => window.open(`/api/scout/events/${activeEvent.id}/export.csv`, '_blank')}
+              title="Download all pit and match scout data as CSV"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-600 font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-600 transition-all"
+            >
+              <Download size={13} /> Export
+            </button>
             <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-100 dark:border-slate-700">
               <Bot size={14} className="text-teamColor" />
               <span className="font-black text-slate-800">{pitScouts.length}</span>
@@ -1504,13 +1511,6 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 title={`Sort by ${robotSort === 'number' ? 'name' : 'number'}`}
               >
                 <ArrowUpDown size={14} /> {robotSort === 'number' ? '#' : 'A-Z'}
-              </button>
-              <button
-                onClick={() => window.open(`/api/scout-events/${activeEvent.id}/export.csv`, '_blank')}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
-                title="Download all pit and match scout data as CSV"
-              >
-                <Download size={14} /> Export CSV
               </button>
               {!isGuest && activeEvent?.tbaEventKey && (
                 <button
