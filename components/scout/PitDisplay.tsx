@@ -114,7 +114,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
         const firstPendingAnnouncement = nexusData.announcements?.find(
           (a: any) => !dismissedAnnouncements.has(String(a?.id ?? extractAnnouncementText(a)))
         );
-        const firstPendingPart = nexusData.partsRequests?.find(
+        const pendingParts: any[] = (nexusData.partsRequests ?? []).filter(
           (r: any) => !dismissedParts.has(String(r?.id ?? extractPartsRequestText(r)))
         );
         const matches: any[] = nexusData.matches || [];
@@ -175,28 +175,57 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
           );
         }
 
-        if (firstPendingPart) {
-          const key = String(firstPendingPart.id ?? firstPendingPart.message ?? firstPendingPart);
+        if (pendingParts.length > 0) {
+          const dismissAll = () => {
+            setDismissedParts(prev => {
+              const next = new Set(prev);
+              pendingParts.forEach((r: any) => next.add(String(r?.id ?? extractPartsRequestText(r))));
+              return next;
+            });
+          };
           return (
             <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 text-center shadow-2xl border-t-8 border-red-600">
-                <div className="flex justify-end mb-2">
-                  <button onClick={() => setDismissedParts(prev => new Set([...prev, key]))} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 transition-all"><X size={20} /></button>
+              <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl border-t-8 border-red-600 overflow-hidden">
+                <div className="flex items-center justify-between px-8 pt-6 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <AlertCircle size={22} className="text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">Parts Request{pendingParts.length > 1 ? 's' : ''}</p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight">
+                        {pendingParts.length} Open Request{pendingParts.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={dismissAll} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex-shrink-0">
+                    <X size={20} />
+                  </button>
                 </div>
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle size={32} className="text-red-600" />
+                <div className="px-8 pb-2 space-y-3 max-h-72 overflow-y-auto">
+                  {pendingParts.map((r: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800">
+                      {(r?.requestedByTeam ?? r?.teamNumber) && (
+                        <span className="flex-shrink-0 px-2.5 py-1 bg-red-600 text-white rounded-lg font-black text-xs">
+                          #{r.requestedByTeam ?? r.teamNumber}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">{extractPartsRequestText(r)}</p>
+                        {r?.quantity != null && <p className="text-xs text-red-500 dark:text-red-400 font-bold mt-0.5">Qty: {r.quantity}</p>}
+                        {r?.notes && extractPartsRequestText(r) !== r.notes && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 italic mt-0.5">{r.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Parts Request</h2>
-                {(firstPendingPart?.requestedByTeam ?? firstPendingPart?.teamNumber) && (
-                  <p className="text-sm font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Team {firstPendingPart.requestedByTeam ?? firstPendingPart.teamNumber}</p>
-                )}
-                <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{extractPartsRequestText(firstPendingPart)}</p>
-                {firstPendingPart?.quantity != null && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Qty: {firstPendingPart.quantity}</p>
-                )}
-                {firstPendingPart?.notes && extractPartsRequestText(firstPendingPart) !== firstPendingPart.notes && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 italic">{firstPendingPart.notes}</p>
-                )}
+                <div className="px-8 py-5">
+                  <button onClick={dismissAll}
+                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-colors">
+                    Acknowledge All
+                  </button>
+                </div>
               </div>
             </div>
           );
