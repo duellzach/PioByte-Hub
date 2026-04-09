@@ -638,6 +638,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const handleSavePitScout = async () => {
+    if (isGuest) return;
     if (!pitForm.teamNumber || !activeEvent) return;
     try {
       const data = { ...pitForm, scoutedBy: parseInt(currentUser.id) };
@@ -656,6 +657,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const handleDeletePitScout = async (id: number) => {
+    if (isGuest) return;
     if (!confirm('Delete this robot scouting data?')) return;
     try {
       await api.scout.deletePitScout(id);
@@ -667,6 +669,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const handleSaveMatchScout = async () => {
+    if (isGuest) return;
     if (!matchForm.teamNumber || !activeEvent) return;
     const data = { ...matchForm, scoutedBy: parseInt(currentUser.id) };
     if (editingMatch) {
@@ -798,12 +801,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   };
 
   const claimMatch = (matchKey: string) => {
+    if (isGuest) return;
     const updated = { ...matchClaims, [matchKey]: { userId: parseInt(currentUser.id), userName: currentUser.name || currentUser.username } };
     setMatchClaims(updated);
     localStorage.setItem('piobyte_claims', JSON.stringify(updated));
   };
 
   const unclaimMatch = (matchKey: string) => {
+    if (isGuest) return;
     const updated = { ...matchClaims };
     delete updated[matchKey];
     setMatchClaims(updated);
@@ -835,7 +840,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   }, [activeEvent, fetchEventData, fetchTbaData]);
 
   const claimTeam = async (matchKey: string, teamNumber: number) => {
-    if (!activeEvent || !currentUser) return;
+    if (isGuest || !activeEvent || !currentUser) return;
     const key = `${matchKey}:${teamNumber}`;
     const entry = { userId: parseInt(currentUser.id), userName: currentUser.name || currentUser.username };
     setTeamClaims(prev => ({ ...prev, [key]: entry }));
@@ -1728,14 +1733,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       : 'bg-blue-600 hover:bg-blue-700 border-2 border-blue-700 text-white hover:scale-105 active:scale-95';
                   }
 
-                  const canScout = !alreadyScouted && !isOthersClaim;
+                  const canScout = !alreadyScouted && !isOthersClaim && !isGuest;
                   const ourTeamRing = isOurTeam ? ' ring-2 ring-white ring-offset-1 ring-offset-transparent' : '';
                   return (
                     <button
                       key={teamKey}
                       disabled={!canScout}
                       onClick={() => {
-                        if (!canScout) return;
+                        if (!canScout || isGuest) return;
                         claimTeam(m.key, teamNum);
                         resetMatchForm();
                         setMatchForm((f: any) => ({ ...f, teamNumber: teamNum, matchNumber: compositeNum, matchType, alliance }));
@@ -1842,10 +1847,12 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                   rel="noopener noreferrer"
                                   className="text-[8px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-wide"
                                 >TBA</a>
-                                <button
-                                  onClick={() => { setPitForm((f: any) => ({ ...f, teamNumber: n })); setShowPitForm(true); }}
-                                  className="text-[8px] font-black text-rose-600 hover:text-rose-800 uppercase tracking-wide"
-                                >+ Scout</button>
+                                {!isGuest && (
+                                  <button
+                                    onClick={() => { setPitForm((f: any) => ({ ...f, teamNumber: n })); setShowPitForm(true); }}
+                                    className="text-[8px] font-black text-rose-600 hover:text-rose-800 uppercase tracking-wide"
+                                  >+ Scout</button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1895,19 +1902,21 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                       className="flex items-center gap-1 px-2 py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black hover:bg-blue-700 transition-all">
                                       TBA {isPast && '▶'}
                                     </a>
-                                    <button
-                                      onClick={() => {
-                                        resetMatchForm();
-                                        const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
-                                        const matchNum = isElim && m.set_number > 0
-                                          ? m.set_number * 10 + (m.match_number || 1)
-                                          : (m.match_number || 1);
-                                        const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
-                                        setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
-                                        setShowMatchForm(true);
-                                      }}
-                                      className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
-                                    >Record</button>
+                                    {!isGuest && (
+                                      <button
+                                        onClick={() => {
+                                          resetMatchForm();
+                                          const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
+                                          const matchNum = isElim && m.set_number > 0
+                                            ? m.set_number * 10 + (m.match_number || 1)
+                                            : (m.match_number || 1);
+                                          const matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
+                                          setMatchForm(f => ({ ...f, matchNumber: matchNum, matchType }));
+                                          setShowMatchForm(true);
+                                        }}
+                                        className="px-2 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-slate-800 transition-all"
+                                      >Record</button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1919,6 +1928,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   )}
 
                   {(() => {
+                    if (isGuest) return null;
                     const myId = parseInt(currentUser?.id);
                     const standAssignments = assignments.filter(a =>
                       a.userId === myId && a.role === 'Scout - Stands'
@@ -2023,7 +2033,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     );
                   })()}
 
-                  {upcoming.length > 0 && (
+                  {!isGuest && upcoming.length > 0 && (
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-5">
                       <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest mb-3 flex items-center gap-2">
                         <UserCheck size={14} className="text-green-600" />
@@ -3030,6 +3040,15 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           </div>
         )}
 
+      </div>
+    );
+  }
+
+  if (isGuest) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-400 dark:text-slate-500">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-teamColor border-t-transparent" />
+        <p className="text-sm font-bold uppercase tracking-widest">Connecting to event…</p>
       </div>
     );
   }
