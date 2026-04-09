@@ -241,8 +241,7 @@ async function sendScoutCsv(eventId: number, res: any) {
     'Team #','Team Name','Robot Name','Drivetrain','Weight (lbs)','Speed (1-10)','Height (in)',
     'Fuel Capacity','Traversal','Shooter Type','Capabilities','Deficiencies',
     'Auto Routine','Auto Options','Auto Capable',
-    'Offense Rating','Defense Rating','Overall Rating','Core Values Rating',
-    'Notes','Photo URL','Scouted By','Created At',
+    'Offense Rating','Overall Rating','Photo URL',
   ].join(','));
   for (const p of pitScoutsData) {
     const autoCapable = p.autoOptions && Array.isArray(p.autoOptions) && p.autoOptions.length > 0 ? 'Yes' : (p.autonomousRoutine ? 'Yes' : 'No');
@@ -251,8 +250,7 @@ async function sendScoutCsv(eventId: number, res: any) {
       esc(p.weight), esc(p.speed), esc(p.height), esc(p.fuelCapacity),
       esc(p.traversalAbility), esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
       esc(p.autonomousRoutine), esc(p.autoOptions), autoCapable,
-      esc(p.offenseRating), esc(p.defenseRating), esc(p.overallRating), esc(p.coreValuesRating),
-      esc(p.notes), esc(p.photoUrl), esc(userMap[p.scoutedBy] ?? p.scoutedBy), esc(p.createdAt),
+      esc(p.offenseRating), esc(p.overallRating), esc(p.photoUrl),
     ].join(','));
   }
 
@@ -261,19 +259,13 @@ async function sendScoutCsv(eventId: number, res: any) {
   rows.push([
     'Match #','Match Type','Team #','Alliance',
     'Auto Score','Teleop Score','Endgame Score','Penalties',
-    'Auto Climb','End Climb Level','Coral Scored','Algae Scored',
-    'Auto Fuel','Teleop Fuel','Human Player Score',
-    'Defense Rating','Driving Skill Rating','Core Values Rating',
-    'Auto Used','Notes','Scouted By','Created At',
+    'Auto Climb','End Climb Level',
   ].join(','));
   for (const m of matchScoutsData) {
     rows.push([
       esc(m.matchNumber), esc(m.matchType), esc(m.teamNumber), esc(m.alliance),
       esc(m.autoScore), esc(m.teleopScore), esc(m.endgameScore), esc(m.penalties),
-      esc(m.autoClimb), esc(m.endClimbLevel), esc(m.coralScored), esc(m.algaeScored),
-      esc(m.autoFuelTotal), esc(m.teleopFuelTotal), esc(m.humanPlayerScore),
-      esc(m.defenseRating), esc(m.drivingSkillRating), esc(m.coreValuesRating),
-      esc(m.autoUsed), esc(m.notes), esc(userMap[m.scoutedBy] ?? m.scoutedBy), esc(m.createdAt),
+      esc(m.autoClimb), esc(m.endClimbLevel),
     ].join(','));
   }
 
