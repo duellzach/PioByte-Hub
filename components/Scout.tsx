@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
-import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap } from 'lucide-react';
+import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap, RefreshCw } from 'lucide-react';
 import pako from 'pako';
 import { QRCodeSVG } from 'qrcode.react';
 import { getOfflineQueue, addToOfflineQueue, syncOfflineQueue, type OfflineMatchEntry } from '../services/offlineQueue';
@@ -77,6 +77,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [selectedRobotIds, setSelectedRobotIds] = useState<Set<number>>(new Set());
   const [robotSort, setRobotSort] = useState<'number' | 'name'>('number');
   const [matchViewMode, setMatchViewMode] = useState<'list' | 'roster'>('list');
+  const [matchRefreshing, setMatchRefreshing] = useState(false);
 
   const [tbaYearEvents, setTbaYearEvents] = useState<any[]>([]);
   const [tbaYearStatuses, setTbaYearStatuses] = useState<Record<string, any>>({});
@@ -807,6 +808,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       setTeamClaims(map);
     } catch {}
   };
+
+  const handleMatchRefresh = useCallback(async () => {
+    if (!activeEvent) return;
+    setMatchRefreshing(true);
+    const tasks: Promise<any>[] = [
+      fetchEventData(activeEvent.id),
+      fetchTeamClaims(),
+    ];
+    if (activeEvent.tbaEventKey) tasks.push(fetchTbaData(activeEvent.tbaEventKey));
+    await Promise.allSettled(tasks);
+    setMatchRefreshing(false);
+  }, [activeEvent, fetchEventData, fetchTbaData]);
 
   const claimTeam = async (matchKey: string, teamNumber: number) => {
     if (!activeEvent || !currentUser) return;
@@ -1586,6 +1599,14 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${matchViewMode === 'roster' ? 'bg-slate-900 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'}`}
                 >
                   <Grid3X3 size={14} /> Roster
+                </button>
+                <button
+                  onClick={handleMatchRefresh}
+                  disabled={matchRefreshing}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={matchRefreshing ? 'animate-spin' : ''} />
+                  {matchRefreshing ? 'Refreshing…' : 'Refresh'}
                 </button>
               </div>
               <button
