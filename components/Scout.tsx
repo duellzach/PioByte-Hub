@@ -1403,7 +1403,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         {isGuest && (
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
             <KeyRound size={12} />
-            Guest View · Read Only — {currentUser?.name}
+            Guest View · Read Only — {activeEvent.name}{currentUser?.name && currentUser.name !== 'Guest' ? ` · ${currentUser.name}` : ''}
           </div>
         )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1733,14 +1733,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                       : 'bg-blue-600 hover:bg-blue-700 border-2 border-blue-700 text-white hover:scale-105 active:scale-95';
                   }
 
-                  const canScout = !alreadyScouted && !isOthersClaim && !isGuest;
                   const ourTeamRing = isOurTeam ? ' ring-2 ring-white ring-offset-1 ring-offset-transparent' : '';
+                  if (isGuest) {
+                    return (
+                      <div
+                        key={teamKey}
+                        className={`px-3 py-2 rounded-xl text-center min-w-[64px] ${btnClass}${ourTeamRing} opacity-80 cursor-default`}
+                      >
+                        {label}
+                      </div>
+                    );
+                  }
+                  const canScout = !alreadyScouted && !isOthersClaim;
                   return (
                     <button
                       key={teamKey}
                       disabled={!canScout}
                       onClick={() => {
-                        if (!canScout || isGuest) return;
+                        if (!canScout) return;
                         claimTeam(m.key, teamNum);
                         resetMatchForm();
                         setMatchForm((f: any) => ({ ...f, teamNumber: teamNum, matchNumber: compositeNum, matchType, alliance }));

@@ -42,6 +42,7 @@ export interface User {
   departments: Department[];
   roles: Role[];
   muted?: boolean;
+  guestEventId?: number;
 }
 
 export interface Attachment {

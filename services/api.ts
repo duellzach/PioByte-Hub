@@ -15,7 +15,12 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    const err: any = new Error(`API error: ${response.status} ${response.statusText}`);
+    let serverMessage: string | undefined;
+    try {
+      const body = await response.json();
+      serverMessage = body?.error;
+    } catch {}
+    const err: any = new Error(serverMessage || `API error: ${response.status} ${response.statusText}`);
     err.status = response.status;
     throw err;
   }

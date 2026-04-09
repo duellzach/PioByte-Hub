@@ -261,7 +261,7 @@ const App: React.FC = () => {
             roles: ['Guest'],
             departments: [],
             guestEventId: g.eventId,
-          } as any,
+          },
         }));
         setIsLoggedIn(true);
       } catch {}
@@ -375,13 +375,13 @@ const App: React.FC = () => {
           roles: ['Guest'],
           departments: [],
           guestEventId: g.eventId,
-        } as any,
+        },
       }));
       localStorage.setItem('frc_hub_guest', JSON.stringify(g));
       setIsLoggedIn(true);
       setTimeout(() => { window.location.hash = '#/scout'; }, 50);
-    } catch {
-      setGuestLoginError('Invalid or expired PIN. Check with the team that shared it.');
+    } catch (err: any) {
+      setGuestLoginError(err?.message || 'Invalid or expired PIN. Check with the team that shared it.');
     } finally {
       setGuestLoading(false);
     }

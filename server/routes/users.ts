@@ -1,7 +1,24 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { storage } from "../storage";
 
 const router = Router();
+
+const guestLoginAttempts = new Map<string, { count: number; resetAt: number }>();
+const GUEST_RATE_LIMIT = 10;
+const GUEST_RATE_WINDOW_MS = 15 * 60 * 1000;
+
+function checkGuestRateLimit(req: Request): boolean {
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = guestLoginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    guestLoginAttempts.set(ip, { count: 1, resetAt: now + GUEST_RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= GUEST_RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
 
 router.get("/users", async (req, res) => {
   try {
@@ -81,6 +98,9 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/guest-login", async (req, res) => {
+  if (!checkGuestRateLimit(req)) {
+    return res.status(429).json({ error: "Too many attempts. Please wait 15 minutes and try again." });
+  }
   try {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ error: "PIN is required" });
