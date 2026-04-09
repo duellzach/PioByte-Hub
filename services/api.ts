@@ -125,11 +125,11 @@ export const api = {
       apiRequest<any>(`/events/${eventId}/team-claims`, { method: 'POST', body: JSON.stringify(data) }),
     deleteTeamClaim: (eventId: number, matchKey: string, teamNumber: number, userId: number) =>
       apiRequest<void>(`/events/${eventId}/team-claims`, { method: 'DELETE', body: JSON.stringify({ matchKey, teamNumber, userId }) }),
-    getGuestPin: (eventId: number) => apiRequest<any>(`/events/${eventId}/guest-pin`),
+    getGuestPin: (eventId: number, userId: number) => apiRequest<any>(`/events/${eventId}/guest-pin?userId=${userId}`),
     createGuestPin: (eventId: number, label: string, createdBy: number) =>
       apiRequest<any>(`/events/${eventId}/guest-pin`, { method: 'POST', body: JSON.stringify({ label, createdBy }) }),
-    deactivateGuestPin: (eventId: number) =>
-      apiRequest<void>(`/events/${eventId}/guest-pin`, { method: 'DELETE' }),
+    deactivateGuestPin: (eventId: number, userId: number) =>
+      apiRequest<void>(`/events/${eventId}/guest-pin?userId=${userId}`, { method: 'DELETE' }),
   },
   matchExceptions: {
     list: (eventId: number) => apiRequest<any[]>(`/events/${eventId}/match-exceptions`),

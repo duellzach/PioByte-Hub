@@ -66,7 +66,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
       const pins: Record<number, any> = {};
       for (const e of evts) {
         try {
-          const token = await api.scout.getGuestPin(e.id);
+          const token = await api.scout.getGuestPin(e.id, currentUserId ? parseInt(currentUserId) : 0);
           pins[e.id] = token;
         } catch {
           pins[e.id] = null;
@@ -91,7 +91,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const handleDeactivatePin = async (eventId: number) => {
     setPinDeactivating(eventId);
     try {
-      await api.scout.deactivateGuestPin(eventId);
+      await api.scout.deactivateGuestPin(eventId, currentUserId ? parseInt(currentUserId) : 0);
       setEventPins(p => ({ ...p, [eventId]: null }));
     } catch (err) {
       console.error('Failed to deactivate PIN:', err);

@@ -612,8 +612,23 @@ router.delete("/events/:id/match-exceptions", async (req, res) => {
   }
 });
 
+async function requireTeamMember(userId: number | undefined, res: any): Promise<boolean> {
+  if (!userId || isNaN(userId)) {
+    res.status(401).json({ error: "Authentication required" });
+    return false;
+  }
+  const user = await storage.getUser(userId);
+  if (!user) {
+    res.status(401).json({ error: "Authentication required" });
+    return false;
+  }
+  return true;
+}
+
 router.get("/events/:id/guest-pin", async (req, res) => {
   try {
+    const userId = parseInt(req.query.userId as string);
+    if (!(await requireTeamMember(userId, res))) return;
     const eventId = parseInt(req.params.id);
     const token = await storage.getActiveGuestToken(eventId);
     res.json(token || null);
@@ -627,7 +642,7 @@ router.post("/events/:id/guest-pin", async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const { label, createdBy } = req.body;
-    if (!createdBy) return res.status(400).json({ error: "createdBy is required" });
+    if (!(await requireTeamMember(createdBy ? parseInt(createdBy) : undefined, res))) return;
     const pin = String(Math.floor(100000 + Math.random() * 900000));
     const token = await storage.createGuestToken(eventId, pin, label || "Guest", parseInt(createdBy));
     res.status(201).json(token);
@@ -639,6 +654,8 @@ router.post("/events/:id/guest-pin", async (req, res) => {
 
 router.delete("/events/:id/guest-pin", async (req, res) => {
   try {
+    const userId = parseInt(req.query.userId as string);
+    if (!(await requireTeamMember(userId, res))) return;
     const eventId = parseInt(req.params.id);
     await storage.deactivateGuestToken(eventId);
     res.status(204).send();
