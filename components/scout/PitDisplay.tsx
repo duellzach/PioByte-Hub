@@ -337,8 +337,22 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                               const d = label?.match(/\d+/);
                               return d ? parseInt(d[0]) : null;
                             };
-                            // A Nexus match is truly done if TBA says so, or its status explicitly says so
+                            // Only ONE match can physically be on the field at a time.
+                            // Find the LAST "On field" entry — that's the real current match.
+                            // Any earlier "On field" entry is stale (e.g. a practice match Nexus forgot to update).
+                            const lastOnFieldIdx = (() => {
+                              for (let i = matches.length - 1; i >= 0; i--) {
+                                if (matches[i].status === 'On field') return i;
+                              }
+                              return -1;
+                            })();
+                            // A Nexus match is truly done if TBA says so, its status explicitly says so,
+                            // or it's an earlier "On field" entry superseded by a later one.
                             const isTrulyDone = (m: any): boolean => {
+                              if (m.status === 'On field') {
+                                const idx = matches.indexOf(m);
+                                if (idx >= 0 && idx < lastOnFieldIdx) return true;
+                              }
                               const num = parseNum(m.label);
                               if (num != null && tbaPlayedNums.has(num)) return true;
                               const s = m.status;
