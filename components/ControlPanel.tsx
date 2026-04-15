@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw } from 'lucide-react';
+import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw, Upload } from 'lucide-react';
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 
@@ -51,6 +51,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [saveError, setSaveError] = useState<string | null>(null);
   const [logoLoading, setLogoLoading] = useState(false);
   const [logoMsg, setLogoMsg] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
 
   const [scoutEvents, setScoutEvents] = useState<any[]>([]);
@@ -172,6 +174,37 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
     }
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    setLogoMsg(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 400;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round((h / w) * maxDim); w = maxDim; }
+          else { w = Math.round((w / h) * maxDim); h = maxDim; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        setForm(f => ({ ...f, logoUrl: canvas.toDataURL('image/png') }));
+        setLogoMsg('Image uploaded! Save to apply.');
+        setLogoUploading(false);
+      };
+      img.onerror = () => { setLogoMsg('Could not read image.'); setLogoUploading(false); };
+      img.src = ev.target?.result as string;
+    };
+    reader.onerror = () => { setLogoMsg('Could not read file.'); setLogoUploading(false); };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const addDept = () => {
     setForm(f => ({ ...f, departments: [...f.departments, { name: 'New Department', color: '#6366f1' }] }));
   };
@@ -283,16 +316,33 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 )}
               </div>
               <div className="flex-1 space-y-2">
-                <button
-                  onClick={fetchTbaLogo}
-                  disabled={logoLoading || !form.teamNumber}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
-                >
-                  {logoLoading ? <Loader2 size={13} className="animate-spin" /> : <Image size={13} />}
-                  Fetch from TBA
-                </button>
+                <input
+                  ref={logoFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={fetchTbaLogo}
+                    disabled={logoLoading || logoUploading || !form.teamNumber}
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
+                  >
+                    {logoLoading ? <Loader2 size={13} className="animate-spin" /> : <Image size={13} />}
+                    Fetch from TBA
+                  </button>
+                  <button
+                    onClick={() => logoFileRef.current?.click()}
+                    disabled={logoLoading || logoUploading}
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
+                  >
+                    {logoUploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                    Upload Image
+                  </button>
+                </div>
                 {logoMsg && (
-                  <p className={`text-xs font-bold ${logoMsg.startsWith('Logo found') ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>{logoMsg}</p>
+                  <p className={`text-xs font-bold ${logoMsg.startsWith('Logo found') || logoMsg.startsWith('Image uploaded') ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>{logoMsg}</p>
                 )}
                 {form.logoUrl && (
                   <button
