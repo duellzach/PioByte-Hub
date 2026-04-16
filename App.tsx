@@ -435,11 +435,11 @@ const App: React.FC = () => {
               }} className="space-y-8">
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Secure Username</label>
-                    <input name="username" placeholder="coach_mentor / captain10991" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black uppercase text-sm" />
+                    <input name="username" placeholder="coach_mentor / captain10991" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black uppercase text-sm text-slate-900 placeholder:text-slate-400" />
                 </div>
                 <div className="space-y-2">
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Access Key</label>
-                    <input type="password" name="password" placeholder="••••••••" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black text-sm" />
+                    <input type="password" name="password" placeholder="••••••••" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor transition-all font-black text-sm text-slate-900 placeholder:text-slate-400" />
                 </div>
                 <button type="submit" className="w-full py-6 bg-teamColor text-white font-black rounded-3xl hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all transform active:scale-95 text-xl tracking-widest uppercase">
                     Initialize System
@@ -465,7 +465,7 @@ const App: React.FC = () => {
                       placeholder="000000"
                       value={guestPin}
                       onChange={e => { setGuestPin(e.target.value.replace(/\D/g, '')); setGuestLoginError(''); }}
-                      className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-teamColor/20 focus:border-teamColor transition-all font-black text-2xl tracking-[0.4em] text-center"
+                      className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-teamColor/20 focus:border-teamColor transition-all font-black text-2xl tracking-[0.4em] text-center text-slate-900 placeholder:text-slate-400"
                     />
                     {guestLoginError && (
                       <p className="text-red-500 text-xs font-bold text-center">{guestLoginError}</p>
