@@ -1187,7 +1187,7 @@ export class DatabaseStorage implements IStorage {
         departments: ['Leadership', 'Business'],
       },
       {
-        username: 'captain10991',
+        username: 'team_captain',
         password: 'changeme',
         name: 'Team Captain',
         roles: ['Team Captain', 'SCRUM Master'],
@@ -1215,13 +1215,6 @@ export class DatabaseStorage implements IStorage {
         departments: ['Electrical'],
       },
       {
-        username: 'biz_lead',
-        password: 'changeme',
-        name: 'Business Lead',
-        roles: ['Department Head'],
-        departments: ['Business', 'Logistics'],
-      },
-      {
         username: 'safety_trainer',
         password: 'changeme',
         name: 'Safety Trainer',
@@ -1242,8 +1235,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     await this.createProject({
-      name: '2026 Competition Robot',
-      description: 'Build season — FRC Team 10991 PIO-BYTES',
+      name: 'Competition Robot',
+      description: 'Main build-season project.',
       archived: false,
     });
   }
