@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "start": "NODE_ENV=production tsx server/index.ts",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:reset": "tsx server/reset.ts"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
