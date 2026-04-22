@@ -106,6 +106,7 @@ router.post("/settings/reset", async (req, res) => {
       teamName: 'piobyte',
       themeColor: '#dc2626',
       logoUrl: null,
+      teamProgram: 'FRC',
       departments: DEFAULT_DEPARTMENTS,
       roles: DEFAULT_ROLES,
     });
