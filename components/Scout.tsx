@@ -25,6 +25,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const { settings } = useTeamSettings();
   const teamNumber = settings.teamNumber;
   const frcKey = `frc${teamNumber}`;
+  const teamKeyPrefix = settings.teamProgram === 'FTC' ? 'ftc' : 'frc';
+  const myTeamKey = `${teamKeyPrefix}${teamNumber}`;
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'robots' | 'matches' | 'info' | 'schedule' | 'qr' | 'display' | 'map'>('robots');
@@ -430,7 +432,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       if (rankingsData?.rankings) {
         const map = new Map<number, { rank: number; rp: number; record: string }>();
         for (const r of rankingsData.rankings) {
-          const teamNum = parseInt(r.team_key?.replace('frc', '') || '0');
+          const teamNum = parseInt(r.team_key?.replace(/^(frc|ftc)/,'') || '0');
           if (teamNum) {
             map.set(teamNum, {
               rank: r.rank,
@@ -1011,11 +1013,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const label = getLabel(tbaMatch);
     const allTeamKeys = [...(tbaMatch.alliances?.red?.team_keys || []), ...(tbaMatch.alliances?.blue?.team_keys || [])];
     let report = `# FRC Match Analysis Request: ${label}\nEvent: ${activeEvent?.name}\n\n`;
-    report += `**Red Alliance:** ${(tbaMatch.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}\n`;
-    report += `**Blue Alliance:** ${(tbaMatch.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}\n\n`;
+    report += `**Red Alliance:** ${(tbaMatch.alliances?.red?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(', ')}\n`;
+    report += `**Blue Alliance:** ${(tbaMatch.alliances?.blue?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(', ')}\n\n`;
     report += `## Scouted Team Data\n\n`;
     for (const teamKey of allTeamKeys) {
-      const teamNum = parseInt(teamKey.replace('frc', ''));
+      const teamNum = parseInt(teamKey.replace(/^(frc|ftc)/,''));
       const isRed = tbaMatch.alliances?.red?.team_keys?.includes(teamKey);
       const pit = pitScouts.find((p: any) => p.teamNumber === teamNum);
       const teamMatches = matchScoutsData.filter((m: any) => m.teamNumber === teamNum);
@@ -1835,7 +1837,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 const redKeys: string[] = m.alliances?.red?.team_keys || [];
                 const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
                 const renderTeamBtn = (teamKey: string, alliance: 'Red' | 'Blue') => {
-                  const teamNum = parseInt(teamKey.replace('frc', ''));
+                  const teamNum = parseInt(teamKey.replace(/^(frc|ftc)/,''));
                   const isOurTeam = teamNum === teamNumber;
                   const alreadyScouted = matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === teamNum);
                   const claimKey = `${m.key}:${teamNum}`;
@@ -1944,7 +1946,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 const allTeamNums = [
                   ...(m.alliances?.red?.team_keys || []),
                   ...(m.alliances?.blue?.team_keys || []),
-                ].map((k: string) => parseInt(k.replace('frc', '')));
+                ].map((k: string) => parseInt(k.replace(/^(frc|ftc)/,'')));
                 if (allTeamNums.length === 0) return false;
                 const isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
                 const compositeNum = isElim && m.set_number > 0
@@ -1964,7 +1966,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 tbaMatches.flatMap((m: any) => [
                   ...(m.alliances?.red?.team_keys || []),
                   ...(m.alliances?.blue?.team_keys || []),
-                ]).map((k: string) => parseInt(k.replace('frc', '')))
+                ]).map((k: string) => parseInt(k.replace(/^(frc|ftc)/,'')))
               );
               const pitScoutedNums = new Set(pitScouts.map((p: any) => p.teamNumber));
               const unscoutedRobots = [...allTBATeamNums].filter(n => !pitScoutedNums.has(n)).sort((a, b) => a - b);
@@ -2026,7 +2028,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium mb-3">Every match listed has at least one team with no match scout entry. TBA links open the match page where video replays are available.</p>
                           <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                             {unscoutedMatches.map((m: any) => {
-                              const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                              const allTeamNums = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace(/^(frc|ftc)/,'')));
                               const _isElim = m.comp_level && m.comp_level !== 'qm' && m.comp_level !== 'pr';
                               const _compositeNum = _isElim && m.set_number > 0 ? m.set_number * 10 + (m.match_number || 1) : (m.match_number || 1);
                               const _matchType = m.comp_level === 'pr' ? 'practice' : m.comp_level === 'qm' ? 'qualification' : 'elimination';
@@ -2045,7 +2047,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                     <div className="min-w-0">
                                       <p className="text-[10px] font-bold text-slate-700 truncate">Missing: <span className="text-amber-700 font-black">{unscoutedTeams.join(', ')}</span></p>
                                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium hidden sm:block">
-                                        🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(' ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(' ')}
+                                        🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(' ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(' ')}
                                       </p>
                                     </div>
                                   </div>
@@ -2115,7 +2117,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     const suggestedRobots = suggestedMatches.flatMap((m: any) => {
                       const redKeys: string[] = m.alliances?.red?.team_keys || [];
                       const blueKeys: string[] = m.alliances?.blue?.team_keys || [];
-                      const ourAlliance = redKeys.includes(frcKey) ? 'red' : blueKeys.includes(frcKey) ? 'blue' : null;
+                      const ourAlliance = redKeys.includes(myTeamKey) ? 'red' : blueKeys.includes(myTeamKey) ? 'blue' : null;
                       const opponentKeys = ourAlliance === 'red' ? blueKeys : ourAlliance === 'blue' ? redKeys : [...redKeys, ...blueKeys];
                       const matchClaim = matchClaims[m.key];
                       const isClaimed = !!matchClaim;
@@ -2125,7 +2127,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         : (m.match_number || 1);
                       const matchType = m.comp_level === 'qm' ? 'qualification' : 'elimination';
                       return opponentKeys
-                        .map((k: string) => parseInt(k.replace('frc', '')))
+                        .map((k: string) => parseInt(k.replace(/^(frc|ftc)/,'')))
                         .filter(n => n !== teamNumber)
                         .filter(n => !pitScoutedNums.has(n))
                         .filter(n => !matchScoutsData.some((ms: any) => ms.matchNumber === compositeNum && ms.matchType === matchType && ms.teamNumber === n))
@@ -2136,7 +2138,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                           matchKey: m.key,
                           isClaimed,
                           claimedBy: isClaimed ? matchClaim.userName : null,
-                          alliance: redKeys.includes(`frc${n}`) ? 'Red' : 'Blue',
+                          alliance: redKeys.includes(`${teamKeyPrefix}${n}`) ? 'Red' : 'Blue',
                           isElim,
                         }));
                     });
@@ -2202,7 +2204,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         {upcoming.slice(0, 8).map((m: any) => {
                           const claim = matchClaims[m.key];
                           const isMine = claim?.userId === parseInt(currentUser.id);
-                          const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace('frc', '')));
+                          const allTeams = [...(m.alliances?.red?.team_keys || []), ...(m.alliances?.blue?.team_keys || [])].map((k: string) => parseInt(k.replace(/^(frc|ftc)/,'')));
                           const time = m.predicted_time || m.time;
                           return (
                             <div key={m.key} className={`flex items-center justify-between p-3 rounded-xl border-2 ${isMine ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : claim ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700' : 'border-slate-100 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-teamColor/30 hover:bg-teamColor/5'} transition-all`}>
@@ -2210,7 +2212,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                                 <span className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase flex-shrink-0">{getMatchLabel(m)}</span>
                                 <div className="min-w-0">
                                   <p className="text-[10px] font-bold text-slate-600 truncate">
-                                    🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace('frc', '')).join(', ')}
+                                    🔴 {(m.alliances?.red?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(', ')} vs 🔵 {(m.alliances?.blue?.team_keys || []).map((k: string) => k.replace(/^(frc|ftc)/,'')).join(', ')}
                                   </p>
                                   {claim && (
                                     <p className={`text-[9px] font-black ${isMine ? 'text-green-600' : 'text-slate-400'}`}>
@@ -2591,7 +2593,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     if (m.comp_level !== 'qm') continue;
                     const redKeys: string[] = m.alliances?.red?.team_keys ?? [];
                     const blueKeys: string[] = m.alliances?.blue?.team_keys ?? [];
-                    if (redKeys.includes(frcKey) || blueKeys.includes(frcKey)) {
+                    if (redKeys.includes(myTeamKey) || blueKeys.includes(myTeamKey)) {
                       ourMatchNums.add(m.match_number as number);
                     }
                   }
