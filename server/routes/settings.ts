@@ -224,4 +224,12 @@ router.get("/settings/tba-logo", async (req, res) => {
   }
 });
 
+router.get("/settings/api-status", (_req, res) => {
+  res.json({
+    tba: !!process.env.TBA_API_KEY,
+    toa: !!process.env.TOA_API_KEY,
+    nexus: !!process.env.NEXUS_API_KEY,
+  });
+});
+
 export default router;

@@ -54,6 +54,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [logoUploading, setLogoUploading] = useState(false);
   const logoFileRef = useRef<HTMLInputElement>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [apiStatus, setApiStatus] = useState<{ tba: boolean; toa: boolean; nexus: boolean } | null>(null);
 
   const [scoutEvents, setScoutEvents] = useState<any[]>([]);
   const [eventPins, setEventPins] = useState<Record<number, any>>({});
@@ -112,6 +113,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   useEffect(() => {
     setForm({ ...settings });
   }, [settings]);
+
+  useEffect(() => {
+    api.settings.getApiStatus().then(setApiStatus).catch(() => {});
+  }, []);
 
   if (!isCoachOrCaptain) return <Navigate to="/" replace />;
 
@@ -330,6 +335,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 ? 'FTC mode enables The Orange Alliance (TOA) API integration for match data and calendar imports.'
                 : 'FRC mode uses The Blue Alliance (TBA) API for match data and calendar imports.'}
             </p>
+            <div className="flex gap-2 mt-2 flex-wrap">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
+                <span className={`w-1.5 h-1.5 rounded-full ${apiStatus?.tba ? 'bg-green-500' : 'bg-red-400'}`} />
+                <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">TBA Key</span>
+                <span className={`text-[9px] font-bold ${apiStatus?.tba ? 'text-green-600' : 'text-red-500'}`}>
+                  {apiStatus == null ? '…' : apiStatus.tba ? 'Active' : 'Missing'}
+                </span>
+              </div>
+              {(form.teamProgram || 'FRC') === 'FTC' && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
+                  <span className={`w-1.5 h-1.5 rounded-full ${apiStatus?.toa ? 'bg-green-500' : 'bg-orange-400'}`} />
+                  <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">TOA Key</span>
+                  <span className={`text-[9px] font-bold ${apiStatus?.toa ? 'text-green-600' : 'text-orange-500'}`}>
+                    {apiStatus == null ? '…' : apiStatus.toa ? 'Active' : 'Add in Secrets'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div>

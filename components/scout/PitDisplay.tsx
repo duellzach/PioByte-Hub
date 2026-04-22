@@ -53,7 +53,8 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
 }) => {
   const { settings } = useTeamSettings();
   const teamNumber = settings.teamNumber;
-  const frcKey = `frc${teamNumber}`;
+  const teamKeyPrefix = settings.teamProgram === 'FTC' ? 'ftc' : 'frc';
+  const myTeamKey = `${teamKeyPrefix}${teamNumber}`;
   return (
     <div className="space-y-6 md:space-y-8">
 
@@ -512,11 +513,11 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
           </div>
 
           <div className="space-y-4">
-            {activeEvent?.tbaEventKey && (
+            {(activeEvent?.tbaEventKey || activeEvent?.toaEventKey) && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Event Schedule</h3>
-                  <button onClick={() => onFetchTbaData(activeEvent.tbaEventKey)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                  <button onClick={() => onFetchTbaData(activeEvent.toaEventKey || activeEvent.tbaEventKey)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
                     Refresh
                   </button>
                 </div>
@@ -526,8 +527,8 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                 ) : (() => {
                   const teamMatches = tbaMatches
                     .filter((m: any) =>
-                      m.alliances?.red?.team_keys?.includes(frcKey) ||
-                      m.alliances?.blue?.team_keys?.includes(frcKey)
+                      m.alliances?.red?.team_keys?.includes(myTeamKey) ||
+                      m.alliances?.blue?.team_keys?.includes(myTeamKey)
                     )
                     .sort((a: any, b: any) => {
                       if (a.predicted_time && b.predicted_time) return a.predicted_time - b.predicted_time;
@@ -557,12 +558,12 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                   };
 
                   const getOurAlliance = (m: any) => {
-                    if (m.alliances?.red?.team_keys?.includes(frcKey)) return 'red';
+                    if (m.alliances?.red?.team_keys?.includes(myTeamKey)) return 'red';
                     return 'blue';
                   };
 
                   const renderTeamLink = (teamKey: string) => {
-                    const num = parseInt(teamKey.replace('frc', ''));
+                    const num = parseInt(teamKey.replace('frc', '').replace('ftc', ''));
                     const hasScouted = pitScouts.some((ps: any) => ps.teamNumber === num);
                     return (
                       <span key={teamKey} onClick={(e) => { e.stopPropagation(); if (hasScouted) onOpenRobotByNumber(num); }}
@@ -674,11 +675,11 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
               </div>
             )}
 
-            {!activeEvent?.tbaEventKey && (
+            {!activeEvent?.tbaEventKey && !activeEvent?.toaEventKey && (
               <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-2xl md:rounded-[32px] border-2 border-yellow-200 dark:border-yellow-700 p-6 md:p-8 text-center">
                 <Calendar size={32} className="text-yellow-500 mx-auto mb-3" />
-                <p className="text-sm font-black text-yellow-800 uppercase tracking-tight">No TBA Event Linked</p>
-                <p className="text-xs text-yellow-600 mt-1">Edit this event and add a Blue Alliance event key to see live schedule and win/loss record</p>
+                <p className="text-sm font-black text-yellow-800 uppercase tracking-tight">No Event Key Linked</p>
+                <p className="text-xs text-yellow-600 mt-1">Edit this event and add a TBA event key (FRC) or TOA event key (FTC) to see live schedule and win/loss record</p>
               </div>
             )}
           </div>
@@ -691,7 +692,10 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
                 <span>Event Rankings</span>
-                {activeEvent?.tbaEventKey && (
+                {activeEvent?.toaEventKey && (
+                  <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest bg-orange-50 dark:bg-orange-900/30 px-3 py-1.5 rounded-lg">TOA Live</span>
+                )}
+                {!activeEvent?.toaEventKey && activeEvent?.tbaEventKey && (
                   <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg">TBA Live</span>
                 )}
               </h3>

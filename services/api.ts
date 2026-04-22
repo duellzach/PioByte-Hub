@@ -261,6 +261,7 @@ export const api = {
     update: (data: any) => apiRequest<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
     reset: (requesterId: number) => apiRequest<any>('/settings/reset', { method: 'POST', body: JSON.stringify({ requesterId }) }),
     fetchTbaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/tba-logo?team=${teamNumber}`),
+    getApiStatus: () => apiRequest<{ tba: boolean; toa: boolean; nexus: boolean }>('/settings/api-status'),
   },
   resources: {
     getAll: (category?: string) =>

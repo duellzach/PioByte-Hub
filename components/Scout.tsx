@@ -1807,7 +1807,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               )}
             </div>
 
-            {activeEvent?.tbaEventKey && tbaMatches.length > 0 && (() => {
+            {(activeEvent?.tbaEventKey || activeEvent?.toaEventKey) && tbaMatches.length > 0 && (() => {
               const now = Math.floor(Date.now() / 1000);
               const isUnplayed = (m: any) => {
                 const score = m.alliances?.red?.score;
@@ -2403,7 +2403,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
             nexusError={nexusError}
             nexusCountdown={nexusCountdown || null}
             onFetchNexusData={fetchNexusData}
-            onFetchTbaData={fetchTbaData}
+            onFetchTbaData={(_key: string) => activeEvent?.toaEventKey ? fetchToaData(activeEvent.toaEventKey) : fetchTbaData(activeEvent?.tbaEventKey || _key)}
             tbaMatches={tbaMatches}
             tbaLoading={tbaLoading}
             tbaRecord={tbaRecord}
