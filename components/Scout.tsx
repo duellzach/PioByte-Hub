@@ -3054,6 +3054,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
           onClose={() => { setShowPitForm(false); setEditingPit(null); }}
           onSave={handleSavePitScout}
           compressImage={compressImage}
+          isFtcEvent={!!activeEvent?.toaEventKey}
+          onFetchToaPhoto={async (teamNumber: number) => {
+            const teamKey = `ftc${teamNumber}`;
+            return api.toa.getTeamMedia(teamKey);
+          }}
         />
 
 

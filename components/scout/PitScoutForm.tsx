@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Camera } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Camera, Image, Loader2 } from 'lucide-react';
 import { RatingSlider, StarRating, TagInput } from './shared';
 import { useTeamSettings } from '../../contexts/TeamSettingsContext';
 
@@ -11,12 +11,37 @@ interface PitScoutFormProps {
   onClose: () => void;
   onSave: () => void;
   compressImage: (file: File) => Promise<string>;
+  isFtcEvent?: boolean;
+  onFetchToaPhoto?: (teamNumber: number) => Promise<{ url: string; description: string }[]>;
 }
 
 const PitScoutForm: React.FC<PitScoutFormProps> = ({
   show, editingPit, pitForm, setPitForm, onClose, onSave, compressImage,
+  isFtcEvent = false, onFetchToaPhoto,
 }) => {
   const { settings } = useTeamSettings();
+  const [toaPhotoLoading, setToaPhotoLoading] = useState(false);
+  const [toaPhotoMsg, setToaPhotoMsg] = useState<string | null>(null);
+
+  const handleFetchToaPhoto = async () => {
+    if (!onFetchToaPhoto || !pitForm.teamNumber) return;
+    setToaPhotoLoading(true);
+    setToaPhotoMsg(null);
+    try {
+      const photos = await onFetchToaPhoto(pitForm.teamNumber);
+      if (photos.length > 0) {
+        setPitForm({ ...pitForm, photoUrl: photos[0].url });
+        setToaPhotoMsg(`Photo loaded from TOA.`);
+      } else {
+        setToaPhotoMsg('No photos found for this team on TOA.');
+      }
+    } catch {
+      setToaPhotoMsg('Failed to fetch from TOA.');
+    } finally {
+      setToaPhotoLoading(false);
+    }
+  };
+
   if (!show) return null;
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -34,117 +59,56 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
         </div>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team Number *</span>
-              <input
-                type="number"
-                value={pitForm.teamNumber || ''}
-                onChange={(e) => setPitForm({ ...pitForm, teamNumber: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
-                placeholder={String(settings.teamNumber)}
-              />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team Name</span>
-              <input
-                value={pitForm.teamName}
-                onChange={(e) => setPitForm({ ...pitForm, teamName: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
-                placeholder="Team Name"
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Team Number</label>
+            <input
+              type="number"
+              value={pitForm.teamNumber}
+              onChange={(e) => { setPitForm({ ...pitForm, teamNumber: parseInt(e.target.value) || 0 }); setToaPhotoMsg(null); }}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
+              placeholder="Team #"
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Robot Name</span>
-              <input
-                value={pitForm.robotName}
-                onChange={(e) => setPitForm({ ...pitForm, robotName: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
-                placeholder="Robot Name"
-              />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drivetrain</span>
-              <select
-                value={pitForm.drivetrain}
-                onChange={(e) => setPitForm({ ...pitForm, drivetrain: e.target.value })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
-              >
-                <option value="">Select...</option>
-                <option value="Swerve">Swerve</option>
-                <option value="Tank">Tank</option>
-                <option value="Mecanum">Mecanum</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Weight (lbs)</span>
-              <input type="number" value={pitForm.weight || ''} onChange={(e) => setPitForm({ ...pitForm, weight: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Speed (ft/s)</span>
-              <input type="number" value={pitForm.speed || ''} onChange={(e) => setPitForm({ ...pitForm, speed: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Height (in)</span>
-              <input type="number" value={pitForm.height || ''} onChange={(e) => setPitForm({ ...pitForm, height: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Fuel Capacity</span>
-              <input type="number" value={pitForm.fuelCapacity || ''} onChange={(e) => setPitForm({ ...pitForm, fuelCapacity: parseInt(e.target.value) || 0 })}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-bold text-sm"
-                placeholder="0" min={0} />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Shooter Type</span>
-              <div className="flex gap-2">
-                {['Turret', 'Launcher', 'None'].map(t => (
-                  <button key={t} type="button"
-                    onClick={() => setPitForm({ ...pitForm, shooterType: pitForm.shooterType === t ? '' : t })}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                      pitForm.shooterType === t ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >{t}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Field Traversal</span>
-            <div className="grid grid-cols-4 gap-2">
-              {['Over Bump', 'Under Trench', 'Both', 'Neither'].map(t => (
-                <button key={t} type="button"
-                  onClick={() => setPitForm({ ...pitForm, traversalAbility: pitForm.traversalAbility === t ? '' : t })}
-                  className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    pitForm.traversalAbility === t ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
-                  }`}
-                >{t}</button>
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drive Train</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['Tank', 'Swerve', 'Mecanum', 'Other'].map(dt => (
+                <button key={dt} type="button"
+                  onClick={() => setPitForm({ ...pitForm, driveTrain: dt })}
+                  className={`p-2 rounded-[18px] text-xs font-black uppercase tracking-widest border-2 transition-all ${pitForm.driveTrain === dt ? 'border-teamColor bg-teamColor/10 text-teamColor' : 'border-slate-100 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:border-teamColor/50'}`}>
+                  {dt}
+                </button>
               ))}
             </div>
           </div>
 
-          <TagInput tags={pitForm.autoOptions} onChange={(tags) => setPitForm({ ...pitForm, autoOptions: tags })}
-            label="Auto Options (list all autonomous routines available)" placeholder="e.g. 2-piece, center, far side... press Enter" />
-          <TagInput tags={pitForm.capabilities} onChange={(tags) => setPitForm({ ...pitForm, capabilities: tags })}
-            label="Capabilities" placeholder="e.g. Shooter, Climber, Intake..." />
-          <TagInput tags={pitForm.deficiencies} onChange={(tags) => setPitForm({ ...pitForm, deficiencies: tags })}
-            label="Deficiencies" placeholder="e.g. Slow, Tipping..." />
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Autonomous</label>
+            <textarea value={pitForm.autoCapabilities} onChange={(e) => setPitForm({ ...pitForm, autoCapabilities: e.target.value })}
+              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
+              placeholder="Autonomous capabilities..." />
+          </div>
 
-          <div className="space-y-1">
-            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</span>
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Teleop / Endgame</label>
+            <textarea value={pitForm.teleopCapabilities} onChange={(e) => setPitForm({ ...pitForm, teleopCapabilities: e.target.value })}
+              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
+              placeholder="Teleop and endgame capabilities..." />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Strengths</label>
+            <TagInput value={pitForm.strengths} onChange={(v) => setPitForm({ ...pitForm, strengths: v })} placeholder="Add strength..." />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Weaknesses</label>
+            <TagInput value={pitForm.weaknesses} onChange={(v) => setPitForm({ ...pitForm, weaknesses: v })} placeholder="Add weakness..." />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</label>
             <textarea value={pitForm.notes} onChange={(e) => setPitForm({ ...pitForm, notes: e.target.value })}
               className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
               placeholder="Additional observations..." />
@@ -155,28 +119,47 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             {pitForm.photoUrl && (
               <div className="relative w-full h-48 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 mb-2">
                 <img src={pitForm.photoUrl} alt="Robot" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => setPitForm({ ...pitForm, photoUrl: '' })}
+                <button type="button" onClick={() => { setPitForm({ ...pitForm, photoUrl: '' }); setToaPhotoMsg(null); }}
                   className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all">
                   <X size={14} />
                 </button>
               </div>
             )}
-            <label className="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-teamColor hover:bg-teamColor/5 dark:bg-slate-700 transition-all">
-              <Camera size={16} className="text-slate-400 dark:text-slate-500" />
-              <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                {pitForm.photoUrl ? 'Change Photo' : 'Take / Upload Photo'}
-              </span>
-              <input type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      const dataUrl = await compressImage(file);
-                      setPitForm({ ...pitForm, photoUrl: dataUrl });
-                    } catch (err) { console.error('Failed to process image:', err); }
-                  }
-                }} />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <label className="flex items-center justify-center gap-2 flex-1 py-3 bg-slate-50 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-teamColor hover:bg-teamColor/5 dark:bg-slate-700 transition-all">
+                <Camera size={16} className="text-slate-400 dark:text-slate-500" />
+                <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  {pitForm.photoUrl ? 'Change Photo' : 'Take / Upload Photo'}
+                </span>
+                <input type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        const dataUrl = await compressImage(file);
+                        setPitForm({ ...pitForm, photoUrl: dataUrl });
+                        setToaPhotoMsg(null);
+                      } catch (err) { console.error('Failed to process image:', err); }
+                    }
+                  }} />
+              </label>
+              {isFtcEvent && onFetchToaPhoto && (
+                <button
+                  type="button"
+                  onClick={handleFetchToaPhoto}
+                  disabled={toaPhotoLoading || !pitForm.teamNumber}
+                  className="flex items-center gap-2 px-3 py-3 text-xs font-black uppercase tracking-widest border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl hover:border-teamColor hover:bg-teamColor/5 dark:bg-slate-700 transition-all disabled:opacity-50 text-slate-400 dark:text-slate-500"
+                >
+                  {toaPhotoLoading ? <Loader2 size={15} className="animate-spin" /> : <Image size={15} />}
+                  Fetch from TOA
+                </button>
+              )}
+            </div>
+            {toaPhotoMsg && (
+              <p className={`text-xs font-bold ${toaPhotoMsg.includes('loaded') ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                {toaPhotoMsg}
+              </p>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -185,12 +168,21 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             <RatingSlider value={pitForm.overallRating} onChange={(v) => setPitForm({ ...pitForm, overallRating: v })} label="Overall Rating" />
           </div>
 
-          <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} max={5} label="FIRST Core Values Rating" />
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alliance Preference</label>
+            <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} label="Alliance Interest" max={3} />
+          </div>
 
-          <button onClick={onSave} disabled={!pitForm.teamNumber}
-            className="w-full py-4 bg-teamColor text-white font-black rounded-xl uppercase tracking-widest text-xs hover:opacity-90 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            {editingPit ? 'Update Robot' : 'Save Robot'}
-          </button>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-3 border-2 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 rounded-[24px] font-black uppercase tracking-widest text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+              Cancel
+            </button>
+            <button type="button" onClick={onSave}
+              className="flex-1 py-3 bg-teamColor text-white rounded-[24px] font-black uppercase tracking-widest text-sm hover:opacity-90 transition-all">
+              {editingPit ? 'Update' : 'Save Scout'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

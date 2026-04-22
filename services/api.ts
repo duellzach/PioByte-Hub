@@ -153,6 +153,7 @@ export const api = {
     getEventTeams: (eventKey: string) => apiRequest<any[]>(`/toa/event/${eventKey}/teams`),
     getEventRankings: (eventKey: string) => apiRequest<any[]>(`/toa/event/${eventKey}/rankings`),
     getTeamEvents: (teamKey: string, season: string) => apiRequest<any[]>(`/toa/team/${teamKey}/events/${season}`),
+    getTeamMedia: (teamKey: string) => apiRequest<{ url: string; description: string }[]>(`/toa/team/${teamKey}/media`),
   },
   nexus: {
     getEvent: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}`),
@@ -261,6 +262,7 @@ export const api = {
     update: (data: any) => apiRequest<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
     reset: (requesterId: number) => apiRequest<any>('/settings/reset', { method: 'POST', body: JSON.stringify({ requesterId }) }),
     fetchTbaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/tba-logo?team=${teamNumber}`),
+    fetchToaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/toa-logo?team=${teamNumber}`),
     getApiStatus: () => apiRequest<{ tba: boolean; toa: boolean; nexus: boolean }>('/settings/api-status'),
   },
   resources: {

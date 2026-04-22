@@ -225,6 +225,31 @@ router.get("/settings/tba-logo", async (req, res) => {
   }
 });
 
+router.get("/settings/toa-logo", async (req, res) => {
+  try {
+    const teamNum = req.query.team as string;
+    if (!teamNum) return res.status(400).json({ error: "team query param required" });
+    const apiKey = process.env.TOA_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "TOA_API_KEY not configured" });
+
+    const teamKey = `ftc${teamNum}`;
+    const response = await fetch(`https://theorangealliance.org/api/team/${teamKey}/media`, {
+      headers: {
+        "X-TOA-Key": apiKey,
+        "X-Application-Origin": "PioByteHub",
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) return res.json({ logoUrl: null });
+    const media: any[] = await response.json();
+    const photo = Array.isArray(media) ? media.find((m: any) => m.url) : null;
+    res.json({ logoUrl: photo ? photo.url : null });
+  } catch (error) {
+    console.error("Error fetching TOA logo:", error);
+    res.status(500).json({ error: "Failed to fetch TOA logo" });
+  }
+});
+
 router.get("/settings/api-status", (_req, res) => {
   res.json({
     tba: !!process.env.TBA_API_KEY,

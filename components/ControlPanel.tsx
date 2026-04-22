@@ -180,6 +180,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
     }
   };
 
+  const fetchToaLogo = async () => {
+    setLogoLoading(true);
+    setLogoMsg(null);
+    try {
+      const result = await api.settings.fetchToaLogo(form.teamNumber);
+      if (result.logoUrl) {
+        setForm(f => ({ ...f, logoUrl: result.logoUrl }));
+        setLogoMsg('Photo found from TOA! Save to apply.');
+      } else {
+        setLogoMsg('No photo found for this team on TOA.');
+      }
+    } catch {
+      setLogoMsg('Failed to fetch from TOA.');
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -373,15 +391,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                   className="hidden"
                   onChange={handleLogoUpload}
                 />
-                <div className="flex gap-2">
-                  <button
-                    onClick={fetchTbaLogo}
-                    disabled={logoLoading || logoUploading || !form.teamNumber}
-                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
-                  >
-                    {logoLoading ? <Loader2 size={13} className="animate-spin" /> : <Image size={13} />}
-                    Fetch from TBA
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  {(form.teamProgram || 'FRC') === 'FRC' ? (
+                    <button
+                      onClick={fetchTbaLogo}
+                      disabled={logoLoading || logoUploading || !form.teamNumber}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
+                    >
+                      {logoLoading ? <Loader2 size={13} className="animate-spin" /> : <Image size={13} />}
+                      Fetch from TBA
+                    </button>
+                  ) : (
+                    <button
+                      onClick={fetchToaLogo}
+                      disabled={logoLoading || logoUploading || !form.teamNumber}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-300"
+                    >
+                      {logoLoading ? <Loader2 size={13} className="animate-spin" /> : <Image size={13} />}
+                      Fetch from TOA
+                    </button>
+                  )}
                   <button
                     onClick={() => logoFileRef.current?.click()}
                     disabled={logoLoading || logoUploading}
@@ -392,7 +421,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                   </button>
                 </div>
                 {logoMsg && (
-                  <p className={`text-xs font-bold ${logoMsg.startsWith('Logo found') || logoMsg.startsWith('Image uploaded') ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>{logoMsg}</p>
+                  <p className={`text-xs font-bold ${logoMsg.includes('found') || logoMsg.startsWith('Image uploaded') ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>{logoMsg}</p>
                 )}
                 {form.logoUrl && (
                   <button

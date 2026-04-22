@@ -409,6 +409,20 @@ router.get("/toa/team/:teamKey/events/:season", async (req, res) => {
   }
 });
 
+router.get("/toa/team/:teamKey/media", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured" });
+    const data = await toaFetch(`/team/${req.params.teamKey}/media`);
+    const photos = Array.isArray(data)
+      ? data.filter((m: any) => m.url).map((m: any) => ({ url: m.url, description: m.description || m.file_name || '' }))
+      : [];
+    res.json(photos);
+  } catch (error) {
+    console.error("TOA team media error:", error);
+    res.status(500).json({ error: "Failed to fetch TOA team media" });
+  }
+});
+
 router.get("/nexus/:eventKey", async (req, res) => {
   try {
     if (!process.env.NEXUS_API_KEY) {
