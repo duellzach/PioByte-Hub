@@ -139,11 +139,18 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Event Key (TBA & Nexus)</label>
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FRC Event Key (TBA & Nexus)</label>
                 <input value={eventForm.tbaEventKey} onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value, nexusEventKey: e.target.value })}
                   placeholder="e.g. 2026azgl"
                   className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Used for both TBA and Nexus live data — find it on thebluealliance.com (optional)</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">TBA/Nexus key for FRC events — find it on thebluealliance.com (optional)</p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FTC Event Key (TOA)</label>
+                <input value={eventForm.toaEventKey || ''} onChange={(e) => setEventForm({ ...eventForm, toaEventKey: e.target.value })}
+                  placeholder="e.g. 2425-FIM-AAFLI"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-orange-500 transition-all font-bold text-sm" />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">TOA key for FTC events — find it on theorangealliance.org (optional)</p>
               </div>
               <button onClick={onCreateEventSubmit} disabled={!eventForm.name.trim()}
                 className="w-full py-4 md:py-6 bg-teamColor text-white font-black rounded-xl md:rounded-[32px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-widest text-xs md:text-sm flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50">

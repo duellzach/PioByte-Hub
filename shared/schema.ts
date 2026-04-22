@@ -160,6 +160,7 @@ export const scoutEvents = pgTable("scout_events", {
   location: text("location").notNull().default(""),
   startDate: text("start_date"),
   endDate: text("end_date"),
+  toaEventKey: text("toa_event_key"),
   tbaEventKey: text("tba_event_key"),
   nexusEventKey: text("nexus_event_key"),
   createdBy: integer("created_by").notNull().references(() => users.id),
@@ -432,6 +433,7 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Team Member', tier: 'member' },
     { name: 'Class Member', tier: 'member' },
   ]),
+  teamProgram: text("team_program").notNull().default("FRC"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

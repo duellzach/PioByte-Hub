@@ -18,6 +18,7 @@ export interface TeamSettingsData {
   logoUrl: string | null;
   departments: DepartmentSetting[];
   roles: RoleSetting[];
+  teamProgram: string;
 }
 
 export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
@@ -26,6 +27,7 @@ export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
   teamName: 'piobyte',
   themeColor: '#dc2626',
   logoUrl: null,
+  teamProgram: 'FRC',
   departments: [
     { name: 'Mechanical', color: '#f97316' },
     { name: 'Software', color: '#3b82f6' },

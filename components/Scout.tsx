@@ -40,7 +40,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [selectedRobot, setSelectedRobot] = useState<any | null>(null);
   const [eventCounts, setEventCounts] = useState<Record<number, { pits: number; matches: number }>>({});
 
-  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '' });
+  const [eventForm, setEventForm] = useState({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '', toaEventKey: '' });
   const [tbaMatches, setTbaMatches] = useState<any[]>([]);
   const [tbaRecord, setTbaRecord] = useState<{ wins: number; losses: number; ties: number } | null>(null);
   const [tbaLoading, setTbaLoading] = useState(false);
@@ -108,7 +108,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [showEventSettings, setShowEventSettings] = useState(false);
-  const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '' });
+  const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '', toaEventKey: '' });
   const [eventSettingsSaveError, setEventSettingsSaveError] = useState<string | null>(null);
   const [nexusTestStatus, setNexusTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [nexusTestMsg, setNexusTestMsg] = useState('');
@@ -466,6 +466,135 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setTbaLoading(false);
   }, []);
 
+  const fetchToaData = useCallback(async (toaEventKey: string) => {
+    if (!toaEventKey) return;
+    setTbaLoading(true);
+    try {
+      const [allMatches, rankingsData] = await Promise.all([
+        api.toa.getEventMatches(toaEventKey),
+        api.toa.getEventRankings(toaEventKey).catch(() => []),
+      ]);
+      const normalizedMatches = (allMatches || []).map((m: any) => {
+        const redTeams = (m.teams || []).filter((t: any) => t.station_key && t.station_key.startsWith('Red'));
+        const blueTeams = (m.teams || []).filter((t: any) => t.station_key && t.station_key.startsWith('Blue'));
+        return {
+          key: m.match_key,
+          comp_level: m.tournament_level === 1 ? 'qm' : m.tournament_level === 3 ? 'sf' : m.tournament_level === 4 ? 'f' : 'qm',
+          match_number: m.match_number || 1,
+          set_number: m.match_number || 1,
+          alliances: {
+            red: {
+              team_keys: redTeams.map((t: any) => t.team_key),
+              score: m.red_score ?? -1,
+            },
+            blue: {
+              team_keys: blueTeams.map((t: any) => t.team_key),
+              score: m.blue_score ?? -1,
+            },
+          },
+          winning_alliance: m.red_score != null && m.blue_score != null
+            ? (m.red_score > m.blue_score ? 'red' : m.blue_score > m.red_score ? 'blue' : '')
+            : '',
+          post_result_time: (m.red_score != null && m.red_score >= 0) ? 1 : null,
+        };
+      });
+      setTbaMatches(normalizedMatches);
+      if (Array.isArray(rankingsData) && rankingsData.length > 0) {
+        const map = new Map<number, { rank: number; rp: number; record: string }>();
+        for (const r of rankingsData) {
+          const teamNum = parseInt((r.team_key || '').replace('ftc', '') || '0');
+          if (teamNum) {
+            map.set(teamNum, {
+              rank: r.rank || 0,
+              rp: r.ranking_points || 0,
+              record: `${r.wins || 0}-${r.losses || 0}-${r.ties || 0}`,
+            });
+          }
+        }
+        setTbaRankings(map);
+      }
+      const ftcKey = `ftc${teamNumber}`;
+      const ourMatches = normalizedMatches.filter((m: any) =>
+        m.alliances?.red?.team_keys?.includes(ftcKey) || m.alliances?.blue?.team_keys?.includes(ftcKey)
+      );
+      if (ourMatches.length > 0) {
+        let wins = 0, losses = 0, ties = 0;
+        for (const m of ourMatches) {
+          if (m.post_result_time === null) continue;
+          const isRed = m.alliances?.red?.team_keys?.includes(ftcKey);
+          const ourAlliance = isRed ? 'red' : 'blue';
+          if (m.winning_alliance === '') { ties++; }
+          else if (m.winning_alliance === ourAlliance) { wins++; }
+          else { losses++; }
+        }
+        setTbaRecord({ wins, losses, ties });
+      } else {
+        setTbaRecord(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch TOA data:', err);
+      setTbaMatches([]);
+      setTbaRecord(null);
+    }
+    setTbaLoading(false);
+  }, [teamNumber]);
+
+  const importTeamsFromToa = async () => {
+    if (!activeEvent?.toaEventKey) return;
+    setTbaImporting(true);
+    try {
+      const teams = await api.toa.getEventTeams(activeEvent.toaEventKey);
+      if (!teams || teams.length === 0) {
+        alert('No teams found for this event on The Orange Alliance.');
+        setTbaImporting(false);
+        return;
+      }
+      const existingNumbers = new Set(pitScouts.map((ps: any) => ps.teamNumber));
+      const newTeams = teams.filter((t: any) => !existingNumbers.has(t.team_number));
+      if (newTeams.length === 0) {
+        alert(`All ${teams.length} teams from this event are already in your scouting list.`);
+        setTbaImporting(false);
+        return;
+      }
+      let imported = 0;
+      for (const team of newTeams) {
+        try {
+          await api.scout.createPitScout(activeEvent.id, {
+            teamNumber: team.team_number,
+            teamName: team.team_name_short || team.team_name || `FTC Team ${team.team_number}`,
+            robotName: '',
+            drivetrain: '',
+            weight: 0,
+            speed: 0,
+            height: 0,
+            capabilities: [],
+            deficiencies: [],
+            autonomousRoutine: 'None',
+            notes: team.city && team.state_prov ? `From ${team.city}, ${team.state_prov}` : '',
+            offenseRating: 5,
+            defenseRating: 5,
+            overallRating: 5,
+            scoutedBy: parseInt(currentUser.id),
+          });
+          imported++;
+        } catch (err) {
+          console.error(`Failed to import FTC team ${team.team_number}:`, err);
+        }
+      }
+      const failed = newTeams.length - imported;
+      let msg = `Imported ${imported} new FTC teams!`;
+      if (existingNumbers.size > 0) msg += ` (${existingNumbers.size} already existed)`;
+      if (failed > 0) msg += ` (${failed} failed to import)`;
+      msg += ' You can now edit their robot details.';
+      alert(msg);
+      fetchEventData(activeEvent.id);
+    } catch (err) {
+      console.error('TOA team import failed:', err);
+      alert('Failed to import teams from The Orange Alliance. Check the event key and try again.');
+    }
+    setTbaImporting(false);
+  };
+
   const importTeamsFromTba = async () => {
     if (!activeEvent?.tbaEventKey) return;
     setTbaImporting(true);
@@ -539,7 +668,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     fetchEventInfoData(event.id);
     fetchAssignments(event.id);
     fetchMatchExceptions(event.id);
-    if (event.tbaEventKey) fetchTbaData(event.tbaEventKey);
+    if (event.toaEventKey) {
+      fetchToaData(event.toaEventKey);
+    } else if (event.tbaEventKey) {
+      fetchTbaData(event.tbaEventKey);
+    }
   };
 
   useEffect(() => {
@@ -560,7 +693,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         createdBy: parseInt(currentUser.id),
       });
       setShowEventForm(false);
-      setEventForm({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '' });
+      setEventForm({ name: '', location: '', startDate: '', endDate: '', tbaEventKey: '', nexusEventKey: '', toaEventKey: '' });
       fetchEvents();
     } catch (err) {
       console.error('Failed to create event:', err);
@@ -570,9 +703,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const openEventSettings = () => {
     const tba = activeEvent?.tbaEventKey || '';
     const nexus = activeEvent?.nexusEventKey || '';
+    const toa = activeEvent?.toaEventKey || '';
     setEventSettingsForm({
       tbaEventKey: tba,
       nexusEventKey: nexus || tba,
+      toaEventKey: toa,
     });
     setNexusTestStatus('idle');
     setNexusTestMsg('');
@@ -590,7 +725,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       const merged = freshEvent || { ...activeEvent, ...eventSettingsForm };
       setActiveEvent(merged);
       setShowEventSettings(false);
-      if (merged.tbaEventKey) fetchTbaData(merged.tbaEventKey);
+      if (merged.toaEventKey) {
+        fetchToaData(merged.toaEventKey);
+      } else if (merged.tbaEventKey) {
+        fetchTbaData(merged.tbaEventKey);
+      }
       if (merged.nexusEventKey) fetchNexusData(merged.nexusEventKey);
     } catch (err: any) {
       console.error('Failed to update event settings:', err);
@@ -1512,7 +1651,16 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               >
                 <ArrowUpDown size={14} /> {robotSort === 'number' ? '#' : 'A-Z'}
               </button>
-              {!isGuest && activeEvent?.tbaEventKey && (
+              {!isGuest && activeEvent?.toaEventKey && (
+                <button
+                  onClick={importTeamsFromToa}
+                  disabled={tbaImporting}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white font-black rounded-xl hover:bg-orange-600 shadow-lg shadow-orange-500/20 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download size={16} /> {tbaImporting ? 'Importing...' : 'Import from TOA'}
+                </button>
+              )}
+              {!isGuest && !activeEvent?.toaEventKey && activeEvent?.tbaEventKey && (
                 <button
                   onClick={importTeamsFromTba}
                   disabled={tbaImporting}
@@ -2943,11 +3091,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TBA Event Key</label>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TBA Event Key <span className="text-slate-400 normal-case font-normal">(FRC)</span></label>
                   <input value={eventSettingsForm.tbaEventKey} onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, tbaEventKey: e.target.value })}
                     placeholder="e.g. 2026azgl"
                     className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm" />
                   <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Find your event key on thebluealliance.com</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">TOA Event Key <span className="text-slate-400 normal-case font-normal">(FTC)</span></label>
+                  <input value={eventSettingsForm.toaEventKey} onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, toaEventKey: e.target.value })}
+                    placeholder="e.g. 2425-FIM-AAFLI"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-orange-500 transition-all font-bold text-sm" />
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Find your event key on theorangealliance.org — enables FTC match data sync</p>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

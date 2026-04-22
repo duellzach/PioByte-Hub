@@ -148,6 +148,12 @@ export const api = {
     getTeamYearStatuses: (teamKey: string, year: number) => apiRequest<any>(`/tba/team/${teamKey}/events/${year}/statuses`),
     getMatchVideos: (matchKey: string) => apiRequest<any>(`/tba/match/${matchKey}`),
   },
+  toa: {
+    getEventMatches: (eventKey: string) => apiRequest<any[]>(`/toa/event/${eventKey}/matches`),
+    getEventTeams: (eventKey: string) => apiRequest<any[]>(`/toa/event/${eventKey}/teams`),
+    getEventRankings: (eventKey: string) => apiRequest<any[]>(`/toa/event/${eventKey}/rankings`),
+    getTeamEvents: (teamKey: string, season: string) => apiRequest<any[]>(`/toa/team/${teamKey}/events/${season}`),
+  },
   nexus: {
     getEvent: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}`),
     getPits: (eventKey: string) => apiRequest<any>(`/nexus/${eventKey}/pits`),
@@ -245,6 +251,10 @@ export const api = {
       apiRequest<any[]>(`/calendar/tba-preview?requesterId=${requesterId}`),
     tbaImport: (requesterId: number, events: any[]) =>
       apiRequest<{ created: number; skipped: number }>('/calendar/tba-import', { method: 'POST', body: JSON.stringify({ requesterId, events }) }),
+    toaPreview: (requesterId: number, season?: string) =>
+      apiRequest<any[]>(`/calendar/toa-preview?requesterId=${requesterId}${season ? `&season=${season}` : ''}`),
+    toaImport: (requesterId: number, events: any[]) =>
+      apiRequest<{ created: number; skipped: number }>('/calendar/toa-import', { method: 'POST', body: JSON.stringify({ requesterId, events }) }),
   },
   settings: {
     get: () => apiRequest<any>('/settings'),

@@ -473,6 +473,7 @@ export class DatabaseStorage implements IStorage {
     if (event.endDate !== undefined) updates.endDate = event.endDate;
     if (event.tbaEventKey !== undefined) updates.tbaEventKey = event.tbaEventKey;
     if (event.nexusEventKey !== undefined) updates.nexusEventKey = event.nexusEventKey;
+    if (event.toaEventKey !== undefined) updates.toaEventKey = event.toaEventKey;
     if (event.archived !== undefined) updates.archived = event.archived;
     if (Object.keys(updates).length === 0) {
       const [row] = await db.select().from(scoutEvents).where(eq(scoutEvents.id, id));

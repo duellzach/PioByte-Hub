@@ -29,6 +29,25 @@ export async function tbaFetch(path: string) {
   return resp.json();
 }
 
+const TOA_BASE = "https://api.theorangealliance.org";
+export const TOA_KEY = process.env.TOA_API_KEY || "";
+
+export async function toaFetch(path: string) {
+  if (!TOA_KEY) throw new Error("TOA_API_KEY environment variable is not configured");
+  const resp = await fetch(`${TOA_BASE}${path}`, {
+    headers: {
+      "X-TOA-Key": TOA_KEY,
+      "X-Application-Origin": "PioByteHub",
+    },
+  });
+  if (!resp.ok) {
+    const err: any = new Error(`TOA API error: ${resp.status} ${resp.statusText}`);
+    err.status = resp.status;
+    throw err;
+  }
+  return resp.json();
+}
+
 const NEXUS_BASE = "https://frc.nexus/api/v1";
 
 export async function nexusFetch(path: string) {

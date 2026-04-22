@@ -128,6 +128,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         logoUrl: form.logoUrl,
         departments: form.departments,
         roles: form.roles,
+        teamProgram: form.teamProgram,
       });
       setSettings(updated);
       setSaveSuccess(true);
@@ -303,6 +304,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 placeholder="piobyte"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Team Program</label>
+            <div className="flex gap-2">
+              {(['FRC', 'FTC'] as const).map(prog => (
+                <button
+                  key={prog}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, teamProgram: prog }))}
+                  className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest border-2 transition-all ${
+                    (form.teamProgram || 'FRC') === prog
+                      ? 'border-transparent text-white'
+                      : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700 hover:border-slate-300'
+                  }`}
+                  style={(form.teamProgram || 'FRC') === prog ? { backgroundColor: form.themeColor } : {}}
+                >
+                  {prog === 'FRC' ? 'FRC — FIRST Robotics Competition' : 'FTC — FIRST Tech Challenge'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium mt-1.5">
+              {(form.teamProgram || 'FRC') === 'FTC'
+                ? 'FTC mode enables The Orange Alliance (TOA) API integration for match data and calendar imports.'
+                : 'FRC mode uses The Blue Alliance (TBA) API for match data and calendar imports.'}
+            </p>
           </div>
 
           <div>

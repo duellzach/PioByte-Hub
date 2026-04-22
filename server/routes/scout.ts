@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { tbaFetch, TBA_KEY, nexusFetch } from "../helpers";
+import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY } from "../helpers";
 
 const router = Router();
 
@@ -362,6 +362,50 @@ router.get("/tba/match/:matchKey", async (req, res) => {
   } catch (error) {
     console.error("TBA match error:", error);
     res.status(500).json({ error: "Failed to fetch TBA match" });
+  }
+});
+
+router.get("/toa/event/:eventKey/matches", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured" });
+    const data = await toaFetch(`/event/${req.params.eventKey}/matches`);
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("TOA event matches error:", error);
+    res.status(500).json({ error: "Failed to fetch TOA event matches" });
+  }
+});
+
+router.get("/toa/event/:eventKey/rankings", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured" });
+    const data = await toaFetch(`/event/${req.params.eventKey}/rankings`);
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("TOA rankings error:", error);
+    res.status(500).json({ error: "Failed to fetch TOA rankings" });
+  }
+});
+
+router.get("/toa/event/:eventKey/teams", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured" });
+    const data = await toaFetch(`/event/${req.params.eventKey}/teams`);
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("TOA event teams error:", error);
+    res.status(500).json({ error: "Failed to fetch TOA event teams" });
+  }
+});
+
+router.get("/toa/team/:teamKey/events/:season", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured" });
+    const data = await toaFetch(`/team/${req.params.teamKey}/events/${req.params.season}`);
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("TOA team events error:", error);
+    res.status(500).json({ error: "Failed to fetch TOA team events" });
   }
 });
 

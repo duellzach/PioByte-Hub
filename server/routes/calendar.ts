@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, tbaFetch, TBA_KEY } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, tbaFetch, TBA_KEY, toaFetch, TOA_KEY } from "../helpers";
 
 const router = Router();
 
@@ -144,6 +144,76 @@ router.post("/calendar/tba-import", async (req, res) => {
   } catch (error) {
     console.error("Error importing TBA events:", error);
     res.status(500).json({ error: "Failed to import TBA events" });
+  }
+});
+
+router.get("/calendar/toa-preview", async (req, res) => {
+  try {
+    if (!TOA_KEY) return res.status(503).json({ error: "TOA_API_KEY is not configured on this server" });
+    const requesterId = req.query.requesterId ? parseInt(req.query.requesterId as string) : undefined;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(requesterId);
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can import events" });
+    }
+    const teamSettings = await storage.getTeamSettings();
+    const season = req.query.season as string || (() => {
+      const y = new Date().getFullYear();
+      const m = new Date().getMonth();
+      const start = m >= 8 ? y : y - 1;
+      return `${String(start).slice(2)}${String(start + 1).slice(2)}`;
+    })();
+    const teamNum = (teamSettings.teamNumber as number) || 10991;
+    const data = await toaFetch(`/team/ftc${teamNum}/events/${season}`);
+    const events = Array.isArray(data) ? data : [];
+    const mapped = events.map((e: any) => ({
+      key: e.event_key,
+      name: e.event_name,
+      startDate: e.start_date ? e.start_date.slice(0, 10) : null,
+      endDate: e.end_date ? e.end_date.slice(0, 10) : null,
+      location: [e.city, e.state_prov, e.country].filter(Boolean).join(', '),
+    }));
+    res.json(mapped);
+  } catch (error) {
+    console.error("Error fetching TOA preview:", error);
+    res.status(500).json({ error: "Failed to fetch TOA events" });
+  }
+});
+
+router.post("/calendar/toa-import", async (req, res) => {
+  try {
+    const { requesterId, events: eventsToImport } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can import events" });
+    }
+    if (!Array.isArray(eventsToImport)) return res.status(400).json({ error: "events must be an array" });
+    const existing = await storage.getCalendarEvents();
+    const created: any[] = [];
+    let skipped = 0;
+    for (const ev of eventsToImport) {
+      if (!ev.startDate) { skipped++; continue; }
+      const isDup = existing.some(e => e.title === ev.name && e.startDate === ev.startDate);
+      if (isDup) { skipped++; continue; }
+      const row = await storage.createCalendarEvent({
+        title: ev.name,
+        description: '',
+        startDate: ev.startDate,
+        endDate: ev.endDate || null,
+        startTime: null,
+        endTime: null,
+        type: 'competition',
+        location: ev.location || '',
+        attending: true,
+        createdBy: parseInt(requesterId),
+      });
+      created.push(row);
+    }
+    res.json({ created: created.length, skipped });
+  } catch (error) {
+    console.error("Error importing TOA events:", error);
+    res.status(500).json({ error: "Failed to import TOA events" });
   }
 });
 
