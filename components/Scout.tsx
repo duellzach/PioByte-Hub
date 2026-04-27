@@ -110,7 +110,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [showEventSettings, setShowEventSettings] = useState(false);
-  const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '', toaEventKey: '' });
+  const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '', toaEventKey: '', nexusPitMapKey: '' });
   const [eventSettingsSaveError, setEventSettingsSaveError] = useState<string | null>(null);
   const [nexusTestStatus, setNexusTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [nexusTestMsg, setNexusTestMsg] = useState('');
@@ -230,7 +230,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
 
   useEffect(() => {
     if (activeTab !== 'map') return;
-    const key = activeEvent?.nexusEventKey;
+    const key = activeEvent?.nexusPitMapKey || activeEvent?.nexusEventKey;
     if (!key) return;
     if (!pitMapData && !pitMapLoading && !pitMapError) {
       fetchPitMap(key);
@@ -710,6 +710,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       tbaEventKey: tba,
       nexusEventKey: nexus || tba,
       toaEventKey: toa,
+      nexusPitMapKey: activeEvent?.nexusPitMapKey || '',
     });
     setNexusTestStatus('idle');
     setNexusTestMsg('');
@@ -3022,8 +3023,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
               mapData={pitMapData}
               loading={pitMapLoading}
               error={pitMapError}
-              eventKey={activeEvent?.nexusEventKey || null}
-              onRefresh={() => activeEvent?.nexusEventKey && fetchPitMap(activeEvent.nexusEventKey)}
+              eventKey={activeEvent?.nexusPitMapKey || activeEvent?.nexusEventKey || null}
+              onRefresh={() => { const k = activeEvent?.nexusPitMapKey || activeEvent?.nexusEventKey; if (k) fetchPitMap(k); }}
               teamNames={teamNamesMap}
               scoutedTeams={new Set(
                 pitScouts
@@ -3139,6 +3140,18 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                     <p className={`text-[9px] font-bold ml-1 ${nexusTestStatus === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{nexusTestMsg}</p>
                   )}
                   <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Enables live queue countdown & match schedule from frc.nexus</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    Nexus Pit Map Key <span className="text-slate-400 normal-case font-normal">(optional)</span>
+                  </label>
+                  <input value={eventSettingsForm.nexusPitMapKey}
+                    onChange={(e) => setEventSettingsForm({ ...eventSettingsForm, nexusPitMapKey: e.target.value })}
+                    placeholder="e.g. 2026cmptx"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 transition-all font-bold text-sm" />
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                    Championships only — all divisions share one pit map stored under the parent event key (e.g. <span className="font-bold">2026cmptx</span> for Galileo/Archimedes/etc.). Leave blank for normal events.
+                  </p>
                 </div>
                 {eventSettingsSaveError && (
                   <p className="text-xs font-bold text-red-600 flex items-center gap-1.5">
