@@ -1,15 +1,9 @@
-const CACHE_NAME = 'piobyte-hub-v3';
-
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/tailwind.css',
-];
+const CACHE_NAME = 'piobyte-hub-v5';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS);
+      return cache.addAll(['/tailwind.css']);
     }).then(() => self.skipWaiting())
   );
 });
@@ -35,23 +29,57 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  const isHtml = event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html');
+
+  if (isHtml) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/') || caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  const isHashedAsset = url.pathname.startsWith('/assets/');
+
+  if (isHashedAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       })
       .catch(() => {
         return caches.match(event.request).then((cached) => {
           if (cached) return cached;
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
           return new Response('Offline', { status: 503 });
         });
       })
