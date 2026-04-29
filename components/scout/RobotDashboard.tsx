@@ -21,8 +21,8 @@ interface RobotDashboardProps {
 }
 
 const RobotDashboard: React.FC<RobotDashboardProps> = ({
-  selectedRobot, activeEvent, robotMatches, crossEventMatches,
-  tbaYearEvents, tbaYearStatuses, tbaYearLoading,
+  selectedRobot, activeEvent, robotMatches = [], crossEventMatches = [],
+  tbaYearEvents = [], tbaYearStatuses, tbaYearLoading,
   geminiModal, copiedGemini, onBack, onEditPit, onDeletePit,
   onGenerateAIReport, onSetGeminiModal, onSetCopiedGemini, isGuest = false,
 }) => {
@@ -86,11 +86,11 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
               </div>
             )}
           </div>
-          {selectedRobot.autoOptions?.length > 0 && (
+          {Array.isArray(selectedRobot.autoOptions) && selectedRobot.autoOptions.length > 0 && (
             <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl p-4">
               <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-2">Auto Routines Available</p>
               <div className="flex flex-wrap gap-2">
-                {selectedRobot.autoOptions.map((a: string, i: number) => (
+                {(selectedRobot.autoOptions as string[]).map((a: string, i: number) => (
                   <span key={i} className="px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-xs font-bold">{a}</span>
                 ))}
               </div>
@@ -127,23 +127,24 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
         </div>
       </div>
 
-      {(selectedRobot.capabilities?.length > 0 || selectedRobot.deficiencies?.length > 0) && (
+      {((Array.isArray(selectedRobot.capabilities) && selectedRobot.capabilities.length > 0) ||
+        (Array.isArray(selectedRobot.deficiencies) && selectedRobot.deficiencies.length > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {selectedRobot.capabilities?.length > 0 && (
+          {Array.isArray(selectedRobot.capabilities) && selectedRobot.capabilities.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
               <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Capabilities</h3>
               <div className="flex flex-wrap gap-2">
-                {selectedRobot.capabilities.map((c: string, i: number) => (
+                {(selectedRobot.capabilities as string[]).map((c: string, i: number) => (
                   <span key={i} className="px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">{c}</span>
                 ))}
               </div>
             </div>
           )}
-          {selectedRobot.deficiencies?.length > 0 && (
+          {Array.isArray(selectedRobot.deficiencies) && selectedRobot.deficiencies.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
               <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Deficiencies</h3>
               <div className="flex flex-wrap gap-2">
-                {selectedRobot.deficiencies.map((d: string, i: number) => (
+                {(selectedRobot.deficiencies as string[]).map((d: string, i: number) => (
                   <span key={i} className="px-3 py-1.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-full text-xs font-bold">{d}</span>
                 ))}
               </div>
