@@ -31,7 +31,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
       const photos = await onFetchToaPhoto(pitForm.teamNumber);
       if (photos.length > 0) {
         setPitForm({ ...pitForm, photoUrl: photos[0].url });
-        setToaPhotoMsg(`Photo loaded from TOA.`);
+        setToaPhotoMsg('Photo loaded from TOA.');
       } else {
         setToaPhotoMsg('No photos found for this team on TOA.');
       }
@@ -65,18 +65,18 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
               type="number"
               value={pitForm.teamNumber}
               onChange={(e) => { setPitForm({ ...pitForm, teamNumber: parseInt(e.target.value) || 0 }); setToaPhotoMsg(null); }}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-black text-lg dark:text-white"
               placeholder="Team #"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drive Train</label>
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drivetrain</label>
             <div className="grid grid-cols-2 gap-2">
               {['Tank', 'Swerve', 'Mecanum', 'Other'].map(dt => (
                 <button key={dt} type="button"
-                  onClick={() => setPitForm({ ...pitForm, driveTrain: dt })}
-                  className={`p-2 rounded-[18px] text-xs font-black uppercase tracking-widest border-2 transition-all ${pitForm.driveTrain === dt ? 'border-teamColor bg-teamColor/10 text-teamColor' : 'border-slate-100 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:border-teamColor/50'}`}>
+                  onClick={() => setPitForm({ ...pitForm, drivetrain: dt })}
+                  className={`p-2 rounded-[18px] text-xs font-black uppercase tracking-widest border-2 transition-all ${pitForm.drivetrain === dt ? 'border-teamColor bg-teamColor/10 text-teamColor' : 'border-slate-100 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:border-teamColor/50'}`}>
                   {dt}
                 </button>
               ))}
@@ -84,34 +84,32 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Autonomous</label>
-            <textarea value={pitForm.autoCapabilities} onChange={(e) => setPitForm({ ...pitForm, autoCapabilities: e.target.value })}
-              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
-              placeholder="Autonomous capabilities..." />
+            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Autonomous Routine</label>
+            <textarea value={pitForm.autonomousRoutine === 'None' ? '' : (pitForm.autonomousRoutine || '')}
+              onChange={(e) => setPitForm({ ...pitForm, autonomousRoutine: e.target.value || 'None' })}
+              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none dark:text-white dark:placeholder:text-slate-400"
+              placeholder="Describe autonomous routine..." />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Teleop / Endgame</label>
-            <textarea value={pitForm.teleopCapabilities} onChange={(e) => setPitForm({ ...pitForm, teleopCapabilities: e.target.value })}
-              className="w-full h-20 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
-              placeholder="Teleop and endgame capabilities..." />
-          </div>
+          <TagInput
+            tags={pitForm.capabilities || []}
+            onChange={(v) => setPitForm({ ...pitForm, capabilities: v })}
+            label="Capabilities"
+            placeholder="Add capability and press Enter"
+          />
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Strengths</label>
-            <TagInput value={pitForm.strengths} onChange={(v) => setPitForm({ ...pitForm, strengths: v })} placeholder="Add strength..." />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Weaknesses</label>
-            <TagInput value={pitForm.weaknesses} onChange={(v) => setPitForm({ ...pitForm, weaknesses: v })} placeholder="Add weakness..." />
-          </div>
+          <TagInput
+            tags={pitForm.deficiencies || []}
+            onChange={(v) => setPitForm({ ...pitForm, deficiencies: v })}
+            label="Weaknesses / Deficiencies"
+            placeholder="Add weakness and press Enter"
+          />
 
           <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Notes</label>
-            <textarea value={pitForm.notes} onChange={(e) => setPitForm({ ...pitForm, notes: e.target.value })}
-              className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none"
-              placeholder="Additional observations..." />
+            <textarea value={pitForm.notes || ''} onChange={(e) => setPitForm({ ...pitForm, notes: e.target.value })}
+              className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[24px] outline-none focus:border-teamColor transition-all font-medium text-sm resize-none dark:text-white dark:placeholder:text-slate-400"
+              placeholder="Additional observations, teleop & endgame notes..." />
           </div>
 
           <div className="space-y-2">
@@ -168,10 +166,7 @@ const PitScoutForm: React.FC<PitScoutFormProps> = ({
             <RatingSlider value={pitForm.overallRating} onChange={(v) => setPitForm({ ...pitForm, overallRating: v })} label="Overall Rating" />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alliance Preference</label>
-            <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} label="Alliance Interest" max={3} />
-          </div>
+          <StarRating value={pitForm.coreValuesRating} onChange={(v) => setPitForm({ ...pitForm, coreValuesRating: v })} label="Alliance Interest" max={3} />
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
