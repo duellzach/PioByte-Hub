@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS } from '../constants';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { useTimeFormatters } from '../utils/time';
 import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import TaskModal from './TaskModal';
@@ -21,6 +22,7 @@ interface KanbanBoardProps {
 
 const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify }) => {
   const { settings } = useTeamSettings();
+  const { fmtDateShort } = useTimeFormatters();
   const deptNames = settings.departments.map(d => d.name);
 
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
@@ -680,7 +682,7 @@ const TaskCard: React.FC<{
                         )}
                     </div>
                     <span className="text-[6px] md:text-[7px] font-bold text-slate-400 dark:text-slate-500">
-                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                        {fmtDateShort(task.dueDate)}
                     </span>
                 </div>
                 <button 

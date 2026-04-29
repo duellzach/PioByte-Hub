@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Calendar, AlertCircle, Zap, Brain } from 'lucide-react';
 import { useTeamSettings } from '../../contexts/TeamSettingsContext';
+import { useTimeFormatters } from '../../utils/time';
 
 interface PitDisplayProps {
   pitSubTab: 'live' | 'rankings';
@@ -52,6 +53,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
   onOpenRobotByNumber, onSetSelectedRobot, onGenerateGeminiReport,
 }) => {
   const { settings } = useTeamSettings();
+  const { fmtTime } = useTimeFormatters();
   const teamNumber = settings.teamNumber;
   const teamKeyPrefix = settings.teamProgram === 'FTC' ? 'ftc' : 'frc';
   const myTeamKey = `${teamKeyPrefix}${teamNumber}`;
@@ -150,7 +152,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                 <p className="text-base text-slate-700 dark:text-slate-300 font-medium">{pendingBreak.breakAfter}</p>
                 {resumeTime && (
                   <p className="text-sm text-orange-600 font-black mt-3">
-                    Resumes at {new Date(resumeTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT
+                    Resumes at {fmtTime(resumeTime)}
                   </p>
                 )}
               </div>
@@ -351,7 +353,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                           )}
 
                           {nexusData.matches?.length > 0 && (() => {
-                            const timeStr = (t: string) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+                            const timeStr = (t: string) => fmtTime(t);
                             const activeStatuses = new Set(['Queuing soon', 'Now queuing', 'On deck', 'On field']);
                             const completedStatuses = new Set(['Results posted', 'Complete', 'Completed', 'Done', 'Played']);
                             const matches: any[] = nexusData.matches;
@@ -612,7 +614,7 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
                                     <div className="flex items-center gap-2">
                                       {time && (
                                         <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                                          {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                          {fmtTime(time * 1000)}
                                         </span>
                                       )}
                                       <button onClick={() => onGenerateGeminiReport(m)} title="Generate AI match analysis"

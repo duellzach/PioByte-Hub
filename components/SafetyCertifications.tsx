@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldCheck, Plus, X, ChevronRight, Check, AlertTriangle, Clock, User, Users, Edit3, Trash2, Lock, Unlock, ClipboardList, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { User as UserType, Role } from '../types';
 import { api } from '../services/api';
+import { useTimeFormatters } from '../utils/time';
 
 interface SafetyCertificationsProps {
   currentUser: UserType | null;
@@ -10,6 +11,7 @@ interface SafetyCertificationsProps {
 type Tab = 'certs' | 'mine' | 'queue';
 
 const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser }) => {
+  const { fmtDateShort } = useTimeFormatters();
   const [activeTab, setActiveTab] = useState<Tab>('certs');
   const [certifications, setCertifications] = useState<any[]>([]);
   const [selectedCert, setSelectedCert] = useState<any | null>(null);
@@ -908,7 +910,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                         <div className="min-w-0">
                           <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{req.certification?.name}</p>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                            Requester: {getUserName(req.userId)} • {new Date(req.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })}
+                            Requester: {getUserName(req.userId)} • {fmtDateShort(req.createdAt)}
                           </p>
                           {req.trainerId && (
                             <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
