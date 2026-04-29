@@ -19,7 +19,6 @@ export interface TeamSettingsData {
   departments: DepartmentSetting[];
   roles: RoleSetting[];
   teamProgram: string;
-  timezone: string;
 }
 
 export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
@@ -29,7 +28,6 @@ export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
   themeColor: '#dc2626',
   logoUrl: null,
   teamProgram: 'FRC',
-  timezone: 'America/Los_Angeles',
   departments: [
     { name: 'Mechanical', color: '#f97316' },
     { name: 'Software', color: '#3b82f6' },

@@ -4,7 +4,6 @@ import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudO
 import { api } from '../services/api';
 import TeamLogo from './TeamLogo';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { useTimeFormatters } from '../utils/time';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,7 +36,6 @@ const EXPIRY_OPTIONS = [
 
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
   const { settings } = useTeamSettings();
-  const { fmtTime } = useTimeFormatters();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -393,7 +391,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
                             {alert.targetPitDisplay && <span className="text-[9px] font-black text-violet-500 uppercase">Pit Display</span>}
                             {alert.expiresAt && (
                               <span className="text-[9px] font-black text-orange-500 uppercase">
-                                Exp {fmtTime(alert.expiresAt)}
+                                Exp {new Date(alert.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                               </span>
                             )}
                           </div>

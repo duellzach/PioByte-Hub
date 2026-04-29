@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw, Upload, Globe } from 'lucide-react';
+import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw, Upload } from 'lucide-react';
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
-import { TIMEZONE_OPTIONS, DEFAULT_TIMEZONE } from '../utils/time';
 
 interface ControlPanelProps {
   currentUserRoles: string[];
@@ -135,7 +134,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         departments: form.departments,
         roles: form.roles,
         teamProgram: form.teamProgram,
-        timezone: form.timezone || DEFAULT_TIMEZONE,
       });
       setSettings(updated);
       setSaveSuccess(true);
@@ -373,23 +371,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 </div>
               )}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
-              <Globe size={11} /> Time Zone
-            </label>
-            <select
-              value={form.timezone || DEFAULT_TIMEZONE}
-              onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))}
-              className="w-full px-3 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2"
-              style={{ '--tw-ring-color': form.themeColor } as React.CSSProperties & Record<string, string>}
-            >
-              {TIMEZONE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium mt-1.5">All times across the app (match schedule, time tracking, etc.) display in this zone.</p>
           </div>
 
           <div>

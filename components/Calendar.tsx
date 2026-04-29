@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { useTimeFormatters } from '../utils/time';
 
 interface CalendarEvent {
   id: number;
@@ -111,7 +110,6 @@ function expandRecurring(events: CalendarEvent[]): (CalendarEvent | VirtualInsta
 
 const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const { settings } = useTeamSettings();
-  const { fmtDateLong, fmtDateShort, fmtDateMedium, fmtMonthShort, fmtDayNum, fmtWeekdayShort } = useTimeFormatters();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -569,7 +567,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    {fmtDateLong(new Date(selectedDate + 'T12:00:00'))}
+                    {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                   </h3>
                   {isCoachOrCaptain && (
                     <button
@@ -628,7 +626,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                           {ev.description && <p className="text-[9px] text-slate-400 dark:text-slate-500 italic mt-0.5">{ev.description}</p>}
                           {!isRecurring && ev.endDate && ev.endDate !== ev.startDate && (
                             <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase mt-0.5">
-                              Through {fmtDateShort(new Date(ev.endDate + 'T12:00:00'))}
+                              Through {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                             </p>
                           )}
                         </div>
@@ -652,8 +650,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   return (
                     <div key={`${ev.id}-${i}`} className="flex items-start gap-2.5">
                       <div className="flex-shrink-0 text-center w-10">
-                        <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{fmtMonthShort(d)}</div>
-                        <div className="text-base font-black text-slate-900 dark:text-white leading-none">{fmtDayNum(d)}</div>
+                        <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short', timeZone: 'America/Los_Angeles' })}</div>
+                        <div className="text-base font-black text-slate-900 dark:text-white leading-none">{d.toLocaleDateString([], { day: 'numeric', timeZone: 'America/Los_Angeles' })}</div>
                       </div>
                       <div className={`flex-1 p-2 rounded-xl ${style.bg} ${(style as any).border || ''}`}>
                         <div className={`flex items-center gap-1 mb-0.5 ${style.text}`}>
@@ -690,9 +688,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               return (
                 <div key={`${ev.id}-${i}`} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
                   <div className="flex-shrink-0 w-12 text-center">
-                    <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{fmtMonthShort(d)}</div>
-                    <div className="text-xl font-black text-slate-900 dark:text-white leading-none">{fmtDayNum(d)}</div>
-                    <div className="text-[8px] font-black text-slate-400 dark:text-slate-500">{fmtWeekdayShort(d)}</div>
+                    <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short', timeZone: 'America/Los_Angeles' })}</div>
+                    <div className="text-xl font-black text-slate-900 dark:text-white leading-none">{d.toLocaleDateString([], { day: 'numeric', timeZone: 'America/Los_Angeles' })}</div>
+                    <div className="text-[8px] font-black text-slate-400 dark:text-slate-500">{d.toLocaleDateString([], { weekday: 'short', timeZone: 'America/Los_Angeles' })}</div>
                   </div>
                   <div className={`w-1 self-stretch rounded-full ${style.text.replace('text-', 'bg-').split(' ')[0]}`} />
                   <div className="flex-1 min-w-0">
@@ -715,7 +713,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">{ev.description}</p>}
                     {!isRecurring && ev.endDate && ev.endDate !== ev.startDate && (
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase mt-0.5">
-                        Through {fmtDateShort(new Date(ev.endDate + 'T12:00:00'))}
+                        Through {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                       </p>
                     )}
                   </div>
@@ -783,9 +781,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
             </div>
             <div className="p-3 space-y-1.5">
               <div className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                {fmtDateMedium(new Date(evStart + 'T12:00:00'))}
+                {new Date(evStart + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                 {!isRecurring && ev.endDate && ev.endDate !== ev.startDate && (
-                  <span> – {fmtDateShort(new Date(ev.endDate + 'T12:00:00'))}</span>
+                  <span> – {new Date(ev.endDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}</span>
                 )}
               </div>
               {ev.startTime && (

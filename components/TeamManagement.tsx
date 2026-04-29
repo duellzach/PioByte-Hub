@@ -3,7 +3,6 @@ import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit
 import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { useTimeFormatters } from '../utils/time';
 
 interface TeamProps {
   state: AppState;
@@ -123,7 +122,41 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  const { fmtTime: formatTime, fmtDate: formatDate, fmtFull, toLocalInputString: toLocalDateTimeString, localInputToISO: pacificLocalToISO } = useTimeFormatters();
+  const formatTime = (date: Date | number | string) => {
+    const d = new Date(date);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+  };
+
+  const formatDate = (date: Date | number | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
+  };
+
+  const toLocalDateTimeString = (date: Date | number | string) => {
+    const d = new Date(date);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  };
+
+  // Convert a datetime-local string (which represents Pacific time) to a UTC ISO string.
+  // We must NOT use `new Date(str)` directly because that treats the string as local
+  // browser time, which may not be Pacific. Instead, we append the correct PT offset.
+  const pacificLocalToISO = (localStr: string): string => {
+    if (!localStr) return '';
+    const datePart = localStr.slice(0, 10); // "YYYY-MM-DD"
+    // Use 20:00 UTC on that date as a reference to discover the PT offset (noon-ish PT).
+    const ref = new Date(datePart + 'T20:00:00Z');
+    const tzAbbr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles', timeZoneName: 'short',
+    }).formatToParts(ref).find(p => p.type === 'timeZoneName')?.value;
+    const offsetStr = tzAbbr === 'PDT' ? '-07:00' : '-08:00';
+    return new Date(localStr + ':00' + offsetStr).toISOString();
+  };
 
   const openTimeEditModal = (entry: TimeEntry) => {
     setEditingTimeEntry(entry);
@@ -1018,7 +1051,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-black text-teamColor uppercase">{log.actionType.replace('_', ' ')}</span>
                       <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
-                        {fmtFull(log.createdAt)}
+                        {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-600 dark:text-slate-400">By: {getUserName(log.actorId)}</p>

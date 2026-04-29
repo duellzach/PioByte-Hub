@@ -3,12 +3,21 @@ import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, 
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
-import { useTimeFormatters } from '../utils/time';
 
 interface TimeTrackingProps {
   state: AppState;
   onRefresh: () => void;
 }
+
+const formatTime = (date: Date | number | string) => {
+  const d = new Date(date);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+};
+
+const formatDate = (date: Date | number | string) => {
+  const d = new Date(date);
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
+};
 
 const formatDuration = (minutes: number) => {
   const hours = Math.floor(minutes / 60);
@@ -16,8 +25,17 @@ const formatDuration = (minutes: number) => {
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 };
 
+const toLocalDateTimeString = (date: Date | number | string) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
-  const { fmtTime: formatTime, fmtDate: formatDate, fmtDateTime, fmtFull, toLocalInputString, localInputToISO } = useTimeFormatters();
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [auditEntry, setAuditEntry] = useState<TimeEntry | null>(null);
   const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
@@ -268,8 +286,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const openEditModal = (entry: TimeEntry) => {
     setEditingEntry(entry);
     setEditForm({
-      checkInAt: toLocalInputString(entry.checkInAt),
-      checkOutAt: entry.checkOutAt ? toLocalInputString(entry.checkOutAt) : '',
+      checkInAt: toLocalDateTimeString(entry.checkInAt),
+      checkOutAt: entry.checkOutAt ? toLocalDateTimeString(entry.checkOutAt) : '',
       notes: entry.notes || '',
     });
   };
@@ -278,8 +296,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     if (!editingEntry) return;
     try {
       await api.timeEntries.update(parseInt(editingEntry.id), currentUserId, {
-        checkInAt: localInputToISO(editForm.checkInAt),
-        checkOutAt: editForm.checkOutAt ? localInputToISO(editForm.checkOutAt) : undefined,
+        checkInAt: new Date(editForm.checkInAt).toISOString(),
+        checkOutAt: editForm.checkOutAt ? new Date(editForm.checkOutAt).toISOString() : undefined,
         notes: editForm.notes,
       });
       setEditingEntry(null);
@@ -986,7 +1004,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                         )}
                       </div>
                       <p className="text-[9px] text-slate-400 font-bold whitespace-nowrap flex-shrink-0">
-                        {fmtDateTime(log.createdAt)}
+                        {new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
@@ -1697,7 +1715,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
                     <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
-                      {fmtFull(log.createdAt)}
+                      {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
                     </span>
                   </div>
                   <p className="text-xs font-bold text-slate-600 dark:text-slate-300">By: {getUserName(log.actorId)}</p>

@@ -435,7 +435,6 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Class Member', tier: 'member' },
   ]),
   teamProgram: text("team_program").notNull().default("FRC"),
-  timezone: text("timezone").notNull().default("America/Los_Angeles"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
