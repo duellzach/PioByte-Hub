@@ -976,10 +976,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       fetchEventData(activeEvent.id),
       fetchTeamClaims(),
     ];
-    if (activeEvent.tbaEventKey) tasks.push(fetchTbaData(activeEvent.tbaEventKey));
+    if (activeEvent.toaEventKey) tasks.push(fetchToaData(activeEvent.toaEventKey));
+    else if (activeEvent.tbaEventKey) tasks.push(fetchTbaData(activeEvent.tbaEventKey));
     await Promise.allSettled(tasks);
     setMatchRefreshing(false);
-  }, [activeEvent, fetchEventData, fetchTbaData]);
+  }, [activeEvent, fetchEventData, fetchTbaData, fetchToaData]);
 
   const claimTeam = async (matchKey: string, teamNumber: number) => {
     if (isGuest || !activeEvent || !currentUser) return;
@@ -1809,6 +1810,36 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                 </button>
               )}
             </div>
+
+            {(activeEvent?.tbaEventKey || activeEvent?.toaEventKey) && tbaLoading && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-8 text-center">
+                <div className="w-6 h-6 border-2 border-teamColor border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Loading match schedule…</p>
+              </div>
+            )}
+
+            {(activeEvent?.tbaEventKey || activeEvent?.toaEventKey) && !tbaLoading && tbaMatches.length === 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 p-8 text-center space-y-3">
+                <p className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">No schedule loaded yet</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+                  {activeEvent?.toaEventKey
+                    ? 'The match schedule will appear once posted on The Orange Alliance. Try refreshing.'
+                    : 'The match schedule will appear once posted on The Blue Alliance. Try refreshing.'}
+                </p>
+                <button onClick={handleMatchRefresh} disabled={matchRefreshing}
+                  className="mx-auto flex items-center gap-2 px-5 py-2.5 bg-teamColor text-white font-black rounded-xl text-[10px] uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50">
+                  <RefreshCw size={13} className={matchRefreshing ? 'animate-spin' : ''} />
+                  {matchRefreshing ? 'Refreshing…' : activeEvent?.toaEventKey ? 'Refresh from TOA' : 'Refresh from TBA'}
+                </button>
+              </div>
+            )}
+
+            {!activeEvent?.tbaEventKey && !activeEvent?.toaEventKey && isCoachOrCaptain && (
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-8 text-center">
+                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No event key set</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-1">Open Event Settings and add a TBA event key to load the match schedule.</p>
+              </div>
+            )}
 
             {(activeEvent?.tbaEventKey || activeEvent?.toaEventKey) && tbaMatches.length > 0 && (() => {
               const now = Math.floor(Date.now() / 1000);
