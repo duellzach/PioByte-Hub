@@ -422,10 +422,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const fetchTbaData = useCallback(async (tbaEventKey: string) => {
     if (!tbaEventKey) return;
     setTbaLoading(true);
+    const currentFrcKey = `frc${teamNumber}`;
     try {
       const [allMatches, teamMatches, rankingsData] = await Promise.all([
         api.tba.getEventMatches(tbaEventKey),
-        api.tba.getTeamMatches(frcKey, tbaEventKey),
+        api.tba.getTeamMatches(currentFrcKey, tbaEventKey),
         api.tba.getEventRankings(tbaEventKey).catch(() => null),
       ]);
       setTbaMatches(allMatches || []);
@@ -448,8 +449,8 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
         for (const m of teamMatches) {
           if (m.winning_alliance === undefined || m.winning_alliance === null) continue;
           if (m.alliances?.red?.score === -1 && m.alliances?.blue?.score === -1) continue;
-          const isRed = m.alliances?.red?.team_keys?.includes(frcKey);
-          const isBlue = m.alliances?.blue?.team_keys?.includes(frcKey);
+          const isRed = m.alliances?.red?.team_keys?.includes(currentFrcKey);
+          const isBlue = m.alliances?.blue?.team_keys?.includes(currentFrcKey);
           const ourAlliance = isRed ? 'red' : isBlue ? 'blue' : null;
           if (!ourAlliance) continue;
           if (m.winning_alliance === '') { ties++; }
@@ -466,7 +467,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
       setTbaRecord(null);
     }
     setTbaLoading(false);
-  }, []);
+  }, [teamNumber]);
 
   const fetchToaData = useCallback(async (toaEventKey: string) => {
     if (!toaEventKey) return;
