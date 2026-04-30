@@ -139,11 +139,18 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FRC Event Key (TBA & Nexus)</label>
-                <input value={eventForm.tbaEventKey} onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value, nexusEventKey: e.target.value })}
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">TBA Event Key <span className="normal-case font-normal text-slate-400">(FRC)</span></label>
+                <input value={eventForm.tbaEventKey} onChange={(e) => setEventForm({ ...eventForm, tbaEventKey: e.target.value })}
                   placeholder="e.g. 2026azgl"
                   className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">TBA/Nexus key for FRC events — find it on thebluealliance.com (optional)</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Find on thebluealliance.com — enables match schedule & rankings (optional)</p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Nexus Event Key <span className="normal-case font-normal text-slate-400">(FRC)</span></label>
+                <input value={eventForm.nexusEventKey || ''} onChange={(e) => setEventForm({ ...eventForm, nexusEventKey: e.target.value })}
+                  placeholder="e.g. 2026azgl"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-violet-500 transition-all font-bold text-sm" />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Same as TBA key for most events — differs at Championships (optional)</p>
               </div>
               <div className="space-y-2">
                 <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">FTC Event Key (TOA)</label>

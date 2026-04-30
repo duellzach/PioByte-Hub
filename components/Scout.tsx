@@ -252,7 +252,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setDismissedAnnouncements(new Set());
     setDismissedParts(new Set());
 
-    const key = activeEvent?.nexusEventKey || activeEvent?.tbaEventKey;
+    const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
 
     fetchNexusData(key);
@@ -708,7 +708,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const toa = activeEvent?.toaEventKey || '';
     setEventSettingsForm({
       tbaEventKey: tba,
-      nexusEventKey: nexus || tba,
+      nexusEventKey: nexus,
       toaEventKey: toa,
       nexusPitMapKey: activeEvent?.nexusPitMapKey || '',
     });
