@@ -435,6 +435,9 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Class Member', tier: 'member' },
   ]),
   teamProgram: text("team_program").notNull().default("FRC"),
+  tbaApiKey: text("tba_api_key"),
+  toaApiKey: text("toa_api_key"),
+  nexusApiKey: text("nexus_api_key"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

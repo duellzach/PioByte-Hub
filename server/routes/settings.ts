@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { PNG } from "pngjs";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN, hasTbaKey, hasToaKey, hasNexusKey, invalidateApiKeyCache, getResolvedKeys } from "../helpers";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
@@ -197,8 +197,8 @@ router.get("/settings/tba-logo", async (req, res) => {
     const teamNum = req.query.team as string;
     if (!teamNum) return res.status(400).json({ error: "team query param required" });
 
-    const apiKey = process.env.TBA_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "TBA_API_KEY not configured" });
+    const { tba: apiKey } = await getResolvedKeys();
+    if (!apiKey) return res.status(500).json({ error: "TBA API key not configured" });
 
     const currentYear = new Date().getFullYear();
     const years = [currentYear, currentYear - 1, currentYear + 1];
@@ -229,8 +229,8 @@ router.get("/settings/toa-logo", async (req, res) => {
   try {
     const teamNum = req.query.team as string;
     if (!teamNum) return res.status(400).json({ error: "team query param required" });
-    const apiKey = process.env.TOA_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: "TOA_API_KEY not configured" });
+    const { toa: apiKey } = await getResolvedKeys();
+    if (!apiKey) return res.status(503).json({ error: "TOA API key not configured" });
 
     const teamKey = `ftc${teamNum}`;
     const response = await fetch(`https://theorangealliance.org/api/team/${teamKey}/media`, {
@@ -250,12 +250,33 @@ router.get("/settings/toa-logo", async (req, res) => {
   }
 });
 
-router.get("/settings/api-status", (_req, res) => {
+router.get("/settings/api-status", async (_req, res) => {
   res.json({
-    tba: !!process.env.TBA_API_KEY,
-    toa: !!process.env.TOA_API_KEY,
-    nexus: !!process.env.NEXUS_API_KEY,
+    tba: await hasTbaKey(),
+    toa: await hasToaKey(),
+    nexus: await hasNexusKey(),
   });
+});
+
+router.put("/settings/api-keys", async (req, res) => {
+  try {
+    const { requesterId, tbaApiKey, toaApiKey, nexusApiKey } = req.body;
+    if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
+    const actorRoles = await getUserRoles(parseInt(requesterId));
+    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "Only Coaches or Captains can update API keys" });
+    }
+    const patch: Record<string, string | null> = {};
+    if (tbaApiKey   !== undefined) patch.tbaApiKey   = tbaApiKey   || null;
+    if (toaApiKey   !== undefined) patch.toaApiKey   = toaApiKey   || null;
+    if (nexusApiKey !== undefined) patch.nexusApiKey = nexusApiKey || null;
+    await storage.upsertTeamSettings(patch);
+    invalidateApiKeyCache();
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error saving API keys:", error);
+    res.status(500).json({ error: "Failed to save API keys" });
+  }
 });
 
 export default router;

@@ -264,6 +264,8 @@ export const api = {
     fetchTbaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/tba-logo?team=${teamNumber}`),
     fetchToaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/toa-logo?team=${teamNumber}`),
     getApiStatus: () => apiRequest<{ tba: boolean; toa: boolean; nexus: boolean }>('/settings/api-status'),
+    saveApiKeys: (data: { requesterId: number; tbaApiKey?: string | null; toaApiKey?: string | null; nexusApiKey?: string | null }) =>
+      apiRequest<void>('/settings/api-keys', { method: 'PUT', body: JSON.stringify(data) }),
   },
   resources: {
     getAll: (category?: string) =>

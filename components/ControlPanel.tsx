@@ -56,6 +56,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [resetConfirm, setResetConfirm] = useState(false);
   const [apiStatus, setApiStatus] = useState<{ tba: boolean; toa: boolean; nexus: boolean } | null>(null);
 
+  const [apiKeyForm, setApiKeyForm] = useState({ tba: '', toa: '', nexus: '' });
+  const [apiKeySaving, setApiKeySaving] = useState<Record<string, boolean>>({});
+  const [apiKeySaved, setApiKeySaved] = useState<Record<string, boolean>>({});
+  const [apiKeyError, setApiKeyError] = useState<Record<string, string>>({});
+  const [apiKeyVisible, setApiKeyVisible] = useState<Record<string, boolean>>({});
+
   const [scoutEvents, setScoutEvents] = useState<any[]>([]);
   const [eventPins, setEventPins] = useState<Record<number, any>>({});
   const [pinGenerating, setPinGenerating] = useState<number | null>(null);
@@ -227,6 +233,29 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
     reader.onerror = () => { setLogoMsg('Could not read file.'); setLogoUploading(false); };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  const handleSaveApiKey = async (field: 'tba' | 'toa' | 'nexus') => {
+    const value = apiKeyForm[field].trim();
+    setApiKeySaving(s => ({ ...s, [field]: true }));
+    setApiKeyError(s => ({ ...s, [field]: '' }));
+    try {
+      await api.settings.saveApiKeys({
+        requesterId: currentUserId ? parseInt(currentUserId) : 0,
+        ...(field === 'tba'   ? { tbaApiKey:   value || null } : {}),
+        ...(field === 'toa'   ? { toaApiKey:   value || null } : {}),
+        ...(field === 'nexus' ? { nexusApiKey: value || null } : {}),
+      });
+      setApiKeySaved(s => ({ ...s, [field]: true }));
+      setApiKeyForm(f => ({ ...f, [field]: '' }));
+      const fresh = await api.settings.getApiStatus();
+      setApiStatus(fresh);
+      setTimeout(() => setApiKeySaved(s => ({ ...s, [field]: false })), 2500);
+    } catch (err: any) {
+      setApiKeyError(s => ({ ...s, [field]: err?.message || 'Save failed' }));
+    } finally {
+      setApiKeySaving(s => ({ ...s, [field]: false }));
+    }
   };
 
   const addDept = () => {
@@ -568,6 +597,115 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           >
             <Plus size={13} /> Add Role
           </button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="API Integrations" subtitle="Store your API keys here so the app can pull live match data, rankings, and schedules.">
+        <div className="space-y-5">
+          {([
+            {
+              field: 'tba' as const,
+              label: 'The Blue Alliance',
+              badge: 'FRC',
+              badgeColor: '#2563eb',
+              description: 'Match schedules, rankings, and team data for FRC events.',
+              link: 'https://www.thebluealliance.com/account',
+              linkLabel: 'Get key at thebluealliance.com →',
+              placeholder: 'Paste your TBA Read API Key…',
+              active: apiStatus?.tba,
+            },
+            {
+              field: 'toa' as const,
+              label: 'The Orange Alliance',
+              badge: 'FTC',
+              badgeColor: '#f97316',
+              description: 'Match schedules and rankings for FTC events.',
+              link: 'https://theorangealliance.org/account',
+              linkLabel: 'Get key at theorangealliance.org →',
+              placeholder: 'Paste your TOA API Key…',
+              active: apiStatus?.toa,
+            },
+            {
+              field: 'nexus' as const,
+              label: 'FRC Nexus',
+              badge: 'FRC',
+              badgeColor: '#7c3aed',
+              description: 'Live queue status, pit locations, and field maps during events.',
+              link: 'https://frc.nexus',
+              linkLabel: 'Get key at frc.nexus →',
+              placeholder: 'Paste your Nexus API Key…',
+              active: apiStatus?.nexus,
+            },
+          ]).map(({ field, label, badge, badgeColor, description, link, linkLabel, placeholder, active }) => (
+            <div key={field} className="rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2.5">
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black text-white uppercase tracking-widest" style={{ backgroundColor: badgeColor }}>{badge}</span>
+                  <span className="text-sm font-black text-slate-800 dark:text-slate-100">{label}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${active ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'text-green-600 dark:text-green-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                    {active ? 'Active' : 'Not set'}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{description}</p>
+                <a href={link} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-black text-teamColor hover:opacity-75 transition-opacity">
+                  {linkLabel}
+                </a>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={apiKeyVisible[field] ? 'text' : 'password'}
+                      value={apiKeyForm[field]}
+                      onChange={e => setApiKeyForm(f => ({ ...f, [field]: e.target.value }))}
+                      placeholder={active ? '●●●●●●●● (saved — paste new key to replace)' : placeholder}
+                      className="w-full px-3 py-2 pr-9 text-xs font-mono border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                      style={{ '--tw-ring-color': form.themeColor } as React.CSSProperties & Record<string, string>}
+                      onKeyDown={e => e.key === 'Enter' && apiKeyForm[field].trim() && handleSaveApiKey(field)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setApiKeyVisible(v => ({ ...v, [field]: !v[field] }))}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      tabIndex={-1}
+                    >
+                      <KeyRound size={13} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleSaveApiKey(field)}
+                    disabled={!apiKeyForm[field].trim() || apiKeySaving[field]}
+                    className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black text-white rounded-xl transition-all disabled:opacity-40 shrink-0"
+                    style={{ backgroundColor: form.themeColor }}
+                  >
+                    {apiKeySaving[field] ? <Loader2 size={11} className="animate-spin" /> : apiKeySaved[field] ? <Check size={11} /> : <Save size={11} />}
+                    {apiKeySaved[field] ? 'Saved!' : 'Save'}
+                  </button>
+                </div>
+                {apiKeyError[field] && (
+                  <p className="text-[10px] font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={10} />{apiKeyError[field]}</p>
+                )}
+                {active && (
+                  <button
+                    onClick={() => {
+                      setApiKeyForm(f => ({ ...f, [field]: ' ' }));
+                      setTimeout(() => handleSaveApiKey(field), 0);
+                    }}
+                    className="text-[10px] font-bold text-red-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                  >
+                    <X size={10} /> Remove key
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            Keys are stored securely server-side and never exposed to the browser. Environment secrets (if set) are used as a fallback when no key is saved here.
+          </p>
         </div>
       </SectionCard>
 

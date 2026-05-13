@@ -140,6 +140,7 @@ initializeDatabase().then(() => {
   app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on port ${PORT}`);
     try {
+      await storage.migrateApiKeyColumns();
       await storage.migrateCalendarTypes();
     } catch (e) {
       console.warn("Calendar type migration skipped:", e);

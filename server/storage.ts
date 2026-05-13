@@ -190,6 +190,7 @@ export interface IStorage {
 
   getTeamSettings(): Promise<TeamSettings>;
   upsertTeamSettings(data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>): Promise<TeamSettings>;
+  migrateApiKeyColumns(): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -1011,6 +1012,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async migrateApiKeyColumns(): Promise<void> {
+    await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS tba_api_key TEXT`);
+    await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS toa_api_key TEXT`);
+    await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS nexus_api_key TEXT`);
   }
 
   async migrateCalendarTypes(): Promise<void> {

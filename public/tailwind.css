@@ -713,6 +713,10 @@ video {
   right: 0.5rem;
 }
 
+.right-2\.5 {
+  right: 0.625rem;
+}
+
 .right-3 {
   right: 0.75rem;
 }
@@ -2886,6 +2890,10 @@ video {
   padding-right: 1rem;
 }
 
+.pr-9 {
+  padding-right: 2.25rem;
+}
+
 .pt-0 {
   padding-top: 0px;
 }
@@ -3950,6 +3958,16 @@ body {
   font-weight: 400;
 }
 
+.placeholder\:text-slate-300::-moz-placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(203 213 225 / var(--tw-text-opacity, 1));
+}
+
+.placeholder\:text-slate-300::placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(203 213 225 / var(--tw-text-opacity, 1));
+}
+
 .placeholder\:text-slate-400::-moz-placeholder {
   --tw-text-opacity: 1;
   color: rgb(148 163 184 / var(--tw-text-opacity, 1));
@@ -4345,6 +4363,10 @@ body {
 
 .hover\:opacity-70:hover {
   opacity: 0.7;
+}
+
+.hover\:opacity-75:hover {
+  opacity: 0.75;
 }
 
 .hover\:opacity-80:hover {
@@ -5249,6 +5271,16 @@ body {
 .dark\:placeholder\:text-slate-500:is(.dark *)::placeholder {
   --tw-text-opacity: 1;
   color: rgb(100 116 139 / var(--tw-text-opacity, 1));
+}
+
+.dark\:placeholder\:text-slate-600:is(.dark *)::-moz-placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(71 85 105 / var(--tw-text-opacity, 1));
+}
+
+.dark\:placeholder\:text-slate-600:is(.dark *)::placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(71 85 105 / var(--tw-text-opacity, 1));
 }
 
 .dark\:odd\:bg-transparent:nth-child(odd):is(.dark *) {
