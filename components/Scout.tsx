@@ -263,8 +263,9 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
 
+    let cancelled = false;
     fetchNexusData(key).then(result => {
-      if (result === 'inactive') return;
+      if (cancelled || result === 'inactive') return;
       nexusPollRef.current = setInterval(() => {
         fetchNexusData(key).then(tick => {
           if (tick === 'inactive' && nexusPollRef.current) {
@@ -276,6 +277,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     });
 
     return () => {
+      cancelled = true;
       if (nexusPollRef.current) clearInterval(nexusPollRef.current);
     };
   }, [activeEvent, activeTab, fetchNexusData]);

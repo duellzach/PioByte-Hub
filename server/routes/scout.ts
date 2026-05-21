@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY } from "../helpers";
+import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY, hasNexusKey } from "../helpers";
 
 const router = Router();
 
