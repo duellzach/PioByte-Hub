@@ -189,16 +189,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
   }, []);
 
-  const fetchNexusData = useCallback(async (eventKey: string) => {
-    if (!eventKey) return;
+  const fetchNexusData = useCallback(async (eventKey: string): Promise<boolean> => {
+    if (!eventKey) return false;
     setNexusLoading(true);
     setNexusError(null);
     try {
       const data = await api.nexus.getEvent(eventKey);
       setNexusData(data);
+      return true;
     } catch (err: any) {
+      const status: number = err?.status ?? err?.statusCode ?? 0;
+      if (status === 404) {
+        setNexusData(null);
+        setNexusError('EVENT_ENDED');
+        return false;
+      }
       setNexusError(err?.message || 'Failed to load Nexus data');
       setNexusData(null);
+      return false;
     } finally {
       setNexusLoading(false);
     }
@@ -255,8 +263,17 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
 
-    fetchNexusData(key);
-    nexusPollRef.current = setInterval(() => fetchNexusData(key), 30000);
+    fetchNexusData(key).then(active => {
+      if (!active) return;
+      nexusPollRef.current = setInterval(() => {
+        fetchNexusData(key).then(still => {
+          if (!still && nexusPollRef.current) {
+            clearInterval(nexusPollRef.current);
+            nexusPollRef.current = null;
+          }
+        });
+      }, 30000);
+    });
 
     return () => {
       if (nexusPollRef.current) clearInterval(nexusPollRef.current);

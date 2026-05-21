@@ -262,8 +262,17 @@ const PitDisplay: React.FC<PitDisplayProps> = ({
 
                 {nexusError ? (
                   <div className="px-6 py-8 text-center">
-                    <p className="text-sm font-black text-red-500 uppercase tracking-tight">Error loading Nexus data</p>
-                    <p className="text-xs text-slate-400 mt-1">{nexusError}</p>
+                    {nexusError === 'EVENT_ENDED' ? (
+                      <>
+                        <p className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">Event no longer active</p>
+                        <p className="text-xs text-slate-400 mt-1">This event has ended and is no longer available in Nexus.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-black text-red-500 uppercase tracking-tight">Error loading Nexus data</p>
+                        <p className="text-xs text-slate-400 mt-1">{nexusError}</p>
+                      </>
+                    )}
                   </div>
                 ) : nexusLoading && !nexusData ? (
                   <div className="px-6 py-8 text-center text-slate-400 font-bold text-sm uppercase tracking-widest">Loading live data...</div>

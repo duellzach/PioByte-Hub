@@ -425,13 +425,17 @@ router.get("/toa/team/:teamKey/media", async (req, res) => {
 
 router.get("/nexus/:eventKey", async (req, res) => {
   try {
-    if (!process.env.NEXUS_API_KEY) {
-      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
-      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    if (!(await hasNexusKey())) {
+      return res.status(503).json({ error: "Nexus API key not configured. Add one in the Control Panel." });
     }
     const data = await nexusFetch(`/event/${req.params.eventKey}`);
     res.json(data);
   } catch (error: any) {
+    const status = error?.status ?? error?.statusCode ?? 500;
+    if (status === 404) {
+      console.warn(`Nexus event not found (event over or invalid key): ${req.params.eventKey}`);
+      return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
+    }
     console.error("Nexus event error:", error.message);
     res.status(500).json({ error: error.message || "Failed to fetch Nexus event data" });
   }
@@ -439,13 +443,17 @@ router.get("/nexus/:eventKey", async (req, res) => {
 
 router.get("/nexus/:eventKey/pits", async (req, res) => {
   try {
-    if (!process.env.NEXUS_API_KEY) {
-      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
-      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    if (!(await hasNexusKey())) {
+      return res.status(503).json({ error: "Nexus API key not configured. Add one in the Control Panel." });
     }
     const data = await nexusFetch(`/event/${req.params.eventKey}/pits`);
     res.json(data);
   } catch (error: any) {
+    const status = error?.status ?? error?.statusCode ?? 500;
+    if (status === 404) {
+      console.warn(`Nexus pits not found (event over or invalid key): ${req.params.eventKey}`);
+      return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
+    }
     console.error("Nexus pits error:", error.message);
     res.status(500).json({ error: error.message || "Failed to fetch Nexus pit data" });
   }
@@ -453,14 +461,17 @@ router.get("/nexus/:eventKey/pits", async (req, res) => {
 
 router.get("/nexus/:eventKey/map", async (req, res) => {
   try {
-    if (!process.env.NEXUS_API_KEY) {
-      console.warn("NEXUS_API_KEY is not set — Nexus integration unavailable");
-      return res.status(503).json({ error: "Nexus API key not configured. Set NEXUS_API_KEY environment variable." });
+    if (!(await hasNexusKey())) {
+      return res.status(503).json({ error: "Nexus API key not configured. Add one in the Control Panel." });
     }
     const data = await nexusFetch(`/event/${req.params.eventKey}/map`);
     res.json(data);
   } catch (error: any) {
     const status = error?.status ?? error?.statusCode ?? 500;
+    if (status === 404) {
+      console.warn(`Nexus map not found (event over or invalid key): ${req.params.eventKey}`);
+      return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
+    }
     console.error(`Nexus map error [${req.params.eventKey}]:`, error.message);
     res.status(status).json({ error: error.message || "Failed to fetch Nexus pit map" });
   }
