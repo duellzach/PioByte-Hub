@@ -189,24 +189,24 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     }
   }, []);
 
-  const fetchNexusData = useCallback(async (eventKey: string): Promise<boolean> => {
-    if (!eventKey) return false;
+  const fetchNexusData = useCallback(async (eventKey: string): Promise<'active' | 'inactive' | 'error'> => {
+    if (!eventKey) return 'inactive';
     setNexusLoading(true);
     setNexusError(null);
     try {
       const data = await api.nexus.getEvent(eventKey);
       setNexusData(data);
-      return true;
+      return 'active';
     } catch (err: any) {
       const status: number = err?.status ?? err?.statusCode ?? 0;
-      if (status === 404) {
+      if (status === 404 || status === 503) {
         setNexusData(null);
         setNexusError('EVENT_ENDED');
-        return false;
+        return 'inactive';
       }
       setNexusError(err?.message || 'Failed to load Nexus data');
       setNexusData(null);
-      return false;
+      return 'error';
     } finally {
       setNexusLoading(false);
     }
@@ -263,11 +263,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
 
-    fetchNexusData(key).then(active => {
-      if (!active) return;
+    fetchNexusData(key).then(result => {
+      if (result === 'inactive') return;
       nexusPollRef.current = setInterval(() => {
-        fetchNexusData(key).then(still => {
-          if (!still && nexusPollRef.current) {
+        fetchNexusData(key).then(tick => {
+          if (tick === 'inactive' && nexusPollRef.current) {
             clearInterval(nexusPollRef.current);
             nexusPollRef.current = null;
           }
