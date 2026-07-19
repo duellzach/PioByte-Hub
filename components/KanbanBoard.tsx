@@ -2,10 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS } from '../constants';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive, Repeat } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
+import { parseLocalDate, todayLocalStr } from '../utils/dates';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
+import RecurringTasksModal from './RecurringTasksModal';
 import { api } from '../services/api';
 
 interface KanbanBoardProps {
@@ -29,6 +31,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
   
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
@@ -253,8 +256,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                   <FolderPlus size={16} />
               </button>
+              <button
+                  onClick={() => setShowRecurringModal(true)}
+                  className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
+                  title="Recurring Tasks"
+              >
+                  <Repeat size={16} />
+              </button>
               {activeProject && (
-                <button 
+                <button
                     onClick={() => setShowSettingsModal(true)}
                     className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
                     title="Board Settings"
@@ -559,8 +569,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             attachments: [],
             comments: [],
             history: [{ id: Date.now().toString(), userId: 'system', action: 'Task Created', timestamp: Date.now() }],
-            startDate: new Date().toISOString().split('T')[0],
-            dueDate: new Date().toISOString().split('T')[0],
+            startDate: todayLocalStr(),
+            dueDate: todayLocalStr(),
             dependencies: [],
             deptOnly: isDeptBoard,
             contributors: [],
@@ -602,6 +612,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             setShowSettingsModal(false);
           }}
           onArchive={onArchiveProject}
+        />
+      )}
+
+      {showRecurringModal && (
+        <RecurringTasksModal
+          projects={state.projects.filter(p => !p.archived).map(p => ({ id: String(p.id), name: p.name }))}
+          canManage={(state.currentUser?.roles || []).some((r: string) => ['Coach', 'Team Captain', 'SCRUM Master', 'Department Head'].includes(r))}
+          onClose={() => setShowRecurringModal(false)}
         />
       )}
     </div>
@@ -680,7 +698,7 @@ const TaskCard: React.FC<{
                         )}
                     </div>
                     <span className="text-[6px] md:text-[7px] font-bold text-slate-400 dark:text-slate-500">
-                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                        {parseLocalDate(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                     </span>
                 </div>
                 <button 

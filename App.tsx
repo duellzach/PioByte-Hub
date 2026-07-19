@@ -22,6 +22,7 @@ const Scout = lazy(() => import('./components/Scout'));
 const SafetyCertifications = lazy(() => import('./components/SafetyCertifications'));
 const Calendar = lazy(() => import('./components/Calendar'));
 const Resources = lazy(() => import('./components/Resources'));
+const Fundraising = lazy(() => import('./components/Fundraising'));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -132,6 +133,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
     fetchData();
     let interval: ReturnType<typeof setInterval> | null = setInterval(fetchData, 15000);
 
@@ -149,7 +151,7 @@ const App: React.FC = () => {
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [fetchData]);
+  }, [fetchData, isLoggedIn]);
 
   useEffect(() => {
     if (!annToast) return;
@@ -238,35 +240,44 @@ const App: React.FC = () => {
     }
   }, [teamSettings.themeColor]);
 
+  // Restore the session from the httpOnly cookie by asking the server who we
+  // are — the server, not localStorage, is the source of truth for auth.
   useEffect(() => {
-    const savedUserId = localStorage.getItem('frc_hub_active_user');
-    if (savedUserId && state.users.length > 0 && !state.currentUser) {
-      const user = state.users.find(u => u.id === savedUserId);
-      if (user) {
-        setState(p => ({ ...p, currentUser: user }));
-        setIsLoggedIn(true);
-      }
-    }
-    const savedGuest = localStorage.getItem('frc_hub_guest');
-    if (savedGuest && !isLoggedIn) {
+    let cancelled = false;
+    (async () => {
       try {
-        const g = JSON.parse(savedGuest);
-        setGuestSession(g);
-        setState(prev => ({
-          ...prev,
-          currentUser: {
-            id: 'guest',
-            name: g.label || 'Guest',
-            username: 'guest',
-            roles: ['Guest'],
-            departments: [],
-            guestEventId: g.eventId,
-          },
-        }));
-        setIsLoggedIn(true);
-      } catch {}
-    }
-  }, [state.users, state.currentUser]);
+        const me = await api.auth.me();
+        if (cancelled || !me) return;
+        if (me.guest) {
+          let g: any = null;
+          try { g = JSON.parse(localStorage.getItem('frc_hub_guest') || 'null'); } catch {}
+          setGuestSession(g || { eventId: me.eventId, eventName: '', pin: '', label: 'Guest' });
+          setState(prev => ({
+            ...prev,
+            currentUser: {
+              id: 'guest',
+              name: g?.label || 'Guest',
+              username: 'guest',
+              roles: ['Guest'],
+              departments: [],
+              guestEventId: me.eventId,
+            },
+          }));
+          setIsLoggedIn(true);
+        } else if (me.id != null) {
+          const mappedUser = { ...me, id: String(me.id) };
+          setState(prev => ({ ...prev, currentUser: mappedUser }));
+          setIsLoggedIn(true);
+          localStorage.setItem('frc_hub_active_user', mappedUser.id);
+        }
+      } catch {
+        // No valid session — stay on the login screen and drop stale hints.
+        localStorage.removeItem('frc_hub_active_user');
+        localStorage.removeItem('frc_hub_guest');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSeedDatabase = async () => {
     try {
@@ -277,6 +288,30 @@ const App: React.FC = () => {
       console.error("Seeding failed", e);
       alert("Seeding failed. Please try again.");
     }
+  };
+
+  // Notify users who were newly added as assignees on a task (excludes the
+  // person making the change). Creating a notification also fires a device push.
+  const notifyNewAssignees = async (
+    taskId: string | number | null,
+    taskTitle: string,
+    newAssignees: (string | number)[] = [],
+    prevAssignees: (string | number)[] = [],
+  ) => {
+    const prev = new Set(prevAssignees.map(String));
+    const meId = String(state.currentUser?.id ?? '');
+    const added = [...new Set(newAssignees.map(String))].filter(id => id && !prev.has(id) && id !== meId);
+    await Promise.all(
+      added.map(uid =>
+        api.notifications.create({
+          toUserId: parseInt(uid),
+          fromUserId: parseInt(meId || '0'),
+          taskId: taskId ? parseInt(String(taskId)) : null,
+          message: `You were assigned to task: "${taskTitle}"`,
+          read: false,
+        }).catch(() => {}),
+      ),
+    );
   };
 
   const handleUpdateTask = async (updatedTask: Task) => {
@@ -294,11 +329,13 @@ const App: React.FC = () => {
     taskData.contributors = (taskData.contributors || []).map(Number);
     taskData.dependencies = taskData.dependencies.map(Number);
     await api.tasks.update(parseInt(updatedTask.id), taskData);
-    
+
+    await notifyNewAssignees(updatedTask.id, updatedTask.title, taskData.assignees, existingTask?.assignees || []);
+
     if (isNewlyCompleted) {
       setShowConfetti(true);
     }
-    
+
     await fetchData();
   };
 
@@ -355,8 +392,8 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, currentUser: mappedUser }));
       setIsLoggedIn(true);
       localStorage.setItem('frc_hub_active_user', mappedUser.id);
-    } catch (error) {
-      alert('Invalid credentials. (Default password is "password")');
+    } catch (error: any) {
+      alert(error?.message || 'Invalid credentials.');
     }
   };
 
@@ -388,6 +425,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    api.auth.logout().catch(() => {});
     setState(prev => ({ ...prev, currentUser: null }));
     setIsLoggedIn(false);
     setGuestSession(null);
@@ -554,7 +592,8 @@ const App: React.FC = () => {
                       taskData.contributors = (taskData.contributors || []).map(Number);
                       taskData.dependencies = taskData.dependencies.map(Number);
                       delete taskData.id;
-                      await api.tasks.create(taskData);
+                      const created = await api.tasks.create(taskData);
+                      await notifyNewAssignees(created?.id ?? null, taskData.title, taskData.assignees, []);
                       await fetchData();
                   }}
                   onUpdateTask={handleUpdateTask}
@@ -615,6 +654,7 @@ const App: React.FC = () => {
               } />
               <Route path="/calendar" element={isGuest ? <Navigate to="/scout" replace /> : <Calendar currentUser={state.currentUser} />} />
               <Route path="/resources" element={isGuest ? <Navigate to="/scout" replace /> : <Resources currentUser={state.currentUser} users={state.users} />} />
+              <Route path="/fundraising" element={isGuest ? <Navigate to="/scout" replace /> : <Fundraising currentUser={state.currentUser} users={state.users} />} />
               <Route path="/control-panel" element={isGuest ? <Navigate to="/scout" replace /> :
                 <ControlPanel
                   currentUserRoles={state.currentUser?.roles || []}

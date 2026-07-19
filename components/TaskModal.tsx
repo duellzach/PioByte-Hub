@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
+import { todayLocalStr, parseLocalDate } from '../utils/dates';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
@@ -18,6 +19,27 @@ interface TaskModalProps {
   onNotify?: (toUserId: string, message: string) => void;
   onDelete?: (taskId: string) => void;
 }
+
+// Signature of the fields that "Commit Mission" persists, used to detect
+// unsaved edits when the user tries to close. Comments/help auto-save on their
+// own, so they're intentionally excluded.
+const taskSignature = (t: Task): string => JSON.stringify({
+  title: t.title ?? '',
+  description: t.description ?? '',
+  status: t.status,
+  priority: t.priority,
+  effort: t.effort ?? null,
+  startDate: t.startDate ?? null,
+  dueDate: t.dueDate ?? null,
+  completedAt: t.completedAt ?? null,
+  deptOnly: !!t.deptOnly,
+  blockedReason: t.blockedReason ?? '',
+  requiredCertificationId: t.requiredCertificationId ?? null,
+  departments: [...(t.departments || [])].sort(),
+  assignees: [...(t.assignees || [])].map(String).sort(),
+  dependencies: [...(t.dependencies || [])].map(String).sort(),
+  successCriteria: (t.successCriteria || []).map(s => ({ text: s.text, completed: s.completed })),
+});
 
 const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
   const { settings } = useTeamSettings();
@@ -38,8 +60,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     attachments: [],
     comments: [],
     history: [{ id: Date.now().toString(), userId: 'system', action: 'Task Created', timestamp: Date.now() }],
-    startDate: new Date().toISOString().split('T')[0],
-    dueDate: new Date().toISOString().split('T')[0],
+    startDate: todayLocalStr(),
+    dueDate: todayLocalStr(),
     dependencies: [],
     helpRequested: false,
     deptOnly: false,
@@ -57,6 +79,24 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const [showCertPicker, setShowCertPicker] = useState(false);
   const certPickerRef = useRef<HTMLDivElement>(null);
   const [depSearch, setDepSearch] = useState('');
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  // Baseline captured on first render; edits that differ from it are "unsaved".
+  const pristineRef = useRef<string | null>(null);
+  if (pristineRef.current === null) pristineRef.current = taskSignature(editedTask);
+  const isDirty = taskSignature(editedTask) !== pristineRef.current;
+
+  const commitTask = () => {
+    const taskToSave = (editedTask.deptOnly && editedTask.departments.length === 0)
+      ? { ...editedTask, deptOnly: false }
+      : editedTask;
+    onSave(taskToSave);
+  };
+
+  const handleCloseAttempt = () => {
+    if (isDirty) setShowCloseConfirm(true);
+    else onClose();
+  };
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -283,7 +323,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     <Trash2 size={24} />
                 </button>
             )}
-            <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
+            <button onClick={handleCloseAttempt} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
               <X size={24} />
             </button>
           </div>
@@ -563,7 +603,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   <label className="block text-[10px] font-black text-teamColor uppercase tracking-widest ml-1 flex items-center gap-1.5">
                     <Calendar size={12} /> Due Date
                   </label>
-                  <input 
+                  <input
                     type="date"
                     value={editedTask.dueDate}
                     onChange={(e) => setEditedTask({...editedTask, dueDate: e.target.value})}
@@ -571,6 +611,23 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   />
                </div>
             </div>
+
+            {editedTask.status === TaskStatus.Complete && (
+              <div className="pb-6 border-b border-slate-200 dark:border-slate-700 space-y-3">
+                <label className="block text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                  <CheckCircle size={12} /> Completed On
+                </label>
+                <input
+                  type="date"
+                  value={editedTask.completedAt ? todayLocalStr(new Date(editedTask.completedAt)) : todayLocalStr()}
+                  onChange={(e) => setEditedTask({ ...editedTask, completedAt: e.target.value ? parseLocalDate(e.target.value).getTime() : Date.now() })}
+                  className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-emerald-100 dark:border-emerald-900/40 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-emerald-500 transition-all dark:text-white"
+                />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold ml-1">
+                  Auto-set when marked complete — adjust if it was actually finished on a different day.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-6">
               <div>
@@ -906,13 +963,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     "Dept Board Only" will be cleared on save — no department selected.
                   </p>
                 )}
-                <button 
-                  onClick={() => {
-                    const taskToSave = (editedTask.deptOnly && editedTask.departments.length === 0)
-                      ? { ...editedTask, deptOnly: false }
-                      : editedTask;
-                    onSave(taskToSave);
-                  }}
+                <button
+                  onClick={commitTask}
                   className="w-full py-6 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-[0.2em] text-sm"
                 >
                   Commit Mission
@@ -921,6 +973,40 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
           </div>
         </div>
       </div>
+
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" onClick={() => setShowCloseConfirm(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl border-t-8 border-amber-500" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={26} />
+            </div>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase text-center tracking-tight">Unsaved Changes</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-bold text-center mt-2 mb-6">
+              You've edited this task but haven't committed the mission. What would you like to do?
+            </p>
+            <div className="space-y-2.5">
+              <button
+                onClick={() => { setShowCloseConfirm(false); commitTask(); }}
+                className="w-full py-4 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-widest text-xs"
+              >
+                Commit Mission
+              </button>
+              <button
+                onClick={() => { setShowCloseConfirm(false); onClose(); }}
+                className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-xs"
+              >
+                Discard &amp; Close
+              </button>
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="w-full py-3 text-slate-400 font-bold rounded-2xl hover:text-slate-600 dark:hover:text-slate-300 transition-all uppercase tracking-widest text-[10px]"
+              >
+                Keep Editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

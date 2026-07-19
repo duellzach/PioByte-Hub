@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw, Upload } from 'lucide-react';
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
+import RequirementsSettings from './RequirementsSettings';
 
 interface ControlPanelProps {
   currentUserRoles: string[];
@@ -504,6 +505,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
             </div>
           </div>
         </div>
+      </SectionCard>
+
+      <SectionCard title="Requirements" subtitle="Fundraising goal and per-category hour requirements shown on each student's home dashboard.">
+        <RequirementsSettings currentUserId={currentUserId} />
       </SectionCard>
 
       <SectionCard title="Departments" subtitle="Customize department names and colors. Renaming updates throughout the app.">

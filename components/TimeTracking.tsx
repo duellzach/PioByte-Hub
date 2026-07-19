@@ -3,6 +3,7 @@ import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, 
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
+import { todayLocalStr } from '../utils/dates';
 
 interface TimeTrackingProps {
   state: AppState;
@@ -70,6 +71,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [pickerSelectedGeneralTaskId, setPickerSelectedGeneralTaskId] = useState<number | null>(null);
   const [pendingEntryId, setPendingEntryId] = useState<number | null>(null);
   const [checkInLoading, setCheckInLoading] = useState(false);
+  const [showKindPicker, setShowKindPicker] = useState(false);
+  const [clockableEvents, setClockableEvents] = useState<any[]>([]);
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkoutHandoffNote, setCheckoutHandoffNote] = useState('');
@@ -142,12 +145,33 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return total;
   }, [myEntries]);
 
+  // Ask "what are you clocking?" only when the user has accepted events happening
+  // today; otherwise go straight to a normal shop check-in.
   const handleCheckIn = async () => {
+    setCheckInLoading(true);
+    try {
+      const events = await api.events.clockableEvents().catch(() => []);
+      if (events.length > 0) {
+        setClockableEvents(events);
+        setShowKindPicker(true);
+        setCheckInLoading(false);
+        return;
+      }
+      await doShopCheckIn();
+    } catch (error) {
+      console.error('Check-in failed:', error);
+      onRefresh();
+      setCheckInLoading(false);
+    }
+  };
+
+  const doShopCheckIn = async () => {
+    setShowKindPicker(false);
     setCheckInLoading(true);
     setPickerSelectedTaskId(null);
     setPickerSelectedGeneralTaskId(null);
     try {
-      const entry = await api.timeEntries.checkIn(currentUserId);
+      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'shop' });
       const entryId = parseInt(entry.id);
       setPendingEntryId(entryId);
       setShowTaskPicker(true);
@@ -165,6 +189,19 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     } finally {
       setCheckInLoading(false);
       setTaskPickerLoading(false);
+    }
+  };
+
+  const doEventCheckIn = async (event: any) => {
+    setShowKindPicker(false);
+    setCheckInLoading(true);
+    try {
+      await api.timeEntries.checkIn(currentUserId, { kind: event.type, calendarEventId: event.id });
+    } catch (error: any) {
+      alert(error?.message || 'Could not clock in to that event.');
+    } finally {
+      setCheckInLoading(false);
+      onRefresh();
     }
   };
 
@@ -385,7 +422,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     const loadEvents = async () => {
       try {
         const events = await api.scout.getEvents();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayLocalStr();
         const active = events.filter((e: any) =>
           !e.archived && (!e.endDate || e.endDate >= today)
         );
@@ -660,7 +697,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 const myCheckins = compCheckins.filter((c: any) => c.userId === currentUserId);
                 const openCheckin = myCheckins.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
                 const pendingCheckin = myCheckins.find((c: any) => c.status === 'pending_approval');
-                const today = new Date().toISOString().slice(0, 10);
+                const today = todayLocalStr();
                 const eventStarted = !selectedCompEvent?.startDate || selectedCompEvent.startDate <= today;
                 const canCheckIn = !openCheckin && !pendingCheckin && eventStarted;
                 return (
@@ -1399,6 +1436,28 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 Save Changes
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showKindPicker && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300" onClick={() => setShowKindPicker(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">What are you clocking?</h2>
+            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-5">Pick shop time or an event</p>
+            <div className="space-y-2.5">
+              <button onClick={doShopCheckIn} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
+                <div className="w-10 h-10 rounded-xl bg-teamColor/10 text-teamColor flex items-center justify-center flex-shrink-0"><Briefcase size={18} /></div>
+                <div><p className="font-black text-sm text-slate-900 dark:text-white">Shop Time</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Build / work session</p></div>
+              </button>
+              {clockableEvents.map((ev) => (
+                <button key={ev.id} onClick={() => doEventCheckIn(ev)} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 flex items-center justify-center flex-shrink-0"><MapPin size={18} /></div>
+                  <div><p className="font-black text-sm text-slate-900 dark:text-white">{ev.title}</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{ev.type}</p></div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowKindPicker(false)} className="w-full mt-4 py-2.5 text-slate-400 font-bold uppercase tracking-widest text-[10px] hover:text-slate-600 dark:hover:text-slate-300">Cancel</button>
           </div>
         </div>
       )}

@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Secrets — never commit; use Replit Secrets / env vars
+.env
+.env.*
+!.env.example
+
+# Local dev launch config (machine-specific paths)
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

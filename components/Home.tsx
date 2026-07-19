@@ -5,6 +5,9 @@ import { Bell, CheckCircle, Clock, ArrowRight, MessageSquare, Megaphone, Send, X
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
+import { parseLocalDate } from '../utils/dates';
+import RequirementsCard from './RequirementsCard';
+import UpcomingCard from './UpcomingCard';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
@@ -146,17 +149,17 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       // Active: startDate <= now and (no endDate OR endDate >= now)
       const active = events.filter((e: any) => {
         if (e.archived) return false;
-        const start = e.startDate ? new Date(e.startDate).getTime() : null;
-        const end = e.endDate ? new Date(e.endDate).getTime() : null;
+        const start = e.startDate ? parseLocalDate(e.startDate).getTime() : null;
+        const end = e.endDate ? parseLocalDate(e.endDate).getTime() : null;
         if (start === null) return false;
         return start <= now && (end === null || end >= now);
       });
       // Upcoming: startDate in the future
       const upcoming = events.filter((e: any) => {
         if (e.archived) return false;
-        const start = e.startDate ? new Date(e.startDate).getTime() : null;
+        const start = e.startDate ? parseLocalDate(e.startDate).getTime() : null;
         return start !== null && start > now;
-      }).sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      }).sort((a: any, b: any) => parseLocalDate(a.startDate).getTime() - parseLocalDate(b.startDate).getTime());
       // Prefer active event, fall back to soonest upcoming
       const candidateEvent = active[0] || upcoming[0] || null;
       // For the home countdown widget show active + upcoming
@@ -181,10 +184,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       const now = Date.now();
       const countdowns: Record<number, string> = {};
       for (const evt of scoutEvents) {
-        const start = new Date(evt.startDate).getTime();
+        const start = parseLocalDate(evt.startDate).getTime();
         const diff = start - now;
         if (diff <= 0) {
-          const end = evt.endDate ? new Date(evt.endDate).getTime() : start + 86400000 * 3;
+          const end = evt.endDate ? parseLocalDate(evt.endDate).getTime() : start + 86400000 * 3;
           if (now < end) {
             countdowns[evt.id] = 'HAPPENING NOW';
           } else {
@@ -312,11 +315,11 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
   return (
     <div className="w-full h-full animate-in fade-in duration-700">
-      <div className="flex flex-col lg:flex-row justify-between items-start gap-8 mb-12">
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-4 mb-6">
         <div className="flex-1">
-          <p className="text-[11px] font-black text-teamColor uppercase tracking-[0.2em]">Operational Dashboard</p>
-          <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-tight">Welcome, {user?.name.split(' ')[0]}</h1>
-          <div className="flex items-center gap-6 mt-3">
+          <p className="text-[10px] font-black text-teamColor uppercase tracking-[0.2em]">Operational Dashboard</p>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-tight">Welcome, {user?.name.split(' ')[0]}</h1>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2">
               <p className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs">Team {settings.teamNumber} • {settings.teamName}</p>
               <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
               <div className="flex items-center gap-2">
@@ -339,72 +342,21 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               setIsBroadcasting(true);
               setBroadcastScope(canBroadcastGlobal ? 'Global' : 'Department');
             }}
-            className="flex items-center gap-3 px-8 py-4 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-xl shadow-teamColor/20 transition-all uppercase text-xs tracking-widest"
+            className="flex items-center gap-2.5 px-6 py-3 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-xs tracking-widest"
           >
-            <Megaphone size={18} />
+            <Megaphone size={16} />
             New Broadcast
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-12 mb-12">
-        <section className="xl:col-span-2 bg-white dark:bg-slate-800 rounded-[40px] border border-slate-200 dark:border-slate-700 p-10 shadow-sm overflow-hidden flex flex-col h-[400px]">
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-3">
-                        <BarChart3 className="text-teamColor" /> System Velocity
-                    </h2>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Accomplished Effort Points per Week</p>
-                </div>
-            </div>
-            <div className="flex-1 -ml-8">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={velocityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={settings.themeColor} stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor={settings.themeColor} stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" className="opacity-10" />
-                        <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 10, fontWeight: 900, fill: '#94A3B8' }}
-                        />
-                        <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 10, fontWeight: 900, fill: '#94A3B8' }}
-                        />
-                        <Tooltip 
-                            contentStyle={{ 
-                                backgroundColor: '#0F172A', 
-                                border: 'none', 
-                                borderRadius: '16px', 
-                                padding: '12px 16px',
-                                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)'
-                            }}
-                            itemStyle={{ color: '#FFFFFF', fontWeight: 900, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
-                            labelStyle={{ color: settings.themeColor, fontWeight: 900, fontSize: '8px', marginBottom: '4px', textTransform: 'uppercase' }}
-                        />
-                        <Area 
-                            type="monotone" 
-                            dataKey="points" 
-                            stroke={settings.themeColor} 
-                            strokeWidth={4}
-                            fillOpacity={1} 
-                            fill="url(#colorPoints)" 
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
-        </section>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6 items-start">
+        <RequirementsCard />
+        <UpcomingCard />
 
         {/* Announcements Preview in a compact column */}
-        <section className="bg-slate-950 rounded-[40px] p-10 flex flex-col h-[400px]">
-          <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+        <section className="bg-slate-950 rounded-2xl md:rounded-[28px] p-6 flex flex-col h-[300px]">
+          <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
              <Megaphone size={16} /> Team Briefings
           </h2>
           <div className="flex-1 overflow-auto space-y-4 pr-2 kanban-scroll">
@@ -444,7 +396,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       </div>
 
       {scoutEvents.length > 0 && (
-        <div className="mb-12">
+        <div className="mb-6">
           <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
             <Calendar size={14} /> Upcoming Events
           </h2>
@@ -477,8 +429,8 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                   <div className="flex items-end justify-between">
                     <div>
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-                        {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
-                        {evt.endDate && ` – ${new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}`}
+                        {parseLocalDate(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {evt.endDate && ` – ${parseLocalDate(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                       </p>
                     </div>
                     {!isDone && (
@@ -498,7 +450,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       )}
 
       {mySchedule && (
-        <div className="mb-12">
+        <div className="mb-6">
           <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
             <Calendar size={14} /> My Event Schedule
           </h2>
@@ -528,11 +480,11 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-        <section className="space-y-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase flex items-center gap-3">
-              <Clock className="text-teamColor" /> My Active Tasks
+            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-2">
+              <Clock size={18} className="text-teamColor" /> My Active Tasks
             </h2>
             <span className="px-4 py-1 bg-teamColor text-white text-[10px] font-black rounded-full shadow-lg">
               {myTasks.length} PENDING
@@ -544,7 +496,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               <button
                 key={task.id}
                 onClick={() => onTaskClick(task)}
-                className="w-full text-left bg-white dark:bg-slate-800 p-8 rounded-[32px] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-teamColor/50 dark:hover:border-teamColor/50 hover:scale-[1.01] transition-all group"
+                className="w-full text-left bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-teamColor/50 dark:hover:border-teamColor/50 hover:scale-[1.01] transition-all group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-2">
@@ -556,10 +508,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     </span>
                   </div>
                   <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 group-hover:text-teamColor transition-colors">
-                    DUE {new Date(task.dueDate).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })}
+                    DUE {parseLocalDate(task.dueDate).toLocaleDateString([])}
                   </span>
                 </div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 group-hover:text-teamColor transition-colors">
+                <h3 className="text-base font-black text-slate-900 dark:text-white mb-1 group-hover:text-teamColor transition-colors">
                   {task.title.toUpperCase()}
                 </h3>
                 <p className="text-slate-400 dark:text-slate-500 text-sm line-clamp-1 mb-6">
@@ -575,7 +527,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 </div>
               </button>
             )) : (
-              <div className="bg-white dark:bg-slate-800 p-16 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                 <CheckCircle size={48} className="text-slate-100 dark:text-slate-700 mb-4" />
                 <p className="text-lg font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">All Clear</p>
                 <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">No tasks assigned to you right now.</p>
@@ -584,10 +536,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           </div>
         </section>
 
-        <section className="space-y-8">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase flex items-center gap-3">
-              <Bell className="text-teamColor" /> Notifications
+            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-2">
+              <Bell size={18} className="text-teamColor" /> Notifications
             </h2>
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Personal Mentions</span>
           </div>
@@ -602,7 +554,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               return (
               <div 
                 key={n.id} 
-                className={`p-8 rounded-[32px] border transition-all flex items-start gap-6 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 ${!n.read ? 'shadow-lg border-l-4 border-l-red-600' : 'opacity-60'}`}
+                className={`p-5 rounded-2xl border transition-all flex items-start gap-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 ${!n.read ? 'shadow-lg border-l-4 border-l-red-600' : 'opacity-60'}`}
               >
                 <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${isBroadcast ? 'bg-slate-900 dark:bg-slate-700 text-white' : 'bg-teamColor/10 text-teamColor'}`}>
                   {isBroadcast ? <Megaphone size={20} /> : <MessageSquare size={20} />}
@@ -651,7 +603,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 </div>
               </div>
             )}) : (
-              <div className="bg-white dark:bg-slate-800 p-16 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                 <Bell size={48} className="text-slate-100 dark:text-slate-700 mb-4" />
                 <p className="text-lg font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">No Alerts</p>
                 <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">You're caught up with all mentions.</p>
@@ -660,6 +612,38 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           </div>
         </section>
       </div>
+
+      <section className="mt-6 bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border border-slate-200 dark:border-slate-700 p-6 shadow-sm overflow-hidden flex flex-col h-[300px]">
+          <div className="flex items-center justify-between mb-4">
+              <div>
+                  <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-2">
+                      <BarChart3 size={18} className="text-teamColor" /> System Velocity
+                  </h2>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Accomplished Effort Points per Week</p>
+              </div>
+          </div>
+          <div className="flex-1 -ml-8">
+              <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={velocityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <defs>
+                          <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={settings.themeColor} stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor={settings.themeColor} stopOpacity={0}/>
+                          </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" className="opacity-10" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94A3B8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94A3B8' }} />
+                      <Tooltip
+                          contentStyle={{ backgroundColor: '#0F172A', border: 'none', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)' }}
+                          itemStyle={{ color: '#FFFFFF', fontWeight: 900, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
+                          labelStyle={{ color: settings.themeColor, fontWeight: 900, fontSize: '8px', marginBottom: '4px', textTransform: 'uppercase' }}
+                      />
+                      <Area type="monotone" dataKey="points" stroke={settings.themeColor} strokeWidth={4} fillOpacity={1} fill="url(#colorPoints)" />
+                  </AreaChart>
+              </ResponsiveContainer>
+          </div>
+      </section>
 
       {selectedAnnouncement && (
          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
@@ -686,7 +670,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
              </div>
 
              <div className="flex-1 overflow-auto p-8 space-y-8 kanban-scroll">
-                <div className="bg-slate-950 text-white p-8 rounded-[32px] shadow-xl border border-white/5">
+                <div className="bg-slate-950 text-white p-5 rounded-2xl shadow-xl border border-white/5">
                    <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-teamColor rounded-lg flex items-center justify-center font-black text-xs">
                          {state.users.find(u => u.id === selectedAnnouncement.authorId)?.name[0]}

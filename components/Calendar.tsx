@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { todayLocalStr } from '../utils/dates';
+import EventRosterModal from './EventRosterModal';
 
 interface CalendarEvent {
   id: number;
@@ -123,6 +125,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent | VirtualInstance; x: number; y: number } | null>(null);
+  const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string } | null>(null);
+  const [signupBusy, setSignupBusy] = useState(false);
+  const [signupDone, setSignupDone] = useState(false);
   const [tbaModal, setTbaModal] = useState(false);
   const [tbaLoading, setTbaLoading] = useState(false);
   const [tbaEvents, setTbaEvents] = useState<any[]>([]);
@@ -200,7 +205,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   }, [expanded]);
 
   const upcomingEvents = useMemo(() => {
-    const now = today.toISOString().slice(0, 10);
+    const now = todayLocalStr(today);
     return [...expanded]
       .filter(ev => {
         const start = '_isVirtual' in ev ? (ev as VirtualInstance)._instanceDate : ev.startDate;
@@ -514,7 +519,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   if (!day) return <div key={idx} />;
                   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   const dayEvents = eventsByDate[dateStr] || [];
-                  const todayStr = today.toISOString().slice(0, 10);
+                  const todayStr = todayLocalStr(today);
                   const isToday = dateStr === todayStr;
                   const isSelected = dateStr === selectedDate;
                   return (
@@ -793,6 +798,21 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               )}
               {ev.location && <div className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">{ev.location}</div>}
               {ev.description && <div className="text-[9px] text-slate-400 dark:text-slate-500 italic leading-relaxed">{ev.description}</div>}
+              {(ev as any).signupEnabled && !isRecurring && (
+                <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700">
+                  {isCoachOrCaptain ? (
+                    <button onClick={() => { setRosterEvent({ id: (ev as CalendarEvent).id, title: ev.title }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
+                  ) : (
+                    <button
+                      onClick={async () => { setSignupBusy(true); try { await api.events.signup((ev as CalendarEvent).id); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
+                      disabled={signupBusy || signupDone}
+                      className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 disabled:opacity-60"
+                    >
+                      {signupDone ? 'Signed up ✓' : signupBusy ? '…' : 'Sign Up'}
+                    </button>
+                  )}
+                </div>
+              )}
               {isCoachOrCaptain && isRecurring && (
                 <div className="pt-2 space-y-1 border-t border-slate-100 dark:border-slate-700">
                   <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manage occurrence</p>
@@ -1149,6 +1169,10 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
             )}
           </div>
         </div>
+      )}
+
+      {rosterEvent && (
+        <EventRosterModal eventId={rosterEvent.id} eventTitle={rosterEvent.title} onClose={() => setRosterEvent(null)} />
       )}
     </div>
   );

@@ -1,11 +1,14 @@
 import express from "express";
 import cors from "cors";
 import compression from "compression";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 import { storage } from "./storage";
 import { pool } from "./db.js";
+import { authenticate } from "./middleware/auth";
+import { SESSION_SECRET } from "./security";
 
 import usersRouter from "./routes/users";
 import projectsRouter from "./routes/projects";
@@ -19,6 +22,10 @@ import safetyRouter from "./routes/safety";
 import calendarRouter from "./routes/calendar";
 import resourcesRouter from "./routes/resources";
 import settingsRouter from "./routes/settings";
+import pushRouter from "./routes/push";
+import recurringRouter from "./routes/recurring";
+import eventSignupsRouter from "./routes/eventSignups";
+import requirementsRouter from "./routes/requirements";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,11 +79,26 @@ async function initializeDatabase() {
 }
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
+
+// Replit (and most PaaS) terminate TLS at a proxy; needed for secure cookies.
+app.set("trust proxy", 1);
+
 app.use(compression());
-app.use(cors());
+// Same-origin in production (server serves the client); allow the Vite dev
+// origin with credentials in development only.
+if (isProduction) {
+  app.use(cors());
+} else {
+  app.use(cors({ origin: true, credentials: true }));
+}
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 
-const isProduction = process.env.NODE_ENV === "production";
+if (isProduction && !SESSION_SECRET) {
+  console.error("FATAL: SESSION_SECRET is not set. Add it to your environment (Replit Secrets) before deploying.");
+  process.exit(1);
+}
 
 // Dynamic manifest.json — always served before static files so it reflects current team settings
 app.get("/manifest.json", async (req, res) => {
@@ -114,6 +136,9 @@ if (isProduction) {
   app.use(express.static(path.join(__dirname, "../dist")));
 }
 
+// Gate every /api route behind a valid session (public allowlist inside).
+app.use("/api", authenticate);
+
 app.use("/api", usersRouter);
 app.use("/api", projectsRouter);
 app.use("/api", tasksRouter);
@@ -126,6 +151,10 @@ app.use("/api", safetyRouter);
 app.use("/api", calendarRouter);
 app.use("/api", resourcesRouter);
 app.use("/api", settingsRouter);
+app.use("/api", pushRouter);
+app.use("/api", recurringRouter);
+app.use("/api", eventSignupsRouter);
+app.use("/api", requirementsRouter);
 
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {
@@ -142,6 +171,16 @@ initializeDatabase().then(() => {
     try {
       await storage.migrateApiKeyColumns();
       await storage.migrateCalendarTypes();
+      await storage.ensurePushSubscriptionsTable();
+      await storage.ensureRecurringTasksTable();
+      await storage.ensureEventParticipationTables();
+      await storage.ensureRequirementsAndFundraising();
+      // Generate any due recurring tasks now, then re-check hourly. The guarded
+      // UPDATE inside makes this safe to run on every instance under autoscale.
+      storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));
+      setInterval(() => {
+        storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation error:", e));
+      }, 60 * 60 * 1000);
     } catch (e) {
       console.warn("Calendar type migration skipped:", e);
     }

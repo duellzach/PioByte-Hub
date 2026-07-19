@@ -50,6 +50,18 @@ router.get("/time-entries/:id", async (req, res) => {
 router.post("/time-entries/check-in", async (req, res) => {
   try {
     const { userId } = req.body;
+    const kind = ["shop", "outreach", "volunteer"].includes(req.body.kind) ? req.body.kind : "shop";
+    const calendarEventId = req.body.calendarEventId ? parseInt(req.body.calendarEventId) : null;
+
+    // Clocking into an event requires an accepted sign-up to that event.
+    if (kind !== "shop") {
+      if (!calendarEventId) return res.status(400).json({ error: "An event is required for this kind of time" });
+      const signup = await storage.getEventSignup(calendarEventId, parseInt(userId));
+      if (!signup || signup.status !== "accepted") {
+        return res.status(403).json({ error: "You must be accepted to this event before clocking in" });
+      }
+    }
+
     const openEntry = await storage.getOpenTimeEntry(userId);
     if (openEntry) {
       return res.status(400).json({ error: "User already has an open time entry" });
@@ -58,12 +70,14 @@ router.post("/time-entries/check-in", async (req, res) => {
       userId,
       checkInAt: new Date(),
       status: "pending_check_in",
+      kind,
+      calendarEventId: kind === "shop" ? null : calendarEventId,
     });
     await storage.createTimeEntryAudit({
       entryId: entry.id,
       actorId: userId,
       actionType: "check_in",
-      newValues: { checkInAt: entry.checkInAt },
+      newValues: { checkInAt: entry.checkInAt, kind },
     });
     res.status(201).json(entry);
   } catch (error) {

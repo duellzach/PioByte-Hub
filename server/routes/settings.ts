@@ -70,7 +70,10 @@ const DEFAULT_ROLES = [
 router.get("/settings", async (req, res) => {
   try {
     const settings = await storage.getTeamSettings();
-    res.json(settings);
+    // Never expose stored API keys to clients. The UI reads presence/absence
+    // from GET /settings/api-status (booleans) instead.
+    const { tbaApiKey, toaApiKey, nexusApiKey, ...safe } = settings as any;
+    res.json(safe);
   } catch (error) {
     console.error("Error fetching team settings:", error);
     res.status(500).json({ error: "Failed to fetch settings" });

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { sendPushToUsers } from "../push";
 
 const router = Router();
 
@@ -17,6 +18,18 @@ router.post("/notifications", async (req, res) => {
   try {
     const notification = await storage.createNotification(req.body);
     res.status(201).json(notification);
+    // Fire a device push to the recipient (best-effort, after responding).
+    if (notification.toUserId) {
+      const sender = notification.fromUserId ? await storage.getUser(notification.fromUserId).catch(() => null) : null;
+      // The message body describes the event (mention, assignment, …); keep the
+      // title to who triggered it so it reads correctly for every notification type.
+      sendPushToUsers([notification.toUserId], {
+        title: sender?.name ? `${sender.name} • PioByte Hub` : "PioByte Hub",
+        body: notification.message || "You have a new notification",
+        url: "/",
+        tag: `notification-${notification.id}`,
+      });
+    }
   } catch (error) {
     console.error("Error creating notification:", error);
     res.status(500).json({ error: "Failed to create notification" });

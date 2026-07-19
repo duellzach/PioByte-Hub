@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { sendPushToUsers } from "../push";
 
 const router = Router();
 
@@ -25,6 +26,13 @@ router.post("/fullscreen-alerts", async (req, res) => {
     }
     const alert = await storage.createFullscreenAlert(req.body);
     res.status(201).json(alert);
+    // Push the alert to every team member's devices (best-effort).
+    const allUsers = await storage.getUsers().catch(() => []);
+    const label = alert.type === "safety" ? "⚠ Safety Alert" : alert.type === "urgent" ? "Urgent" : "Team Alert";
+    sendPushToUsers(
+      allUsers.map((u) => u.id),
+      { title: label, body: alert.message || "New team alert", url: "/", tag: `alert-${alert.id}` },
+    );
   } catch (error) {
     console.error("Error creating fullscreen alert:", error);
     res.status(500).json({ error: "Failed to create alert" });

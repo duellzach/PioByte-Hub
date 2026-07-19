@@ -22,6 +22,10 @@ router.post("/calendar", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can create calendar events" });
     }
+    // Default sign-ups on for participation event types unless explicitly set.
+    if (data.signupEnabled === undefined && ["outreach", "volunteer", "competition"].includes(data.type)) {
+      data.signupEnabled = true;
+    }
     const event = await storage.createCalendarEvent({ ...data, createdBy: parseInt(requesterId) });
     res.status(201).json(event);
   } catch (error) {

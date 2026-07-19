@@ -1,7 +1,37 @@
 import { db } from "./db";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens } from "../shared/schema";
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken } from "../shared/schema";
+import { hashPassword } from "./security";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, recurringTaskTemplates, eventSignups, fundraisingEntries } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
+
+// --- Recurring-task date helpers (Pacific, matching the app's date convention) ---
+function todayServerLocalStr(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+}
+function addDaysStr(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+function addMonthsStr(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCMonth(dt.getUTCMonth() + months);
+  return dt.toISOString().slice(0, 10);
+}
+// The earliest date a template is next due to generate. Null last-generated =>
+// due immediately.
+function nextRecurringDate(lastGenerated: string | null, frequency: string): string {
+  if (!lastGenerated) return '0000-01-01';
+  switch (frequency) {
+    case 'daily': return addDaysStr(lastGenerated, 1);
+    case 'weekly': return addDaysStr(lastGenerated, 7);
+    case 'biweekly': return addDaysStr(lastGenerated, 14);
+    case 'monthly': return addMonthsStr(lastGenerated, 1);
+    default: return addDaysStr(lastGenerated, 7);
+  }
+}
 
 function toDate(value: any): Date | undefined {
   if (value === undefined || value === null) return undefined;
@@ -1020,6 +1050,226 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS nexus_api_key TEXT`);
   }
 
+  async ensurePushSubscriptionsTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  async ensureEventParticipationTables(): Promise<void> {
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS signup_enabled BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS capacity INTEGER`);
+    await db.execute(sql`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'shop'`);
+    await db.execute(sql`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS calendar_event_id INTEGER REFERENCES calendar_events(id) ON DELETE SET NULL`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS event_signups (
+        id SERIAL PRIMARY KEY,
+        calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'requested',
+        approved_by INTEGER REFERENCES users(id),
+        approved_at TIMESTAMP,
+        note TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (calendar_event_id, user_id)
+      )
+    `);
+  }
+
+  // --- Event signups (roster) ---
+  async getEventSignups(calendarEventId: number): Promise<EventSignup[]> {
+    return db.select().from(eventSignups).where(eq(eventSignups.calendarEventId, calendarEventId));
+  }
+  async getEventSignup(calendarEventId: number, userId: number): Promise<EventSignup | undefined> {
+    const [row] = await db.select().from(eventSignups)
+      .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.userId, userId)));
+    return row;
+  }
+  async getEventSignupById(id: number): Promise<EventSignup | undefined> {
+    const [row] = await db.select().from(eventSignups).where(eq(eventSignups.id, id));
+    return row;
+  }
+  async countAcceptedSignups(calendarEventId: number): Promise<number> {
+    const rows = await db.select().from(eventSignups)
+      .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')));
+    return rows.length;
+  }
+  async upsertEventSignup(calendarEventId: number, userId: number, status: string): Promise<EventSignup> {
+    const [row] = await db.insert(eventSignups)
+      .values({ calendarEventId, userId, status })
+      .onConflictDoUpdate({ target: [eventSignups.calendarEventId, eventSignups.userId], set: { status } })
+      .returning();
+    return row;
+  }
+  async setEventSignupStatus(id: number, status: string, approvedBy: number): Promise<EventSignup | undefined> {
+    const [row] = await db.update(eventSignups)
+      .set({ status, approvedBy, approvedAt: new Date() })
+      .where(eq(eventSignups.id, id)).returning();
+    return row;
+  }
+  async deleteEventSignup(calendarEventId: number, userId: number): Promise<void> {
+    await db.delete(eventSignups)
+      .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.userId, userId)));
+  }
+  async getUserSignups(userId: number): Promise<EventSignup[]> {
+    return db.select().from(eventSignups).where(eq(eventSignups.userId, userId));
+  }
+
+  async ensureRequirementsAndFundraising(): Promise<void> {
+    // Note: DDL DEFAULTs can't be parameterized, so the JSON is inlined as a
+    // literal. It contains only double quotes (safe inside single-quoted SQL).
+    const defaultReq = JSON.stringify({
+      fundraising: { enabled: false, goalCents: 0 },
+      hours: [
+        { key: "shop", label: "Shop Time", enabled: false, source: "clock:shop", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "outreach", label: "Outreach", enabled: false, source: "clock:outreach", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "volunteer", label: "Volunteer", enabled: false, source: "clock:volunteer", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+      ],
+    });
+    await db.execute(sql.raw(`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '${defaultReq}'::jsonb`));
+    await db.execute(sql.raw(`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS fundraising_categories JSONB NOT NULL DEFAULT '["Concessions","Farmers Market","Parent Night Out","Sponsorship","Other"]'::jsonb`));
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS fundraising_goal_cents INTEGER`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS hour_requirement_overrides JSONB`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS fundraising_entries (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount_cents INTEGER NOT NULL,
+        category TEXT NOT NULL DEFAULT 'Other',
+        description TEXT NOT NULL DEFAULT '',
+        occurred_on TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'verified',
+        verified_by INTEGER REFERENCES users(id),
+        verified_at TIMESTAMP,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  // --- Fundraising ---
+  async getFundraisingEntries(filter: { userId?: number; status?: string } = {}): Promise<FundraisingEntry[]> {
+    let rows = await db.select().from(fundraisingEntries).orderBy(desc(fundraisingEntries.occurredOn));
+    if (filter.userId !== undefined) rows = rows.filter((r) => r.userId === filter.userId);
+    if (filter.status) rows = rows.filter((r) => r.status === filter.status);
+    return rows;
+  }
+  async getFundraisingEntry(id: number): Promise<FundraisingEntry | undefined> {
+    const [row] = await db.select().from(fundraisingEntries).where(eq(fundraisingEntries.id, id));
+    return row;
+  }
+  async createFundraisingEntry(data: InsertFundraisingEntry): Promise<FundraisingEntry> {
+    const [row] = await db.insert(fundraisingEntries).values(data).returning();
+    return row;
+  }
+  async updateFundraisingEntry(id: number, data: Partial<InsertFundraisingEntry>): Promise<FundraisingEntry | undefined> {
+    const sanitized: any = { ...data }; delete sanitized.id; delete sanitized.createdAt;
+    const [row] = await db.update(fundraisingEntries).set(sanitized).where(eq(fundraisingEntries.id, id)).returning();
+    return row;
+  }
+  async deleteFundraisingEntry(id: number): Promise<void> {
+    await db.delete(fundraisingEntries).where(eq(fundraisingEntries.id, id));
+  }
+
+  async ensureRecurringTasksTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS recurring_task_templates (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        priority TEXT NOT NULL DEFAULT 'Medium',
+        effort INTEGER,
+        departments JSONB NOT NULL DEFAULT '[]',
+        assignees JSONB NOT NULL DEFAULT '[]',
+        dept_only BOOLEAN NOT NULL DEFAULT false,
+        frequency TEXT NOT NULL DEFAULT 'weekly',
+        due_offset_days INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT true,
+        last_generated_date TEXT,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  async getRecurringTemplates(): Promise<RecurringTaskTemplate[]> {
+    return db.select().from(recurringTaskTemplates).orderBy(desc(recurringTaskTemplates.createdAt));
+  }
+
+  async getRecurringTemplate(id: number): Promise<RecurringTaskTemplate | undefined> {
+    const [row] = await db.select().from(recurringTaskTemplates).where(eq(recurringTaskTemplates.id, id));
+    return row;
+  }
+
+  async createRecurringTemplate(data: InsertRecurringTaskTemplate): Promise<RecurringTaskTemplate> {
+    const [row] = await db.insert(recurringTaskTemplates).values(data).returning();
+    return row;
+  }
+
+  async updateRecurringTemplate(id: number, data: Partial<InsertRecurringTaskTemplate>): Promise<RecurringTaskTemplate | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.update(recurringTaskTemplates).set(sanitized).where(eq(recurringTaskTemplates.id, id)).returning();
+    return row;
+  }
+
+  async deleteRecurringTemplate(id: number): Promise<void> {
+    await db.delete(recurringTaskTemplates).where(eq(recurringTaskTemplates.id, id));
+  }
+
+  /**
+   * Generate a fresh task from any recurring template that is due, then advance
+   * its last_generated_date. Idempotent under concurrency: the guarded UPDATE
+   * (WHERE last_generated_date IS unchanged) ensures only one caller generates
+   * per interval even if several server instances run this at once.
+   * Returns the number of tasks created.
+   */
+  async generateDueRecurringTasks(): Promise<number> {
+    const today = todayServerLocalStr();
+    const templates = await this.getRecurringTemplates();
+    let created = 0;
+    for (const t of templates) {
+      if (!t.active) continue;
+      const nextDate = nextRecurringDate(t.lastGeneratedDate, t.frequency);
+      if (today < nextDate) continue; // not due yet
+
+      // Atomically claim this generation: only proceed if last_generated_date
+      // is still what we read (prevents duplicate tasks across instances/ticks).
+      const claim = t.lastGeneratedDate === null
+        ? await db.update(recurringTaskTemplates).set({ lastGeneratedDate: today })
+            .where(and(eq(recurringTaskTemplates.id, t.id), isNull(recurringTaskTemplates.lastGeneratedDate))).returning()
+        : await db.update(recurringTaskTemplates).set({ lastGeneratedDate: today })
+            .where(and(eq(recurringTaskTemplates.id, t.id), eq(recurringTaskTemplates.lastGeneratedDate, t.lastGeneratedDate))).returning();
+      if (claim.length === 0) continue; // another worker already generated
+
+      const due = addDaysStr(today, t.dueOffsetDays || 0);
+      await this.createTask({
+        projectId: t.projectId,
+        title: t.title,
+        description: t.description || "",
+        status: "Not Started",
+        priority: t.priority,
+        effort: t.effort ?? undefined,
+        departments: (t.departments as string[]) || [],
+        assignees: (t.assignees as number[]) || [],
+        deptOnly: t.deptOnly,
+        startDate: today,
+        dueDate: due,
+      } as InsertTask);
+      created++;
+    }
+    return created;
+  }
+
   async migrateCalendarTypes(): Promise<void> {
     await db.execute(sql`UPDATE calendar_events SET type = 'shop' WHERE type = 'practice'`);
   }
@@ -1240,7 +1490,7 @@ export class DatabaseStorage implements IStorage {
     ];
 
     for (const user of defaultUsers) {
-      await this.createUser(user);
+      await this.createUser({ ...user, password: await hashPassword(user.password) });
     }
 
     await this.createProject({

@@ -8,6 +8,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    credentials: 'include', // send the session cookie
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -33,6 +34,13 @@ export async function apiRequest<T>(
 }
 
 export const api = {
+  push: {
+    vapidPublicKey: () => apiRequest<{ publicKey: string; enabled: boolean }>('/push/vapid-public-key'),
+    subscribe: (subscription: any) =>
+      apiRequest<{ ok: boolean }>('/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
+    unsubscribe: (endpoint: string) =>
+      apiRequest<{ ok: boolean }>('/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }),
+  },
   auth: {
     login: (username: string, password: string) =>
       apiRequest<any>('/login', {
@@ -44,6 +52,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ pin }),
       }),
+    me: () => apiRequest<any>('/me'),
+    logout: () => apiRequest<{ ok: boolean }>('/logout', { method: 'POST' }),
   },
   users: {
     getAll: () => apiRequest<any[]>('/users'),
@@ -73,6 +83,34 @@ export const api = {
       apiRequest<any>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(task) }),
     delete: (id: number) =>
       apiRequest<void>(`/tasks/${id}`, { method: 'DELETE' }),
+  },
+  events: {
+    signup: (eventId: number) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST' }),
+    withdraw: (eventId: number) => apiRequest<void>(`/calendar/${eventId}/signup`, { method: 'DELETE' }),
+    roster: (eventId: number) => apiRequest<any[]>(`/calendar/${eventId}/signups`),
+    setSignupStatus: (signupId: number, status: string) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    myUpcoming: () => apiRequest<any[]>('/me/upcoming'),
+    clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
+  },
+  requirements: {
+    mine: () => apiRequest<any>('/me/requirements'),
+    forUser: (userId: number) => apiRequest<any>(`/users/${userId}/requirements`),
+  },
+  fundraising: {
+    list: (params?: { userId?: number; status?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return apiRequest<any[]>(`/fundraising${q ? '?' + q : ''}`);
+    },
+    create: (entry: any) => apiRequest<any>('/fundraising', { method: 'POST', body: JSON.stringify(entry) }),
+    update: (id: number, data: any) => apiRequest<any>(`/fundraising/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) => apiRequest<void>(`/fundraising/${id}`, { method: 'DELETE' }),
+  },
+  recurringTasks: {
+    getAll: () => apiRequest<any[]>('/recurring-tasks'),
+    create: (t: any) => apiRequest<any>('/recurring-tasks', { method: 'POST', body: JSON.stringify(t) }),
+    update: (id: number, t: any) => apiRequest<any>(`/recurring-tasks/${id}`, { method: 'PUT', body: JSON.stringify(t) }),
+    delete: (id: number) => apiRequest<void>(`/recurring-tasks/${id}`, { method: 'DELETE' }),
+    generateNow: () => apiRequest<{ created: number }>('/recurring-tasks/generate-now', { method: 'POST' }),
   },
   notifications: {
     getAll: () => apiRequest<any[]>('/notifications'),
@@ -287,8 +325,8 @@ export const api = {
   timeEntries: {
     getAll: () => apiRequest<any[]>('/time-entries'),
     get: (id: number) => apiRequest<any>(`/time-entries/${id}`),
-    checkIn: (userId: number) =>
-      apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId }) }),
+    checkIn: (userId: number, opts?: { kind?: string; calendarEventId?: number }) =>
+      apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId, ...(opts || {}) }) }),
     checkOut: (id: number, userId: number, opts?: { taskHandoffNote?: string; markTaskComplete?: boolean }) =>
       apiRequest<any>(`/time-entries/${id}/check-out`, { method: 'POST', body: JSON.stringify({ userId, ...opts }) }),
     confirm: (id: number, coachId: number, confirmType: 'check_in' | 'check_out') =>

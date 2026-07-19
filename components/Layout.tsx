@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, BellRing, BellOff, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen, Settings, DollarSign } from 'lucide-react';
+import { getPushStatus, enablePush, disablePush, type PushStatus } from '../services/push';
 import { api } from '../services/api';
 import TeamLogo from './TeamLogo';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
@@ -38,6 +39,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
   const { settings } = useTeamSettings();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus>('default');
+  const [pushBusy, setPushBusy] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [alertForm, setAlertForm] = useState({
@@ -52,6 +55,29 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
 
   const isCoachOrCaptain = user?.roles?.includes('Coach') || user?.roles?.includes('Team Captain');
   const isGuest = user?.roles?.includes('Guest');
+
+  useEffect(() => {
+    getPushStatus().then(setPushStatus).catch(() => {});
+  }, []);
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushStatus === 'subscribed') {
+        await disablePush();
+        setPushStatus('granted');
+      } else {
+        await enablePush();
+        setPushStatus('subscribed');
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Could not update notifications.');
+      setPushStatus(await getPushStatus());
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const fetchActiveAlerts = async () => {
     try {
@@ -158,7 +184,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
         </div>
 
         {/* Nav — no overflow, tightly spaced */}
-        <nav className={`flex-1 ${collapsed ? 'px-2 py-2' : 'px-2 py-1.5 md:px-3 md:py-2 lg:px-3 lg:py-2.5'} flex flex-col gap-0.5 md:gap-1 lg:gap-1 overflow-hidden`}>
+        <nav className={`flex-1 min-h-0 ${collapsed ? 'px-2 py-2' : 'px-2 py-1.5 md:px-3 md:py-2 lg:px-3 lg:py-2.5'} flex flex-col gap-0.5 md:gap-1 lg:gap-1 overflow-y-auto`}>
           {!isGuest && <NavItem to="/" icon={<HomeIcon size={16} />} label="HOME" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/war-room" icon={<LayoutDashboard size={16} />} label="WAR ROOM" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/boards" icon={<Kanban size={16} />} label="BOARDS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
@@ -168,6 +194,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           {!isGuest && <NavItem to="/safety" icon={<ShieldCheck size={16} />} label="SAFETY" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {!isGuest && <NavItem to="/fundraising" icon={<DollarSign size={16} />} label="FUNDRAISING" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {isCoachOrCaptain && (
             <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL PANEL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           )}
@@ -182,6 +209,26 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
               <div className="flex-shrink-0">{darkMode ? <Sun size={16} /> : <Moon size={16} />}</div>
               {!collapsed && <span>{darkMode ? 'LIGHT MODE' : 'DARK MODE'}</span>}
             </button>
+
+            {!isGuest && pushStatus !== 'unsupported' && (
+              <button
+                onClick={togglePush}
+                disabled={pushBusy || pushStatus === 'denied'}
+                title={
+                  pushStatus === 'denied'
+                    ? 'Notifications are blocked in your browser settings'
+                    : pushStatus === 'subscribed'
+                    ? 'Turn off device notifications'
+                    : 'Get notified on this device'
+                }
+                className={`w-full flex items-center ${collapsed ? 'justify-center py-2' : 'gap-2.5 px-3 py-2'} rounded-xl transition-all font-black text-[10px] tracking-widest disabled:opacity-40 ${
+                  pushStatus === 'subscribed' ? 'text-emerald-400 hover:bg-white/5' : 'text-slate-500 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <div className="flex-shrink-0">{pushStatus === 'subscribed' ? <BellRing size={16} /> : pushStatus === 'denied' ? <BellOff size={16} /> : <Bell size={16} />}</div>
+                {!collapsed && <span>{pushStatus === 'subscribed' ? 'NOTIFICATIONS ON' : pushStatus === 'denied' ? 'NOTIFS BLOCKED' : 'ENABLE NOTIFS'}</span>}
+              </button>
+            )}
 
             {isCoachOrCaptain && (
               <button

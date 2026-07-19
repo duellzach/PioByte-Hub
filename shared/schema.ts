@@ -9,6 +9,9 @@ export const users = pgTable("users", {
   roles: jsonb("roles").$type<string[]>().notNull().default([]),
   departments: jsonb("departments").$type<string[]>().notNull().default([]),
   muted: boolean("muted").notNull().default(false),
+  // Per-student requirement overrides (Epic C). null = use team defaults.
+  fundraisingGoalCents: integer("fundraising_goal_cents"),
+  hourRequirementOverrides: jsonb("hour_requirement_overrides").$type<Record<string, number>>(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -118,6 +121,10 @@ export const timeEntries = pgTable("time_entries", {
   workingOnTaskId: integer("working_on_task_id").references(() => tasks.id, { onDelete: "set null" }),
   workingOnGeneralTaskId: integer("working_on_general_task_id").references(() => generalTasks.id, { onDelete: "set null" }),
   taskHandoffNote: text("task_handoff_note"),
+  // Category of worked time (Epic A): shop (default) | outreach | volunteer | ...
+  // Outreach/volunteer entries link to the calendar event they were clocked against.
+  kind: text("kind").notNull().default("shop"),
+  calendarEventId: integer("calendar_event_id").references(() => calendarEvents.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -391,6 +398,10 @@ export const calendarEvents = pgTable("calendar_events", {
   instanceDate: text("instance_date"),
   deletedDates: text("deleted_dates"),
   attending: boolean("attending").notNull().default(true),
+  // Event participation (Epic A): students sign up, leadership accepts, hours are
+  // clocked against the event on the shared time clock.
+  signupEnabled: boolean("signup_enabled").notNull().default(false),
+  capacity: integer("capacity"), // null = unlimited
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
@@ -438,6 +449,9 @@ export const teamSettings = pgTable("team_settings", {
   tbaApiKey: text("tba_api_key"),
   toaApiKey: text("toa_api_key"),
   nexusApiKey: text("nexus_api_key"),
+  // Requirements config (Epic C) — fundraising goal + per-category hour requirements.
+  requirements: jsonb("requirements").$type<any>(),
+  fundraisingCategories: jsonb("fundraising_categories").$type<string[]>(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -471,3 +485,76 @@ export const guestTokens = pgTable("guest_tokens", {
 
 export type GuestToken = typeof guestTokens.$inferSelect;
 export type InsertGuestToken = typeof guestTokens.$inferInsert;
+
+// Web Push (VAPID) subscriptions — one row per browser/device a user enabled.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// Recurring task templates — a scheduler stamps these into normal `tasks` on a
+// fixed interval (daily/weekly/biweekly/monthly). Generated tasks are ordinary
+// tasks; editing/completing one never touches the template.
+export const recurringTaskTemplates = pgTable("recurring_task_templates", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  priority: text("priority").notNull().default("Medium"),
+  effort: integer("effort"),
+  departments: jsonb("departments").$type<string[]>().notNull().default([]),
+  assignees: jsonb("assignees").$type<number[]>().notNull().default([]),
+  deptOnly: boolean("dept_only").notNull().default(false),
+  frequency: text("frequency").notNull().default("weekly"), // daily | weekly | biweekly | monthly
+  dueOffsetDays: integer("due_offset_days").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  lastGeneratedDate: text("last_generated_date"), // YYYY-MM-DD of the most recent generation
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type RecurringTaskTemplate = typeof recurringTaskTemplates.$inferSelect;
+export type InsertRecurringTaskTemplate = typeof recurringTaskTemplates.$inferInsert;
+
+// Event participation roster (Epic A). Hours are NOT stored here — they are
+// clocked on the shared time clock (`time_entries` with kind + calendarEventId).
+export const eventSignups = pgTable("event_signups", {
+  id: serial("id").primaryKey(),
+  calendarEventId: integer("calendar_event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  note: text("note"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  uniqSignup: uniqueIndex("event_signups_unique_idx").on(t.calendarEventId, t.userId),
+}));
+
+export type EventSignup = typeof eventSignups.$inferSelect;
+export type InsertEventSignup = typeof eventSignups.$inferInsert;
+
+// Fundraising contributions (Epic C). Amounts in integer cents.
+export const fundraisingEntries = pgTable("fundraising_entries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amountCents: integer("amount_cents").notNull(),
+  category: text("category").notNull().default("Other"),
+  description: text("description").notNull().default(""),
+  occurredOn: text("occurred_on").notNull(), // YYYY-MM-DD
+  status: text("status").notNull().default("verified"), // verified | pending
+  verifiedBy: integer("verified_by").references(() => users.id),
+  verifiedAt: timestamp("verified_at"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type FundraisingEntry = typeof fundraisingEntries.$inferSelect;
+export type InsertFundraisingEntry = typeof fundraisingEntries.$inferInsert;
