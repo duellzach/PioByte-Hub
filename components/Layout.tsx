@@ -222,7 +222,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
                     : 'Get notified on this device'
                 }
                 className={`w-full flex items-center ${collapsed ? 'justify-center py-2' : 'gap-2.5 px-3 py-2'} rounded-xl transition-all font-black text-[10px] tracking-widest disabled:opacity-40 ${
-                  pushStatus === 'subscribed' ? 'text-emerald-400 hover:bg-white/5' : 'text-slate-500 hover:text-white hover:bg-white/5'
+                  pushStatus === 'subscribed' ? 'text-white hover:bg-white/5' : 'text-slate-500 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <div className="flex-shrink-0">{pushStatus === 'subscribed' ? <BellRing size={16} /> : pushStatus === 'denied' ? <BellOff size={16} /> : <Bell size={16} />}</div>
