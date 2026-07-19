@@ -68,6 +68,7 @@ const EMPTY_FORM = {
   recurrenceType: 'none',
   recurrenceEndsOn: '',
   attending: true,
+  capacity: '',
 };
 
 function getTypeStyle(ev: CalendarEvent) {
@@ -253,6 +254,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       recurrenceType: ev.recurrenceType || 'none',
       recurrenceEndsOn: ev.recurrenceEndsOn || '',
       attending: ev.attending !== false,
+      capacity: (ev as any).capacity != null ? String((ev as any).capacity) : '',
     });
     setError('');
     setShowModal(true);
@@ -279,6 +281,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         attending: form.attending,
         recurrenceType: form.recurrenceType !== 'none' ? form.recurrenceType : null,
         recurrenceEndsOn: form.recurrenceType !== 'none' ? form.recurrenceEndsOn : null,
+        capacity: form.capacity.trim() ? parseInt(form.capacity, 10) : null,
       };
       if (editingEvent) {
         await api.calendar.update(editingEvent.id, parseInt(currentUser.id), payload);
@@ -799,7 +802,16 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               {ev.location && <div className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">{ev.location}</div>}
               {ev.description && <div className="text-[9px] text-slate-400 dark:text-slate-500 italic leading-relaxed">{ev.description}</div>}
               {(ev as any).signupEnabled && !isRecurring && (
-                <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700">
+                <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                  {(ev as any).capacity != null && (
+                    <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
+                      <span className="text-slate-400 dark:text-slate-500">Spots</span>
+                      <span className={`${(ev as any).acceptedCount >= (ev as any).capacity ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {(ev as any).acceptedCount ?? 0} / {(ev as any).capacity} filled
+                        {(ev as any).acceptedCount >= (ev as any).capacity && ' · Waitlist open'}
+                      </span>
+                    </div>
+                  )}
                   {isCoachOrCaptain ? (
                     <button onClick={() => { setRosterEvent({ id: (ev as CalendarEvent).id, title: ev.title }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
                   ) : (
@@ -988,6 +1000,22 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   placeholder="Location or venue"
                 />
               </div>
+
+              {['outreach', 'volunteer'].includes(form.type) && (
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+                    Signup Limit <span className="font-medium normal-case text-slate-400">— leave blank for unlimited</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.capacity}
+                    onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
+                    placeholder="e.g. 10"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Notes</label>

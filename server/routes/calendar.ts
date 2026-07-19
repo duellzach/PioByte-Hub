@@ -7,7 +7,13 @@ const router = Router();
 router.get("/calendar", async (req, res) => {
   try {
     const events = await storage.getCalendarEvents();
-    res.json(events);
+    const enriched = await Promise.all(events.map(async (e) => {
+      const cap = (e as any).capacity as number | null;
+      if (cap == null) return e;
+      const acceptedCount = await storage.countAcceptedSignups(e.id);
+      return { ...e, acceptedCount };
+    }));
+    res.json(enriched);
   } catch (error) {
     console.error("Error fetching calendar events:", error);
     res.status(500).json({ error: "Failed to fetch calendar events" });

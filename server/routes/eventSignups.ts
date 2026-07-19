@@ -118,15 +118,22 @@ router.get("/me/upcoming", async (req, res) => {
     const mySignups = await storage.getUserSignups(req.userId!);
     const statusByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.status]));
     const events = await storage.getCalendarEvents();
-    const upcoming = events
+    const filtered = events
       .filter((e) => (e as any).signupEnabled && (e.endDate || e.startDate) >= today)
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
-      .slice(0, 12)
-      .map((e) => ({
+      .slice(0, 12);
+
+    const upcoming = await Promise.all(filtered.map(async (e) => {
+      const cap = (e as any).capacity as number | null;
+      const acceptedCount = cap != null ? await storage.countAcceptedSignups(e.id) : null;
+      return {
         id: e.id, title: e.title, type: e.type, startDate: e.startDate, endDate: e.endDate,
         startTime: e.startTime, location: e.location,
         myStatus: statusByEvent.get(e.id) || null,
-      }));
+        capacity: cap,
+        acceptedCount,
+      };
+    }));
     res.json(upcoming);
   } catch (error) {
     console.error("Error fetching upcoming:", error);

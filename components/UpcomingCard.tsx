@@ -54,6 +54,13 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
               <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 truncate">
                 {e.startTime ? `${e.startTime} · ` : ''}{e.location ? <><MapPin size={9} /> {e.location}</> : 'No location set'}
               </p>
+              {e.capacity != null && (
+                <p className={`text-[9px] font-black uppercase tracking-wide mt-0.5 ${e.acceptedCount >= e.capacity ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {e.acceptedCount >= e.capacity
+                    ? `Full · ${e.acceptedCount}/${e.capacity} — waitlist open`
+                    : `${e.capacity - e.acceptedCount} spot${e.capacity - e.acceptedCount === 1 ? '' : 's'} left`}
+                </p>
+              )}
             </div>
             {e.myStatus ? (
               e.myStatus === 'accepted'
