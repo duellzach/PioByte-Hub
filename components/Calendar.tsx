@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { todayLocalStr } from '../utils/dates';
@@ -144,16 +144,18 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
 
   const isCoachOrCaptain = currentUser?.roles?.some(r => ['Coach', 'Team Captain', 'Department Head'].includes(r));
 
+  const [showArchivedEvents, setShowArchivedEvents] = useState(false);
+
   const fetchEvents = useCallback(async () => {
     try {
-      const data = await api.calendar.getAll();
+      const data = await api.calendar.getAll(showArchivedEvents);
       setEvents(data);
     } catch (e) {
       console.error('Failed to fetch calendar events:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchivedEvents]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -444,6 +446,12 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         <div className="flex items-center gap-2 flex-wrap">
           {isCoachOrCaptain && (
             <>
+              <button
+                onClick={() => setShowArchivedEvents(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${showArchivedEvents ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+              >
+                <Archive size={12} /> Archived
+              </button>
               {settings.teamProgram === 'FTC' ? (
                 <button
                   onClick={openToaModal}
@@ -779,6 +787,18 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   {isCoachOrCaptain && !isRecurring && (
                     <>
                       <button onClick={() => { openEdit(ev as CalendarEvent); setChipPopover(null); }} className={`p-1 rounded hover:bg-black/10 transition-colors ${style.text}`}><Pencil size={10} /></button>
+                      <button
+                        onClick={async () => {
+                          const isArchived = !!(ev as any).archived;
+                          await api.events.archive((ev as CalendarEvent).id, !isArchived);
+                          await fetchEvents();
+                          setChipPopover(null);
+                        }}
+                        title={(ev as any).archived ? 'Unarchive event' : 'Archive event'}
+                        className={`p-1 rounded hover:bg-black/10 transition-colors ${style.text}`}
+                      >
+                        {(ev as any).archived ? <ArchiveRestore size={10} /> : <Archive size={10} />}
+                      </button>
                       <button onClick={() => { handleDelete(ev as CalendarEvent); setChipPopover(null); }} className={`p-1 rounded hover:bg-black/10 transition-colors ${style.text}`}><Trash2 size={10} /></button>
                     </>
                   )}

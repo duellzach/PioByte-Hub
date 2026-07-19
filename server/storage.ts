@@ -1015,8 +1015,13 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getCalendarEvents(): Promise<CalendarEvent[]> {
-    return db.select().from(calendarEvents).orderBy(calendarEvents.startDate);
+  async getCalendarEvents(includeArchived = false): Promise<CalendarEvent[]> {
+    if (includeArchived) {
+      return db.select().from(calendarEvents).orderBy(calendarEvents.startDate);
+    }
+    return db.select().from(calendarEvents)
+      .where(eq(calendarEvents.archived, false))
+      .orderBy(calendarEvents.startDate);
   }
 
   async getCalendarEvent(id: number): Promise<CalendarEvent | undefined> {
@@ -1042,6 +1047,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async ensureArchiveColumns(): Promise<void> {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
   }
 
   async migrateApiKeyColumns(): Promise<void> {

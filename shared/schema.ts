@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   roles: jsonb("roles").$type<string[]>().notNull().default([]),
   departments: jsonb("departments").$type<string[]>().notNull().default([]),
   muted: boolean("muted").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
   // Per-student requirement overrides (Epic C). null = use team defaults.
   fundraisingGoalCents: integer("fundraising_goal_cents"),
   hourRequirementOverrides: jsonb("hour_requirement_overrides").$type<Record<string, number>>(),
@@ -402,6 +403,7 @@ export const calendarEvents = pgTable("calendar_events", {
   // clocked against the event on the shared time clock.
   signupEnabled: boolean("signup_enabled").notNull().default(false),
   capacity: integer("capacity"), // null = unlimited
+  archived: boolean("archived").notNull().default(false),
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;

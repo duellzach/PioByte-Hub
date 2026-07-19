@@ -6,7 +6,8 @@ const router = Router();
 
 router.get("/calendar", async (req, res) => {
   try {
-    const events = await storage.getCalendarEvents();
+    const includeArchived = req.query.includeArchived === 'true';
+    const events = await storage.getCalendarEvents(includeArchived);
     const enriched = await Promise.all(events.map(async (e) => {
       const cap = (e as any).capacity as number | null;
       if (cap == null) return e;
@@ -17,6 +18,23 @@ router.get("/calendar", async (req, res) => {
   } catch (error) {
     console.error("Error fetching calendar events:", error);
     res.status(500).json({ error: "Failed to fetch calendar events" });
+  }
+});
+
+router.patch("/calendar/:id/archive", async (req, res) => {
+  try {
+    const roles = await getUserRoles(req.userId);
+    if (!hasAnyRole(roles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    const id = parseInt(req.params.id);
+    const { archived } = req.body;
+    const event = await storage.updateCalendarEvent(id, { archived: !!archived });
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    res.json(event);
+  } catch (error) {
+    console.error("Error archiving event:", error);
+    res.status(500).json({ error: "Failed to archive event" });
   }
 });
 

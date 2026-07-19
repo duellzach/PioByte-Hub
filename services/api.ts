@@ -63,6 +63,8 @@ export const api = {
       apiRequest<any>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(user) }),
     delete: (id: number) =>
       apiRequest<void>(`/users/${id}`, { method: 'DELETE' }),
+    archive: (id: number, archived: boolean) =>
+      apiRequest<any>(`/users/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
   },
   projects: {
     getAll: () => apiRequest<any[]>('/projects'),
@@ -91,6 +93,8 @@ export const api = {
     setSignupStatus: (signupId: number, status: string) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     myUpcoming: () => apiRequest<any[]>('/me/upcoming'),
     clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
+    archive: (eventId: number, archived: boolean) =>
+      apiRequest<any>(`/calendar/${eventId}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
   },
   requirements: {
     mine: () => apiRequest<any>('/me/requirements'),
@@ -277,7 +281,7 @@ export const api = {
       apiRequest<any>(`/cert-requests/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ trainerId, notes }) }),
   },
   calendar: {
-    getAll: () => apiRequest<any[]>('/calendar'),
+    getAll: (includeArchived = false) => apiRequest<any[]>(includeArchived ? '/calendar?includeArchived=true' : '/calendar'),
     create: (requesterId: number, data: any) =>
       apiRequest<any>('/calendar', { method: 'POST', body: JSON.stringify({ ...data, requesterId }) }),
     update: (id: number, requesterId: number, data: any) =>

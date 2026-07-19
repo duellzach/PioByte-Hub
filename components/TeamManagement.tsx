@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList } from 'lucide-react';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
@@ -36,6 +36,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [perfCertHistory, setPerfCertHistory] = useState<any[]>([]);
   const [perfHeldCerts, setPerfHeldCerts] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
@@ -66,6 +67,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
 
   const filteredUsers = state.users
     .filter(u => {
+      if (u.archived) return false;
       const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
         u.username.toLowerCase().includes(search.toLowerCase());
       const matchesDept = deptFilter === 'All' || u.departments.includes(deptFilter);
@@ -78,6 +80,8 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
       if (deptA !== deptB) return deptA.localeCompare(deptB);
       return a.name.localeCompare(b.name);
     });
+
+  const archivedUsers = state.users.filter(u => u.archived);
 
   const groupedUsers = useMemo(() => {
     const groups: Record<string, User[]> = {};
@@ -322,13 +326,24 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                         <span className="hidden sm:inline">Change Password</span>
                     </button>
                     {isCoach && (
-                      <button
-                        onClick={() => setShowSummary(v => !v)}
-                        className={`flex items-center justify-center gap-2 px-4 md:px-6 py-3 md:py-5 font-black rounded-xl md:rounded-[32px] shadow-lg transition-all uppercase tracking-widest text-[10px] md:text-xs ${showSummary ? 'bg-teamColor text-white hover:opacity-90' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
-                      >
-                        <LayoutList size={16} />
-                        <span className="hidden sm:inline">Summary</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setShowSummary(v => !v)}
+                          className={`flex items-center justify-center gap-2 px-4 md:px-6 py-3 md:py-5 font-black rounded-xl md:rounded-[32px] shadow-lg transition-all uppercase tracking-widest text-[10px] md:text-xs ${showSummary ? 'bg-teamColor text-white hover:opacity-90' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                        >
+                          <LayoutList size={16} />
+                          <span className="hidden sm:inline">Summary</span>
+                        </button>
+                        {archivedUsers.length > 0 && (
+                          <button
+                            onClick={() => setShowArchived(v => !v)}
+                            className={`flex items-center justify-center gap-2 px-4 md:px-6 py-3 md:py-5 font-black rounded-xl md:rounded-[32px] shadow-lg transition-all uppercase tracking-widest text-[10px] md:text-xs ${showArchived ? 'bg-amber-500 text-white hover:opacity-90' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                          >
+                            <Archive size={16} />
+                            <span className="hidden sm:inline">Archived ({archivedUsers.length})</span>
+                          </button>
+                        )}
+                      </>
                     )}
                     {canEditUsers && (
                       <button 
@@ -488,13 +503,25 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                             </button>
                           )}
                           {isCoach && user.id !== state.currentUser?.id && (
-                            <button 
-                                onClick={() => setUserToDelete(user)}
-                                className="p-2 md:p-3 text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl md:rounded-2xl transition-all"
-                                title="Delete Member"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            <>
+                              <button
+                                onClick={async () => {
+                                  await api.users.archive(parseInt(user.id), true);
+                                  onUpdateUser({ ...user, archived: true });
+                                }}
+                                className="p-2 md:p-3 text-slate-300 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-xl md:rounded-2xl transition-all"
+                                title="Archive Member"
+                              >
+                                <Archive size={16} />
+                              </button>
+                              <button 
+                                  onClick={() => setUserToDelete(user)}
+                                  className="p-2 md:p-3 text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl md:rounded-2xl transition-all"
+                                  title="Delete Member"
+                              >
+                                  <Trash2 size={16} />
+                              </button>
+                            </>
                           )}
                         </div>
                         
@@ -591,6 +618,49 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
             </div>
           ))}
         </div>
+
+        {showArchived && archivedUsers.length > 0 && (
+          <div className="mt-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1 h-6 bg-amber-500 rounded-full flex-shrink-0" />
+              <h2 className="text-xs md:text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Archived Members</h2>
+              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase">{archivedUsers.length} member{archivedUsers.length !== 1 ? 's' : ''}</span>
+              <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8">
+              {archivedUsers.map(user => (
+                <div key={user.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 rounded-2xl border-2 border-amber-200 dark:border-amber-900/40 relative group opacity-70 hover:opacity-100 transition-all">
+                  <div className="absolute top-0 left-0 w-full h-1.5 bg-amber-400 rounded-t-2xl" />
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xl font-black">
+                      {user.name[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase truncate">{user.name}</h3>
+                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 text-[8px] font-black rounded-full uppercase flex items-center gap-1">
+                          <Archive size={8} /> Archived
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">@{user.username}</p>
+                    </div>
+                  </div>
+                  {isCoach && (
+                    <button
+                      onClick={async () => {
+                        await api.users.archive(parseInt(user.id), false);
+                        onUpdateUser({ ...user, archived: false });
+                      }}
+                      className="w-full py-2 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:border-amber-400 text-slate-500 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-400 transition-all"
+                    >
+                      <ArchiveRestore size={12} /> Restore Member
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showPasswordModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 md:p-6 animate-in fade-in duration-300">

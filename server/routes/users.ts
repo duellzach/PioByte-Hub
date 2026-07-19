@@ -139,6 +139,20 @@ router.put("/users/:id", async (req, res) => {
   }
 });
 
+router.patch("/users/:id/archive", requireRoles(...COACH_CAPTAIN), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (req.userId === id) return res.status(400).json({ error: "You cannot archive your own account" });
+    const { archived } = req.body;
+    const user = await storage.updateUser(id, { archived: !!archived });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(sanitizeUser(user));
+  } catch (error) {
+    console.error("Error archiving user:", error);
+    res.status(500).json({ error: "Failed to archive user" });
+  }
+});
+
 router.delete("/users/:id", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -163,6 +177,9 @@ router.post("/login", async (req, res) => {
     const user = await storage.getUserByUsername(normalizedUsername);
     const { ok, needsRehash } = await verifyPassword(String(password), user?.password);
     if (user && ok) {
+      if ((user as any).archived) {
+        return res.status(403).json({ error: "This account has been deactivated. Please contact your coach." });
+      }
       // Lazy migration: upgrade legacy plaintext rows to a hash on first login.
       if (needsRehash) {
         try {
@@ -211,6 +228,7 @@ router.get("/me", async (req, res) => {
     if (!req.userId) return res.status(401).json({ error: "Not authenticated" });
     const user = await storage.getUser(req.userId);
     if (!user) return res.status(401).json({ error: "Not authenticated" });
+    if ((user as any).archived) return res.status(403).json({ error: "Account deactivated" });
     res.json(sanitizeUser(user));
   } catch (error) {
     console.error("Error fetching current user:", error);
