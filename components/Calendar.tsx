@@ -126,7 +126,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent | VirtualInstance; x: number; y: number } | null>(null);
-  const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string } | null>(null);
+  const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string; startDate: string } | null>(null);
   const [signupBusy, setSignupBusy] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
   const [tbaModal, setTbaModal] = useState(false);
@@ -833,7 +833,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     </div>
                   )}
                   {isCoachOrCaptain ? (
-                    <button onClick={() => { setRosterEvent({ id: (ev as CalendarEvent).id, title: ev.title }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
+                    <button onClick={() => { setRosterEvent({ id: (ev as CalendarEvent).id, title: ev.title, startDate: (ev as any)._instanceDate ?? (ev as CalendarEvent).startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
                   ) : (
                     <button
                       onClick={async () => { setSignupBusy(true); try { await api.events.signup((ev as CalendarEvent).id); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
@@ -1220,7 +1220,13 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       )}
 
       {rosterEvent && (
-        <EventRosterModal eventId={rosterEvent.id} eventTitle={rosterEvent.title} onClose={() => setRosterEvent(null)} />
+        <EventRosterModal
+          eventId={rosterEvent.id}
+          eventTitle={rosterEvent.title}
+          eventStartDate={rosterEvent.startDate}
+          isCoach={!!isCoachOrCaptain}
+          onClose={() => setRosterEvent(null)}
+        />
       )}
     </div>
   );

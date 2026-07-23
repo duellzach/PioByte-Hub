@@ -95,6 +95,12 @@ export const api = {
     clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
     archive: (eventId: number, archived: boolean) =>
       apiRequest<any>(`/calendar/${eventId}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
+    checkin: (eventId: number, userId: number, time?: string) =>
+      apiRequest<any>(`/calendar/${eventId}/checkin`, { method: 'POST', body: JSON.stringify({ userId, time }) }),
+    checkout: (eventId: number, signupId: number, time?: string) =>
+      apiRequest<any>(`/calendar/${eventId}/checkout`, { method: 'POST', body: JSON.stringify({ signupId, time }) }),
+    editAttendance: (signupId: number, data: { checkedInAt?: string | null; checkedOutAt?: string | null }) =>
+      apiRequest<any>(`/signups/${signupId}/attendance`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   requirements: {
     mine: () => apiRequest<any>('/me/requirements'),

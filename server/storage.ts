@@ -1132,6 +1132,47 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(eventSignups).where(eq(eventSignups.userId, userId));
   }
 
+  async ensureAttendanceColumns(): Promise<void> {
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_in_by INTEGER REFERENCES users(id)`);
+  }
+
+  async checkInSignup(signupId: number, coachId: number, time?: Date): Promise<EventSignup | undefined> {
+    const [row] = await db.update(eventSignups)
+      .set({ checkedInAt: time ?? new Date(), checkedInBy: coachId, checkedOutAt: null })
+      .where(eq(eventSignups.id, signupId)).returning();
+    return row;
+  }
+
+  async checkOutSignup(signupId: number, time?: Date): Promise<EventSignup | undefined> {
+    const [row] = await db.update(eventSignups)
+      .set({ checkedOutAt: time ?? new Date() })
+      .where(eq(eventSignups.id, signupId)).returning();
+    return row;
+  }
+
+  async editSignupAttendance(signupId: number, data: { checkedInAt?: Date | null; checkedOutAt?: Date | null }): Promise<EventSignup | undefined> {
+    const [row] = await db.update(eventSignups)
+      .set(data as any)
+      .where(eq(eventSignups.id, signupId)).returning();
+    return row;
+  }
+
+  async upsertAndCheckIn(eventId: number, userId: number, coachId: number, time?: Date): Promise<EventSignup> {
+    const existing = await this.getEventSignup(eventId, userId);
+    if (existing) {
+      const [row] = await db.update(eventSignups)
+        .set({ status: 'accepted', checkedInAt: time ?? new Date(), checkedInBy: coachId, checkedOutAt: null })
+        .where(eq(eventSignups.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(eventSignups)
+      .values({ calendarEventId: eventId, userId, status: 'accepted', checkedInAt: time ?? new Date(), checkedInBy: coachId })
+      .returning();
+    return row;
+  }
+
   async ensureRequirementsAndFundraising(): Promise<void> {
     // Note: DDL DEFAULTs can't be parameterized, so the JSON is inlined as a
     // literal. It contains only double quotes (safe inside single-quoted SQL).

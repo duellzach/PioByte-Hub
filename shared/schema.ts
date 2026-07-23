@@ -535,6 +535,9 @@ export const eventSignups = pgTable("event_signups", {
   approvedBy: integer("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   note: text("note"),
+  checkedInAt: timestamp("checked_in_at"),
+  checkedOutAt: timestamp("checked_out_at"),
+  checkedInBy: integer("checked_in_by").references(() => users.id),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqSignup: uniqueIndex("event_signups_unique_idx").on(t.calendarEventId, t.userId),

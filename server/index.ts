@@ -176,6 +176,7 @@ initializeDatabase().then(() => {
       await storage.ensureEventParticipationTables();
       await storage.ensureRequirementsAndFundraising();
       await storage.ensureArchiveColumns();
+      await storage.ensureAttendanceColumns();
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.
       storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));

@@ -92,6 +92,52 @@ router.put("/signups/:id", requireRoles(...LEADERSHIP), async (req, res) => {
   }
 });
 
+// Coach checks a user in. Creates an accepted walk-in signup if none exists.
+router.post("/calendar/:id/checkin", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { userId, time } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    const parsedTime = time ? new Date(time) : undefined;
+    const signup = await storage.upsertAndCheckIn(eventId, parseInt(userId), req.userId!, parsedTime);
+    res.json(signup);
+  } catch (error) {
+    console.error("Error checking in:", error);
+    res.status(500).json({ error: "Failed to check in" });
+  }
+});
+
+// Coach checks a user out.
+router.post("/calendar/:id/checkout", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const { signupId, time } = req.body;
+    if (!signupId) return res.status(400).json({ error: "signupId required" });
+    const parsedTime = time ? new Date(time) : undefined;
+    const signup = await storage.checkOutSignup(parseInt(signupId), parsedTime);
+    if (!signup) return res.status(404).json({ error: "Signup not found" });
+    res.json(signup);
+  } catch (error) {
+    console.error("Error checking out:", error);
+    res.status(500).json({ error: "Failed to check out" });
+  }
+});
+
+// Coach edits a check-in or check-out time.
+router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const { checkedInAt, checkedOutAt } = req.body;
+    const data: any = {};
+    if (checkedInAt !== undefined) data.checkedInAt = checkedInAt ? new Date(checkedInAt) : null;
+    if (checkedOutAt !== undefined) data.checkedOutAt = checkedOutAt ? new Date(checkedOutAt) : null;
+    const signup = await storage.editSignupAttendance(parseInt(req.params.id), data);
+    if (!signup) return res.status(404).json({ error: "Signup not found" });
+    res.json(signup);
+  } catch (error) {
+    console.error("Error editing attendance:", error);
+    res.status(500).json({ error: "Failed to edit attendance" });
+  }
+});
+
 // Events the user is accepted to and that are happening today → clock-in picker.
 router.get("/me/clockable-events", async (req, res) => {
   try {
