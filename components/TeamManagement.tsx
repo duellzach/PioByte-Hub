@@ -120,6 +120,14 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
       .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
   };
 
+  const getUserHoursByKind = (userId: string) => {
+    const completed = state.timeEntries.filter(e => e.userId === userId && e.status === 'completed' && e.roundedMinutes);
+    const shop = completed.filter(e => !e.kind || e.kind === 'shop').reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+    const outreach = completed.filter(e => e.kind === 'outreach').reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+    const volunteer = completed.filter(e => e.kind === 'volunteer').reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+    return { shop, outreach, volunteer };
+  };
+
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -581,7 +589,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                             <div className="pt-4 md:pt-8 border-t-2 border-slate-50 dark:border-slate-700">
                                 {isCoach ? (
                                   <>
-                                    <div className="grid grid-cols-3 gap-2 md:gap-4">
+                                    <div className="grid grid-cols-4 gap-2 md:gap-4">
                                         <div className="text-center">
                                             <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">DONE</p>
                                             <p className="text-lg md:text-2xl font-black text-slate-950 dark:text-white">{stats.completed}</p>
@@ -593,6 +601,10 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                         <div className="text-center">
                                             <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">ACTIVE</p>
                                             <p className="text-lg md:text-2xl font-black text-slate-950 dark:text-white">{stats.active}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">HOURS</p>
+                                            <p className="text-lg md:text-2xl font-black text-green-600">{(getUserTotalMinutes(user.id) / 60).toFixed(1)}</p>
                                         </div>
                                     </div>
                                     <button 
@@ -956,6 +968,42 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                 <p className="text-lg font-black text-green-600">{formatDuration(getUserTotalMinutes(selectedUserForStats.id))}</p>
                               </div>
                             </div>
+
+                            {(() => {
+                              const breakdown = getUserHoursByKind(selectedUserForStats.id);
+                              const total = breakdown.shop + breakdown.outreach + breakdown.volunteer;
+                              return total > 0 ? (
+                                <div className="mb-4 md:mb-6 p-4 md:p-5 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Hours by Category</p>
+                                  <div className="grid grid-cols-3 gap-3 mb-3">
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest mb-1">Shop</p>
+                                      <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">{(breakdown.shop / 60).toFixed(1)}<span className="text-[10px] font-bold text-slate-400 ml-0.5">h</span></p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-black text-purple-500 dark:text-purple-400 uppercase tracking-widest mb-1">Outreach</p>
+                                      <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">{(breakdown.outreach / 60).toFixed(1)}<span className="text-[10px] font-bold text-slate-400 ml-0.5">h</span></p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-black text-orange-500 dark:text-orange-400 uppercase tracking-widest mb-1">Volunteer</p>
+                                      <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">{(breakdown.volunteer / 60).toFixed(1)}<span className="text-[10px] font-bold text-slate-400 ml-0.5">h</span></p>
+                                    </div>
+                                  </div>
+                                  <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+                                    {breakdown.shop > 0 && (
+                                      <div className="bg-blue-500 rounded-full" style={{ width: `${(breakdown.shop / total) * 100}%` }} title={`Shop: ${(breakdown.shop / 60).toFixed(1)}h`} />
+                                    )}
+                                    {breakdown.outreach > 0 && (
+                                      <div className="bg-purple-500 rounded-full" style={{ width: `${(breakdown.outreach / total) * 100}%` }} title={`Outreach: ${(breakdown.outreach / 60).toFixed(1)}h`} />
+                                    )}
+                                    {breakdown.volunteer > 0 && (
+                                      <div className="bg-orange-500 rounded-full" style={{ width: `${(breakdown.volunteer / total) * 100}%` }} title={`Volunteer: ${(breakdown.volunteer / 60).toFixed(1)}h`} />
+                                    )}
+                                  </div>
+                                </div>
+                              ) : null;
+                            })()}
+
                             <div className="space-y-2 max-h-64 overflow-auto">
                               {getUserTimeEntries(selectedUserForStats.id).map(entry => (
                                 <div key={entry.id} className="flex items-center justify-between p-3 md:p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 transition-all">
@@ -969,6 +1017,13 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                     {entry.roundedMinutes && (
                                       <span className="text-xs font-black text-green-600">{formatDuration(entry.roundedMinutes)}</span>
                                     )}
+                                    <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${
+                                      !entry.kind || entry.kind === 'shop' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                                      entry.kind === 'outreach' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                                      'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+                                    }`}>
+                                      {entry.kind || 'shop'}
+                                    </span>
                                     <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${
                                       entry.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                                       entry.status === 'checked_in' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :

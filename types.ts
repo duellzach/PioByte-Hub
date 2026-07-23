@@ -146,6 +146,8 @@ export interface TimeEntry {
   roundedMinutes?: number;
   notes?: string;
   createdAt: number;
+  kind?: 'shop' | 'outreach' | 'volunteer';
+  calendarEventId?: number | null;
 }
 
 export interface TimeEntryWithTaskInfo extends TimeEntry {
