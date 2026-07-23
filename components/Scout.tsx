@@ -108,6 +108,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const [nexusCountdown, setNexusCountdown] = useState<string>('');
   const nexusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nexusCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nexusEndedKeys = useRef<Set<string>>(new Set());
 
   const [showEventSettings, setShowEventSettings] = useState(false);
   const [eventSettingsForm, setEventSettingsForm] = useState({ tbaEventKey: '', nexusEventKey: '', toaEventKey: '', nexusPitMapKey: '' });
@@ -250,6 +251,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setPitMapError(null);
   }, [activeEvent?.id]);
 
+  const activeEventIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (nexusPollRef.current) clearInterval(nexusPollRef.current);
     if (nexusCountdownRef.current) clearInterval(nexusCountdownRef.current);
@@ -263,12 +265,29 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     const key = activeEvent?.nexusEventKey;
     if (!key || activeTab !== 'display') return;
 
+    // Clear ended-key cache when the event itself changes
+    if (activeEvent?.id !== activeEventIdRef.current) {
+      nexusEndedKeys.current.clear();
+      activeEventIdRef.current = activeEvent?.id;
+    }
+
+    // Skip the fetch entirely if we already know this event has ended
+    if (nexusEndedKeys.current.has(key)) {
+      setNexusError('EVENT_ENDED');
+      return;
+    }
+
     let cancelled = false;
     fetchNexusData(key).then(result => {
-      if (cancelled || result === 'inactive') return;
+      if (cancelled) return;
+      if (result === 'inactive') {
+        nexusEndedKeys.current.add(key);
+        return;
+      }
       nexusPollRef.current = setInterval(() => {
         fetchNexusData(key).then(tick => {
           if (tick === 'inactive' && nexusPollRef.current) {
+            nexusEndedKeys.current.add(key);
             clearInterval(nexusPollRef.current);
             nexusPollRef.current = null;
           }

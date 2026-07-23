@@ -433,7 +433,6 @@ router.get("/nexus/:eventKey", async (req, res) => {
   } catch (error: any) {
     const status = error?.status ?? error?.statusCode ?? 500;
     if (status === 404) {
-      console.warn(`Nexus event not found (event over or invalid key): ${req.params.eventKey}`);
       return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
     }
     console.error("Nexus event error:", error.message);
@@ -451,7 +450,6 @@ router.get("/nexus/:eventKey/pits", async (req, res) => {
   } catch (error: any) {
     const status = error?.status ?? error?.statusCode ?? 500;
     if (status === 404) {
-      console.warn(`Nexus pits not found (event over or invalid key): ${req.params.eventKey}`);
       return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
     }
     console.error("Nexus pits error:", error.message);
@@ -469,7 +467,6 @@ router.get("/nexus/:eventKey/map", async (req, res) => {
   } catch (error: any) {
     const status = error?.status ?? error?.statusCode ?? 500;
     if (status === 404) {
-      console.warn(`Nexus map not found (event over or invalid key): ${req.params.eventKey}`);
       return res.status(404).json({ error: "Event not found in Nexus — it may have ended." });
     }
     console.error(`Nexus map error [${req.params.eventKey}]:`, error.message);
