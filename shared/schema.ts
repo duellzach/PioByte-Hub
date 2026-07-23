@@ -122,8 +122,9 @@ export const timeEntries = pgTable("time_entries", {
   workingOnTaskId: integer("working_on_task_id").references(() => tasks.id, { onDelete: "set null" }),
   workingOnGeneralTaskId: integer("working_on_general_task_id").references(() => generalTasks.id, { onDelete: "set null" }),
   taskHandoffNote: text("task_handoff_note"),
-  // Category of worked time (Epic A): shop (default) | outreach | volunteer | ...
-  // Outreach/volunteer entries link to the calendar event they were clocked against.
+  // Category of worked time — any HOUR_CATEGORIES value (see shared/hourCategories),
+  // "shop" by default. Non-shop entries link to the calendar event they were
+  // clocked against.
   kind: text("kind").notNull().default("shop"),
   calendarEventId: integer("calendar_event_id").references(() => calendarEvents.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

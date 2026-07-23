@@ -20,6 +20,37 @@ export function todayLocalStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+interface RecurringEventShape {
+  startDate: string;
+  endDate?: string | null;
+  recurrenceType?: string | null;
+  recurrenceEndsOn?: string | null;
+  parentEventId?: number | null;
+  deletedDates?: string | null;
+}
+
+/**
+ * Whether an event covers `date`. Weekly recurrences are stored as a single row
+ * (start date + an ends-on date) and expanded on read, so a recurring meeting
+ * that began months ago still occurs today.
+ */
+export function eventOccursOn(ev: RecurringEventShape, date: string): boolean {
+  if (ev.recurrenceType === 'weekly' && ev.recurrenceEndsOn && !ev.parentEventId) {
+    if (date < ev.startDate || date > ev.recurrenceEndsOn) return false;
+    let deleted: string[] = [];
+    if (ev.deletedDates) {
+      try { deleted = JSON.parse(ev.deletedDates); } catch { deleted = []; }
+    }
+    if (Array.isArray(deleted) && deleted.includes(date)) return false;
+    // Same weekday cadence as the first occurrence.
+    const start = parseLocalDate(ev.startDate);
+    const target = parseLocalDate(date);
+    const days = Math.round((target.getTime() - start.getTime()) / 86400000);
+    return days >= 0 && days % 7 === 0;
+  }
+  return ev.startDate <= date && (ev.endDate || ev.startDate) >= date;
+}
+
 /** Format a `YYYY-MM-DD` date-only string for display in the viewer's local zone. */
 export function formatLocalDate(
   dateStr: string,

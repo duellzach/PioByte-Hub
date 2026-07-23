@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
+import { isHourCategory } from "../../shared/hourCategories";
+import { getLedgerRows, getTotalsByUser, sumMinutes, totalsFromRows } from "../services/hoursLedger";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const router = Router();
 
 const isLeadership = (roles: string[] = []) => roles.some((r) => LEADERSHIP.includes(r));
 const localDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(d);
-const inWindow = (date: string, start: string | null, end: string | null) =>
-  (!start || date >= start) && (!end || date <= end);
 
 // ---------------------------------------------------------------------------
 // Fundraising CRUD
@@ -98,6 +98,22 @@ router.delete("/fundraising/:id", async (req, res) => {
 // Requirements progress (the home-dashboard centerpiece)
 // ---------------------------------------------------------------------------
 
+// Requirements used to name a single `source` ("clock:shop" or
+// "competition_checkins"). They now carry a list of categories so one
+// requirement can count several kinds of time together. Legacy configs are
+// translated on read, so no settings migration is needed.
+export function normalizeCategories(h: any): string[] {
+  if (Array.isArray(h.categories)) return h.categories.filter(isHourCategory);
+  if (typeof h.source === "string") {
+    if (h.source.startsWith("clock:")) {
+      const kind = h.source.slice("clock:".length);
+      return isHourCategory(kind) ? [kind] : [];
+    }
+    if (h.source === "competition_checkins") return ["competition"];
+  }
+  return [];
+}
+
 async function computeRequirements(userId: number) {
   const settings: any = await storage.getTeamSettings();
   const req = settings.requirements || { fundraising: { enabled: false }, hours: [] };
@@ -110,40 +126,26 @@ async function computeRequirements(userId: number) {
   const pendingCents = entries.filter((e) => e.status === "pending").reduce((s, e) => s + e.amountCents, 0);
   const goalCents = (user as any)?.fundraisingGoalCents ?? req.fundraising?.goalCents ?? 0;
 
-  // Pre-fetch time sources
-  const allEntries = await storage.getTimeEntries();
-  const myApproved = allEntries.filter((e: any) => e.userId === userId && e.status === "completed" && e.roundedMinutes);
-  const compCheckins = await storage.getCompetitionCheckinsByUser(userId).catch(() => []);
+  // Every kind of earned time, from both recording systems.
+  const rows = await getLedgerRows(userId).catch(() => []);
 
   const hours = (req.hours || [])
     .filter((h: any) => h.enabled)
     .map((h: any) => {
+      const categories = normalizeCategories(h);
       const phases = (h.phases || []).map((ph: any) => {
-        let earned = 0;
-        if (typeof h.source === "string" && h.source.startsWith("clock:")) {
-          const kind = h.source.slice("clock:".length);
-          for (const e of myApproved) {
-            if ((e.kind || "shop") !== kind) continue;
-            const date = localDate(new Date(e.checkInAt));
-            if (inWindow(date, ph.start, ph.end)) earned += e.roundedMinutes;
-          }
-        } else if (h.source === "competition_checkins") {
-          for (const c of compCheckins as any[]) {
-            if (c.status !== "approved" || !c.roundedMinutes) continue;
-            const date = localDate(new Date(c.checkInAt));
-            if (inWindow(date, ph.start, ph.end)) earned += c.roundedMinutes;
-          }
-        }
+        const earned = sumMinutes(rows, categories, ph.start ?? null, ph.end ?? null);
         const overrideKey = `${h.key}:${ph.label}`;
         const requiredMinutes = overrides[overrideKey] ?? ph.requiredMinutes ?? 0;
         return { label: ph.label, earnedMinutes: earned, requiredMinutes };
       });
-      return { key: h.key, label: h.label, phases };
+      return { key: h.key, label: h.label, categories, phases };
     });
 
   return {
     fundraising: { enabled: !!req.fundraising?.enabled, raisedCents, pendingCents, goalCents },
     hours,
+    categoryTotals: totalsFromRows(rows),
   };
 }
 
@@ -153,6 +155,27 @@ router.get("/me/requirements", async (req, res) => {
   } catch (error) {
     console.error("Error computing requirements:", error);
     res.status(500).json({ error: "Failed to compute requirements" });
+  }
+});
+
+// Category totals for the whole team — powers the Time page stat chips and the
+// per-member breakdown in Team Management.
+router.get("/hours/totals", async (req, res) => {
+  try {
+    res.json(await getTotalsByUser());
+  } catch (error) {
+    console.error("Error computing hour totals:", error);
+    res.status(500).json({ error: "Failed to compute hour totals" });
+  }
+});
+
+router.get("/me/hours", async (req, res) => {
+  try {
+    const rows = await getLedgerRows(req.userId!);
+    res.json({ rows, totals: totalsFromRows(rows) });
+  } catch (error) {
+    console.error("Error fetching hours:", error);
+    res.status(500).json({ error: "Failed to fetch hours" });
   }
 });
 

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Wrench, Users, Heart, Megaphone, Flag, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { todayLocalStr } from '../utils/dates';
 import EventRosterModal from './EventRosterModal';
+import { CATEGORY_STYLES, HOUR_CATEGORIES } from './hourCategoryStyles';
 
 interface CalendarEvent {
   id: number;
@@ -34,14 +35,7 @@ interface CalendarProps {
   currentUser?: any;
 }
 
-const TYPE_STYLES: Record<string, { bg: string; text: string; border?: string; icon: React.ReactNode; label: string }> = {
-  shop:        { bg: 'bg-blue-100 dark:bg-blue-900/40',   text: 'text-blue-700 dark:text-blue-300',   icon: <Wrench size={10} />,     label: 'Shop' },
-  competition: { bg: 'bg-red-100 dark:bg-red-900/40',     text: 'text-red-700 dark:text-red-300',     icon: <Trophy size={10} />,     label: 'Competition' },
-  meeting:     { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', icon: <CalendarDays size={10} />, label: 'Meeting' },
-  volunteer:   { bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', icon: <Users size={10} />,      label: 'Volunteer' },
-  outreach:    { bg: 'bg-violet-100 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', icon: <Megaphone size={10} />, label: 'Outreach' },
-  other:       { bg: 'bg-slate-100 dark:bg-slate-700/60', text: 'text-slate-600 dark:text-slate-300', icon: <Flag size={10} />,      label: 'Other' },
-};
+const TYPE_STYLES = CATEGORY_STYLES;
 
 const COMPETITION_NOT_ATTENDING = {
   bg: 'bg-slate-100 dark:bg-slate-700/60',
@@ -51,7 +45,7 @@ const COMPETITION_NOT_ATTENDING = {
   label: 'Competition',
 };
 
-const EVENT_TYPES = ['shop', 'competition', 'meeting', 'volunteer', 'outreach', 'other'];
+const EVENT_TYPES: readonly string[] = HOUR_CATEGORIES;
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

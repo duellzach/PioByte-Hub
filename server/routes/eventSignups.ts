@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
-import { todayLocalStr } from "../../utils/dates";
+import { todayLocalStr, eventOccursOn } from "../../utils/dates";
+import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
-const CLOCKABLE_TYPES = ["outreach", "volunteer"];
+const CLOCKABLE_TYPES: readonly string[] = EVENT_HOUR_CATEGORIES;
 
 const router = Router();
 
@@ -138,17 +139,24 @@ router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req,
   }
 });
 
-// Events the user is accepted to and that are happening today → clock-in picker.
+// Today's events the user may clock into → the check-in picker. Events that take
+// sign-ups need an accepted one; open events are clockable by anyone.
 router.get("/me/clockable-events", async (req, res) => {
   try {
     const today = todayLocalStr();
     const mySignups = await storage.getUserSignups(req.userId!);
     const accepted = new Set(mySignups.filter((s) => s.status === "accepted").map((s) => s.calendarEventId));
     const events = await storage.getCalendarEvents();
+    // A weekly recurrence that is overridden or cancelled on a given date has a
+    // separate row for that date; skip the parent's occurrence when one exists.
+    const overridden = new Set(
+      events.filter((e) => e.parentEventId && e.instanceDate).map((e) => `${e.parentEventId}::${e.instanceDate}`)
+    );
     const clockable = events.filter((e) =>
-      accepted.has(e.id) &&
+      (e.signupEnabled ? accepted.has(e.id) : true) &&
       CLOCKABLE_TYPES.includes(e.type) &&
-      e.startDate <= today && (e.endDate || e.startDate) >= today
+      !overridden.has(`${e.id}::${today}`) &&
+      eventOccursOn(e, today)
     );
     res.json(clockable.map((e) => ({ id: e.id, title: e.title, type: e.type })));
   } catch (error) {

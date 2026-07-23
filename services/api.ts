@@ -332,6 +332,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+  hours: {
+    // Combined ledger — shop clock + competition check-ins, by category.
+    mine: () => apiRequest<{ rows: any[]; totals: Record<string, number> }>('/me/hours'),
+    totalsByUser: () => apiRequest<Record<string, Record<string, number>>>('/hours/totals'),
+  },
   timeEntries: {
     getAll: () => apiRequest<any[]>('/time-entries'),
     get: (id: number) => apiRequest<any>(`/time-entries/${id}`),

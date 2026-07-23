@@ -4,6 +4,7 @@ import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDow
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 import { todayLocalStr } from '../utils/dates';
+import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 
 interface TimeTrackingProps {
   state: AppState;
@@ -73,6 +74,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [showKindPicker, setShowKindPicker] = useState(false);
   const [clockableEvents, setClockableEvents] = useState<any[]>([]);
+  const [myTotals, setMyTotals] = useState<Record<string, number> | null>(null);
+  const [myLedgerRows, setMyLedgerRows] = useState<any[] | null>(null);
+  const [eventTitles, setEventTitles] = useState<Record<number, { title: string; type: string }>>({});
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkoutHandoffNote, setCheckoutHandoffNote] = useState('');
@@ -121,9 +125,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     );
   }, [state.timeEntries]);
 
-  const checkedInStudents = useMemo(() => {
-    return state.timeEntries.filter(e => e.status === 'checked_in');
+  // Everyone currently on the clock, including those still awaiting a coach's
+  // confirmation — they are physically here either way.
+  const presentEntries = useMemo(() => {
+    return state.timeEntries.filter(e => e.status === 'checked_in' || e.status === 'pending_check_in');
   }, [state.timeEntries]);
+
+  // Grouped for the shared "Who's Here" board: one group per category, and
+  // within a category one line per person.
+  const presenceGroups = useMemo(() => {
+    const groups = new Map<string, TimeEntryWithTaskInfo[]>();
+    for (const entry of presentEntries) {
+      const category = entry.kind || 'shop';
+      if (!groups.has(category)) groups.set(category, []);
+      groups.get(category)!.push(entry);
+    }
+    return HOUR_CATEGORIES
+      .filter(c => groups.has(c))
+      .map(c => ({ category: c as string, entries: groups.get(c)! }));
+  }, [presentEntries]);
 
   const notCheckedInUsers = useMemo(() => {
     const activeUserIds = state.timeEntries
@@ -138,15 +158,55 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       .sort((a, b) => new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime());
   }, [state.timeEntries, state.currentUser]);
 
+  // Totals come from the combined ledger (shop clock + competition check-ins), so
+  // every category counts. Falls back to clock-only math until it loads.
   const totalHours = useMemo(() => {
-    const total = myEntries
+    if (myTotals) return myTotals.total || 0;
+    return myEntries
       .filter(e => e.status === 'completed' && e.roundedMinutes)
       .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
-    return total;
-  }, [myEntries]);
+  }, [myEntries, myTotals]);
 
-  // Ask "what are you clocking?" only when the user has accepted events happening
-  // today; otherwise go straight to a normal shop check-in.
+  const myCategoryTotals = useMemo(
+    () => HOUR_CATEGORIES
+      .map(c => ({ category: c, minutes: myTotals?.[c] || 0 }))
+      .filter(c => c.minutes > 0),
+    [myTotals],
+  );
+
+  const loadMyTotals = async () => {
+    try {
+      const { totals, rows } = await api.hours.mine();
+      setMyTotals(totals);
+      setMyLedgerRows(rows);
+    } catch {}
+  };
+
+  // Last 7 days across every category, not just the shop clock.
+  const weekMinutes = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    if (myLedgerRows) {
+      return myLedgerRows
+        .filter(r => new Date(r.occurredAt).getTime() > weekAgo)
+        .reduce((acc, r) => acc + (r.minutes || 0), 0);
+    }
+    return myEntries
+      .filter(e => new Date(e.checkInAt).getTime() > weekAgo && e.roundedMinutes)
+      .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
+  }, [myLedgerRows, myEntries]);
+
+  useEffect(() => { loadMyTotals(); }, [state.timeEntries, currentUserId]);
+
+  useEffect(() => {
+    api.calendar.getAll().then((events: any[]) => {
+      const map: Record<number, { title: string; type: string }> = {};
+      for (const e of events) map[e.id] = { title: e.title, type: e.type };
+      setEventTitles(map);
+    }).catch(() => {});
+  }, []);
+
+  // Ask "what are you clocking?" only when there are events to clock into today;
+  // otherwise go straight to a normal shop check-in.
   const handleCheckIn = async () => {
     setCheckInLoading(true);
     try {
@@ -502,6 +562,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       setShowApproveModal(null);
       setApproveMinutes('');
       if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+      loadMyTotals();
     } catch (e: any) {
       alert(e.message || 'Approve failed');
     }
@@ -553,16 +614,29 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400">
-              Week — <span className="text-slate-700 dark:text-slate-200 font-black">{formatDuration(myEntries.filter(e => { const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000; return new Date(e.checkInAt).getTime() > weekAgo && e.roundedMinutes; }).reduce((acc, e) => acc + (e.roundedMinutes || 0), 0))}</span>
+              Week — <span className="text-slate-700 dark:text-slate-200 font-black">{formatDuration(weekMinutes)}</span>
             </span>
             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400">
-              Sessions — <span className="text-slate-700 dark:text-slate-200 font-black">{myEntries.filter(e => e.status === 'completed').length}</span>
+              Sessions — <span className="text-slate-700 dark:text-slate-200 font-black">{myLedgerRows ? myLedgerRows.length : myEntries.filter(e => e.status === 'completed').length}</span>
             </span>
             <span className="px-2.5 py-1 bg-teamColor/5 dark:bg-teamColor/10 rounded-lg text-[10px] font-black text-teamColor">
               Total — {formatDuration(totalHours)}
             </span>
           </div>
         </div>
+
+        {myCategoryTotals.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            {myCategoryTotals.map(({ category, minutes }) => {
+              const s = styleFor(category);
+              return (
+                <span key={category} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold ${s.bg} ${s.text}`}>
+                  {s.icon} {s.label} <span className="font-black">{formatDuration(minutes)}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {myOpenEntry ? (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
@@ -572,7 +646,15 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <Clock size={15} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-xs font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
+                    <CategoryBadge category={myOpenEntry.kind} />
+                    {myOpenEntry.calendarEventId && eventTitles[myOpenEntry.calendarEventId] && (
+                      <span className="text-[10px] font-bold text-green-700 dark:text-green-300 truncate">
+                        {eventTitles[myOpenEntry.calendarEventId].title}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-green-600 dark:text-green-400 font-bold">
                     Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
                   </p>
@@ -628,7 +710,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             {myEntries.slice(0, 20).map(entry => (
               <div key={entry.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
                 <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">{formatDate(entry.checkInAt)}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-100">{formatDate(entry.checkInAt)}</p>
+                    <CategoryBadge category={entry.kind} />
+                  </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                     {formatTime(entry.checkInAt)} - {entry.checkOutAt ? formatTime(entry.checkOutAt) : 'In Progress'}
                   </p>
@@ -1197,10 +1282,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     {getUserName(entry.userId)[0]}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                      <CategoryBadge category={entry.kind} />
+                    </div>
                     <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                       {formatDate(entry.checkInAt)} • {formatTime(entry.checkInAt)}
                       {entry.checkOutAt && ` - ${formatTime(entry.checkOutAt)}`}
+                      {entry.calendarEventId && eventTitles[entry.calendarEventId] && ` • ${eventTitles[entry.calendarEventId].title}`}
                     </p>
                   </div>
                 </div>
@@ -1242,50 +1331,81 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {isCoach && checkedInStudents.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock size={15} className="text-green-500" />
-            <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Currently Checked In</h3>
-            <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-md uppercase">{checkedInStudents.length} active</span>
-          </div>
-
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {checkedInStudents.map(entry => (
-              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center font-black text-xs text-green-700 dark:text-green-300 flex-shrink-0">
-                    {getUserName(entry.userId)[0]}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
-                    <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
-                      Since {formatTime(entry.checkInAt)} • {formatDate(entry.checkInAt)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black px-2 py-1 rounded-lg uppercase bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-                    Active
-                  </span>
-                  <button
-                    onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
-                    className="flex items-center gap-1 px-3 py-2 bg-teamColor text-white rounded-lg font-bold text-[10px] uppercase hover:opacity-90 transition-all shadow-lg shadow-teamColor/20"
-                  >
-                    <LogOut size={12} /> Check Out
-                  </button>
-                  <button
-                    onClick={() => openEditModal(entry)}
-                    className="p-2 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-all"
-                  >
-                    <Edit3 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Who's Here — visible to everyone, grouped by what people are clocked into.
+          Coaches get the check-out and edit controls inline. */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Users size={15} className="text-green-500" />
+          <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Who's Here</h3>
+          <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-md uppercase">{presentEntries.length} on the clock</span>
         </div>
-      )}
+
+        {presenceGroups.length === 0 ? (
+          <p className="text-center text-slate-400 dark:text-slate-500 py-6 text-sm font-bold">Nobody is clocked in right now</p>
+        ) : (
+          <div className="space-y-4">
+            {presenceGroups.map(({ category, entries }) => {
+              const s = styleFor(category);
+              return (
+                <div key={category}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{s.label}</p>
+                    <span className="text-[9px] font-black text-slate-400">{entries.length}</span>
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {entries.map(entry => {
+                      const event = entry.calendarEventId ? eventTitles[entry.calendarEventId] : null;
+                      return (
+                        <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${s.bg} ${s.text}`}>
+                              {getUserName(entry.userId)[0]}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{getUserName(entry.userId)}</p>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                Since {formatTime(entry.checkInAt)}
+                                {event ? ` • ${event.title}` : ''}
+                                {entry.workingOnTaskTitle ? ` • ${entry.workingOnTaskTitle}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
+                              entry.status === 'pending_check_in'
+                                ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                                : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            }`}>
+                              {entry.status === 'pending_check_in' ? 'Unconfirmed' : 'Active'}
+                            </span>
+                            {isCoach && entry.status === 'checked_in' && (
+                              <button
+                                onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
+                                className="flex items-center gap-1 px-3 py-2 bg-teamColor text-white rounded-lg font-bold text-[10px] uppercase hover:opacity-90 transition-all shadow-lg shadow-teamColor/20"
+                              >
+                                <LogOut size={12} /> Check Out
+                              </button>
+                            )}
+                            {isCoach && (
+                              <button
+                                onClick={() => openEditModal(entry)}
+                                className="p-2 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-all"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {isCoach && notCheckedInUsers.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
@@ -1349,7 +1469,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     {getUserName(entry.userId)[0]}
                   </div>
                   <div>
-                    <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-100">{getUserName(entry.userId)}</p>
+                      <CategoryBadge category={entry.kind} />
+                    </div>
                     <p className="text-[9px] md:text-[10px] text-slate-500 dark:text-slate-400">
                       {formatDate(entry.checkInAt)} • {formatTime(entry.checkInAt)}
                       {entry.checkOutAt && ` - ${formatTime(entry.checkOutAt)}`}
@@ -1444,18 +1567,24 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300" onClick={() => setShowKindPicker(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">What are you clocking?</h2>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-5">Pick shop time or an event</p>
+            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-5">Pick shop time or one of today's events</p>
             <div className="space-y-2.5">
               <button onClick={doShopCheckIn} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
                 <div className="w-10 h-10 rounded-xl bg-teamColor/10 text-teamColor flex items-center justify-center flex-shrink-0"><Briefcase size={18} /></div>
                 <div><p className="font-black text-sm text-slate-900 dark:text-white">Shop Time</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Build / work session</p></div>
               </button>
-              {clockableEvents.map((ev) => (
-                <button key={ev.id} onClick={() => doEventCheckIn(ev)} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 flex items-center justify-center flex-shrink-0"><MapPin size={18} /></div>
-                  <div><p className="font-black text-sm text-slate-900 dark:text-white">{ev.title}</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{ev.type}</p></div>
-                </button>
-              ))}
+              {clockableEvents.map((ev) => {
+                const s = styleFor(ev.type);
+                return (
+                  <button key={ev.id} onClick={() => doEventCheckIn(ev)} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg} ${s.text}`}><MapPin size={18} /></div>
+                    <div className="min-w-0">
+                      <p className="font-black text-sm text-slate-900 dark:text-white truncate">{ev.title}</p>
+                      <CategoryBadge category={ev.type} className="mt-0.5" />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             <button onClick={() => setShowKindPicker(false)} className="w-full mt-4 py-2.5 text-slate-400 font-bold uppercase tracking-widest text-[10px] hover:text-slate-600 dark:hover:text-slate-300">Cancel</button>
           </div>

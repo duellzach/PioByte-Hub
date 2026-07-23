@@ -3,6 +3,7 @@ import { hashPassword } from "./security";
 import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, recurringTaskTemplates, eventSignups, fundraisingEntries } from "../shared/schema";
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
+import { HOUR_CATEGORIES } from "../shared/hourCategories";
 
 // --- Recurring-task date helpers (Pacific, matching the app's date convention) ---
 function todayServerLocalStr(): string {
@@ -156,6 +157,7 @@ export interface IStorage {
 
   getCompetitionCheckins(eventId: number): Promise<CompetitionCheckin[]>;
   getCompetitionCheckinsByUser(userId: number): Promise<CompetitionCheckin[]>;
+  getAllCompetitionCheckins(): Promise<CompetitionCheckin[]>;
   getOpenCompetitionCheckin(userId: number, eventId: number): Promise<CompetitionCheckin | undefined>;
   createCompetitionCheckin(checkin: InsertCompetitionCheckin): Promise<CompetitionCheckin>;
   updateCompetitionCheckin(id: number, checkin: Partial<InsertCompetitionCheckin>): Promise<CompetitionCheckin | undefined>;
@@ -641,6 +643,10 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(competitionCheckins)
       .where(eq(competitionCheckins.userId, userId))
       .orderBy(desc(competitionCheckins.checkInAt));
+  }
+
+  async getAllCompetitionCheckins(): Promise<CompetitionCheckin[]> {
+    return db.select().from(competitionCheckins).orderBy(desc(competitionCheckins.checkInAt));
   }
 
   async getCompetitionCheckinById(id: number): Promise<CompetitionCheckin | undefined> {
@@ -1179,9 +1185,10 @@ export class DatabaseStorage implements IStorage {
     const defaultReq = JSON.stringify({
       fundraising: { enabled: false, goalCents: 0 },
       hours: [
-        { key: "shop", label: "Shop Time", enabled: false, source: "clock:shop", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
-        { key: "outreach", label: "Outreach", enabled: false, source: "clock:outreach", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
-        { key: "volunteer", label: "Volunteer", enabled: false, source: "clock:volunteer", phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "total", label: "Total Hours", enabled: false, categories: [...HOUR_CATEGORIES], phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "shop", label: "Shop Time", enabled: false, categories: ["shop"], phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "outreach", label: "Outreach", enabled: false, categories: ["outreach"], phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
+        { key: "volunteer", label: "Volunteer", enabled: false, categories: ["volunteer"], phases: [{ label: "Season", start: null, end: null, requiredMinutes: 0 }] },
       ],
     });
     await db.execute(sql.raw(`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '${defaultReq}'::jsonb`));

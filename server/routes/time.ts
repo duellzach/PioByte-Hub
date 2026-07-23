@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+import { isHourCategory } from "../../shared/hourCategories";
 
 const router = Router();
 
@@ -50,15 +51,24 @@ router.get("/time-entries/:id", async (req, res) => {
 router.post("/time-entries/check-in", async (req, res) => {
   try {
     const { userId } = req.body;
-    const kind = ["shop", "outreach", "volunteer"].includes(req.body.kind) ? req.body.kind : "shop";
+    const kind = req.body.kind === undefined ? "shop" : req.body.kind;
+    if (!isHourCategory(kind)) {
+      return res.status(400).json({ error: `Unknown time category "${kind}"` });
+    }
     const calendarEventId = req.body.calendarEventId ? parseInt(req.body.calendarEventId) : null;
 
-    // Clocking into an event requires an accepted sign-up to that event.
+    // Every non-shop kind is clocked against a calendar event. Events that take
+    // sign-ups additionally require an accepted one; open events (most meetings)
+    // let anyone clock in — a coach still confirms the hours either way.
     if (kind !== "shop") {
       if (!calendarEventId) return res.status(400).json({ error: "An event is required for this kind of time" });
-      const signup = await storage.getEventSignup(calendarEventId, parseInt(userId));
-      if (!signup || signup.status !== "accepted") {
-        return res.status(403).json({ error: "You must be accepted to this event before clocking in" });
+      const event = await storage.getCalendarEvent(calendarEventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+      if (event.signupEnabled) {
+        const signup = await storage.getEventSignup(calendarEventId, parseInt(userId));
+        if (!signup || signup.status !== "accepted") {
+          return res.status(403).json({ error: "You must be accepted to this event before clocking in" });
+        }
       }
     }
 

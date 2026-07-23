@@ -1,4 +1,6 @@
 
+import type { HourCategory } from './shared/hourCategories';
+
 export enum Department {
   Mechanical = 'Mechanical',
   Software = 'Software',
@@ -146,7 +148,7 @@ export interface TimeEntry {
   roundedMinutes?: number;
   notes?: string;
   createdAt: number;
-  kind?: 'shop' | 'outreach' | 'volunteer';
+  kind?: HourCategory;
   calendarEventId?: number | null;
 }
 

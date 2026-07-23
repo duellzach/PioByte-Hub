@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Target, Plus, Trash2, Loader2, Check } from 'lucide-react';
 import { api } from '../services/api';
+import { HOUR_CATEGORIES, styleFor } from './hourCategoryStyles';
 
 interface Props { currentUserId: string | null; }
 
-const SOURCES = [
-  { value: 'clock:shop', label: 'Shop time clock' },
-  { value: 'clock:outreach', label: 'Outreach clock' },
-  { value: 'clock:volunteer', label: 'Volunteer clock' },
-  { value: 'competition_checkins', label: 'Competition check-ins' },
-];
+// Requirements previously named one `source`. They now hold a list of categories
+// so a single requirement (e.g. "Total Hours") can count several kinds of time.
+// Legacy `source` values are translated here and on the server.
+const categoriesOf = (h: any): string[] => {
+  if (Array.isArray(h.categories)) return h.categories;
+  if (typeof h.source === 'string') {
+    if (h.source.startsWith('clock:')) return [h.source.slice('clock:'.length)];
+    if (h.source === 'competition_checkins') return ['competition'];
+  }
+  return [];
+};
+
 const minToHours = (m: number) => (m ? +(m / 60).toFixed(2) : 0);
 const hoursToMin = (h: number) => Math.round((h || 0) * 60);
 
@@ -96,13 +103,46 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
             <div className="flex items-center gap-3">
               <input type="checkbox" checked={h.enabled} onChange={(e) => patch((r) => { r.hours[hi].enabled = e.target.checked; })} className="w-4 h-4" style={{ accentColor: 'var(--team-color)' }} />
               <input value={h.label} onChange={(e) => patch((r) => { r.hours[hi].label = e.target.value; })} className="flex-1 p-2 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-lg text-sm font-black outline-none focus:border-teamColor dark:text-white" />
-              <select value={h.source} onChange={(e) => patch((r) => { r.hours[hi].source = e.target.value; })} className="p-2 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-lg text-xs font-bold outline-none focus:border-teamColor dark:text-white">
-                {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
               <button onClick={() => patch((r) => { r.hours.splice(hi, 1); })} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={15} /></button>
             </div>
             {h.enabled && (
               <div className="pl-7 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest w-full">Counts these categories</p>
+                  {HOUR_CATEGORIES.map((c) => {
+                    const selected = categoriesOf(h).includes(c);
+                    const s = styleFor(c);
+                    return (
+                      <button
+                        key={c}
+                        onClick={() => patch((r) => {
+                          const current = categoriesOf(r.hours[hi]);
+                          const next = current.includes(c) ? current.filter((x: string) => x !== c) : [...current, c];
+                          r.hours[hi].categories = next;
+                          delete r.hours[hi].source;
+                        })}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                          selected ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-teamColor dark:ring-offset-slate-700` : 'bg-white dark:bg-slate-700 text-slate-400 border-2 border-slate-100 dark:border-slate-600'
+                        }`}
+                      >
+                        {s.icon} {s.label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => patch((r) => {
+                      const all = categoriesOf(r.hours[hi]).length === HOUR_CATEGORIES.length;
+                      r.hours[hi].categories = all ? [] : [...HOUR_CATEGORIES];
+                      delete r.hours[hi].source;
+                    })}
+                    className="text-[10px] font-black text-slate-500 hover:text-teamColor uppercase tracking-widest ml-1"
+                  >
+                    {categoriesOf(h).length === HOUR_CATEGORIES.length ? 'Clear all' : 'Select all'}
+                  </button>
+                </div>
+                {categoriesOf(h).length === 0 && (
+                  <p className="text-[10px] font-bold text-orange-500">Pick at least one category — this requirement counts nothing right now.</p>
+                )}
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phases</p>
                 {(h.phases || []).map((ph: any, pi: number) => (
                   <div key={pi} className="flex items-center gap-2 flex-wrap">
@@ -120,7 +160,7 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
             )}
           </div>
         ))}
-        <button onClick={() => patch((r) => { r.hours = r.hours || []; r.hours.push({ key: `custom_${Date.now()}`, label: 'New Requirement', enabled: true, source: 'clock:shop', phases: [{ label: 'Season', start: null, end: null, requiredMinutes: 0 }] }); })} className="text-xs font-black text-slate-500 hover:text-teamColor uppercase tracking-widest flex items-center gap-1.5"><Plus size={14} /> Add hour requirement</button>
+        <button onClick={() => patch((r) => { r.hours = r.hours || []; r.hours.push({ key: `custom_${Date.now()}`, label: 'New Requirement', enabled: true, categories: [...HOUR_CATEGORIES], phases: [{ label: 'Season', start: null, end: null, requiredMinutes: 0 }] }); })} className="text-xs font-black text-slate-500 hover:text-teamColor uppercase tracking-widest flex items-center gap-1.5"><Plus size={14} /> Add hour requirement</button>
       </div>
 
       {error && <p className="text-red-500 text-xs font-bold">{error}</p>}
