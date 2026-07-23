@@ -3,9 +3,66 @@ import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { todayLocalStr, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
+import { roundToQuarterHour } from "../helpers";
+import { db } from "../db";
+import { timeEntries } from "../../shared/schema";
+import { and, eq } from "drizzle-orm";
+import type { EventSignup } from "../../shared/schema";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const CLOCKABLE_TYPES: readonly string[] = EVENT_HOUR_CATEGORIES;
+
+/**
+ * After a calendar event check-in or check-out, create or update the
+ * corresponding time_entries record so the hours appear in totals.
+ * Runs for every clockable (non-shop) event type.
+ */
+async function syncEventTimeEntry(signup: EventSignup): Promise<void> {
+  const { calendarEventId, userId, checkedInAt, checkedOutAt } = signup;
+  if (!calendarEventId || !checkedInAt) return;
+
+  const event = await storage.getCalendarEvent(calendarEventId);
+  if (!event || !CLOCKABLE_TYPES.includes(event.type)) return;
+
+  const kind = event.type;
+  const checkInDate = new Date(checkedInAt as any);
+
+  // Find an existing time entry already linked to this event + user
+  const [existing] = await db
+    .select()
+    .from(timeEntries)
+    .where(and(eq(timeEntries.calendarEventId, calendarEventId), eq(timeEntries.userId, userId)))
+    .limit(1);
+
+  if (checkedOutAt) {
+    const checkOutDate = new Date(checkedOutAt as any);
+    const rawMinutes = Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 60000);
+    const roundedMinutes = roundToQuarterHour(Math.max(rawMinutes, 0));
+
+    if (existing) {
+      await storage.updateTimeEntry(existing.id, {
+        checkInAt: checkInDate,
+        checkOutAt: checkOutDate,
+        status: "completed",
+        roundedMinutes,
+        kind,
+        calendarEventId,
+      } as any);
+    } else {
+      await storage.createTimeEntry({
+        userId,
+        checkInAt: checkInDate,
+        checkOutAt: checkOutDate,
+        status: "completed",
+        roundedMinutes,
+        kind,
+        calendarEventId,
+      } as any);
+    }
+  }
+  // If only checked in (no checkout yet), we don't create a partial entry.
+  // Hours only count once the person has checked out.
+}
 
 const router = Router();
 
@@ -116,6 +173,8 @@ router.post("/calendar/:id/checkout", requireRoles(...LEADERSHIP), async (req, r
     const parsedTime = time ? new Date(time) : undefined;
     const signup = await storage.checkOutSignup(parseInt(signupId), parsedTime);
     if (!signup) return res.status(404).json({ error: "Signup not found" });
+    // Bridge to time_entries so hours count toward totals
+    syncEventTimeEntry(signup).catch((e) => console.error("syncEventTimeEntry checkout:", e));
     res.json(signup);
   } catch (error) {
     console.error("Error checking out:", error);
@@ -132,6 +191,8 @@ router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req,
     if (checkedOutAt !== undefined) data.checkedOutAt = checkedOutAt ? new Date(checkedOutAt) : null;
     const signup = await storage.editSignupAttendance(parseInt(req.params.id), data);
     if (!signup) return res.status(404).json({ error: "Signup not found" });
+    // Keep time_entries in sync when times are manually adjusted
+    syncEventTimeEntry(signup).catch((e) => console.error("syncEventTimeEntry edit:", e));
     res.json(signup);
   } catch (error) {
     console.error("Error editing attendance:", error);
