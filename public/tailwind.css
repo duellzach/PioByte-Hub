@@ -5456,6 +5456,10 @@ body {
   --tw-ring-offset-color: #450a0a;
 }
 
+.dark\:ring-offset-slate-700:is(.dark *) {
+  --tw-ring-offset-color: #334155;
+}
+
 .dark\:placeholder\:text-slate-400:is(.dark *)::-moz-placeholder {
   --tw-text-opacity: 1;
   color: rgb(148 163 184 / var(--tw-text-opacity, 1));
