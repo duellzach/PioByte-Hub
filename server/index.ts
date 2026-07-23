@@ -192,6 +192,11 @@ initializeDatabase().then(() => {
       console.warn("Nexus key backfill skipped:", e);
     }
     try {
+      await storage.backfillOutreachHours();
+    } catch (e) {
+      console.warn("Outreach hours backfill skipped:", e);
+    }
+    try {
       const allUsers = await storage.getUsers();
       if (allUsers.length > 0) {
         const coachOrCaptain = allUsers.find(u => (u.roles as string[]).some(r => ['Coach', 'Team Captain'].includes(r)));

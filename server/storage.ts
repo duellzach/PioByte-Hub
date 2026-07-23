@@ -207,6 +207,7 @@ export interface IStorage {
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
   backfillNexusEventKeys(): Promise<void>;
+  backfillOutreachHours(): Promise<void>;
   seedCalendarEvents(createdBy: number): Promise<void>;
 
   getResources(category?: string): Promise<Resource[]>;
@@ -1339,6 +1340,34 @@ export class DatabaseStorage implements IStorage {
       WHERE (nexus_event_key IS NULL OR nexus_event_key = '')
         AND tba_event_key IS NOT NULL
         AND tba_event_key != ''
+    `);
+  }
+
+  async backfillOutreachHours(): Promise<void> {
+    // One-time backfill: for every completed outreach/volunteer signup that has
+    // no matching time_entries row, insert one.  Safe to re-run (WHERE NOT EXISTS).
+    await db.execute(sql`
+      INSERT INTO time_entries (user_id, check_in_at, check_out_at, status, rounded_minutes, kind, calendar_event_id)
+      SELECT
+        es.user_id,
+        es.checked_in_at,
+        es.checked_out_at,
+        'completed',
+        CEIL(
+          EXTRACT(EPOCH FROM (es.checked_out_at - es.checked_in_at)) / 900.0
+        )::int * 15,
+        ce.type,
+        ce.id
+      FROM event_signups es
+      JOIN calendar_events ce ON ce.id = es.calendar_event_id
+      WHERE es.checked_in_at IS NOT NULL
+        AND es.checked_out_at IS NOT NULL
+        AND ce.type IN ('outreach', 'volunteer')
+        AND NOT EXISTS (
+          SELECT 1 FROM time_entries te
+          WHERE te.calendar_event_id = ce.id
+            AND te.user_id = es.user_id
+        )
     `);
   }
 
