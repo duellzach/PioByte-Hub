@@ -26,6 +26,7 @@ import pushRouter from "./routes/push";
 import recurringRouter from "./routes/recurring";
 import eventSignupsRouter from "./routes/eventSignups";
 import requirementsRouter from "./routes/requirements";
+import seasonsRouter from "./routes/seasons";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -155,6 +156,7 @@ app.use("/api", pushRouter);
 app.use("/api", recurringRouter);
 app.use("/api", eventSignupsRouter);
 app.use("/api", requirementsRouter);
+app.use("/api", seasonsRouter);
 
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {
@@ -177,6 +179,8 @@ initializeDatabase().then(() => {
       await storage.ensureRequirementsAndFundraising();
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
+      await storage.ensureProjectLinksColumn();
+      await storage.ensureScoutingSeasonsTables();
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.
       storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));

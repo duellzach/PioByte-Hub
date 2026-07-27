@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Project, User, Role } from '../types';
-import { X, Settings, Archive, Eye, EyeOff, Users, Building2, UserPlus, UserCheck } from 'lucide-react';
+import { Project, User, Role, Attachment } from '../types';
+import { X, Settings, Archive, Eye, EyeOff, Users, Building2, UserPlus, UserCheck, Link2, Plus, Trash2 } from 'lucide-react';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { LINK_TYPES, normalizeUrl } from './ProjectLinks';
 
 interface BoardSettingsModalProps {
   project: Project;
@@ -29,6 +30,13 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
   const [scrumMasters, setScrumMasters] = useState<string[]>(project.scrumMasters || []);
   const [showInWarRoom, setShowInWarRoom] = useState(project.showInWarRoom ?? true);
   const [allowAllTaskCreation, setAllowAllTaskCreation] = useState(project.allowAllTaskCreation ?? false);
+  const [links, setLinks] = useState<Attachment[]>(project.links || []);
+
+  const addLink = () =>
+    setLinks([...links, { id: crypto.randomUUID(), label: '', url: '', type: 'other' }]);
+  const updateLink = (id: string, patch: Partial<Attachment>) =>
+    setLinks(links.map(l => (l.id === id ? { ...l, ...patch } : l)));
+  const removeLink = (id: string) => setLinks(links.filter(l => l.id !== id));
 
   const eligibleScrumMasters = users.filter(u => 
     u.roles.includes(Role.ScrumMaster) || 
@@ -50,6 +58,10 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
   };
 
   const handleSave = () => {
+    // Drop blank rows and normalize URLs so links render as absolute anchors.
+    const cleanedLinks = links
+      .filter(l => l.url.trim())
+      .map(l => ({ ...l, url: normalizeUrl(l.url), label: l.label.trim() || l.url.trim() }));
     onSave({
       ...project,
       name,
@@ -57,7 +69,8 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
       department: department || undefined,
       scrumMasters,
       showInWarRoom,
-      allowAllTaskCreation
+      allowAllTaskCreation,
+      links: cleanedLinks
     });
   };
 
@@ -101,6 +114,58 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               className="w-full h-24 p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-medium text-slate-700 dark:text-slate-300 resize-none"
             />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between ml-2">
+              <label className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                <Link2 size={14} />
+                Resource Links
+              </label>
+              <button
+                onClick={addLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-teamColor hover:text-white transition-all"
+              >
+                <Plus size={14} /> Add Link
+              </button>
+            </div>
+            {links.length === 0 && (
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 ml-2">
+                Link CAD (Fusion 360), Slides, GitHub, or any resource for this board.
+              </p>
+            )}
+            {links.map(link => (
+              <div key={link.id} className="flex flex-col sm:flex-row gap-2 items-stretch">
+                <input
+                  value={link.label}
+                  onChange={(e) => updateLink(link.id, { label: e.target.value })}
+                  placeholder="Label"
+                  className="sm:w-40 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white"
+                />
+                <input
+                  value={link.url}
+                  onChange={(e) => updateLink(link.id, { url: e.target.value })}
+                  placeholder="https://…"
+                  className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-medium text-sm text-slate-700 dark:text-slate-200"
+                />
+                <select
+                  value={link.type}
+                  onChange={(e) => updateLink(link.id, { type: e.target.value as Attachment['type'] })}
+                  className="sm:w-40 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-xs uppercase text-slate-700 dark:text-white"
+                >
+                  {LINK_TYPES.map(t => (
+                    <option key={t.value} value={t.value} className="dark:bg-slate-700">{t.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => removeLink(link.id)}
+                  className="p-3 bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-red-600 border-2 border-slate-100 dark:border-slate-600 rounded-xl transition-all flex items-center justify-center"
+                  aria-label="Remove link"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

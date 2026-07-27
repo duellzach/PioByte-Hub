@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { requireRoles } from "../middleware/auth";
 
 const router = Router();
+
+// Who may manage boards (rename, edit description/links, toggle settings). Per
+// team direction, any global SCRUM Master may manage any board, alongside
+// leadership. Board deletion is restricted further to Coach/Team Captain below.
+const BOARD_MANAGERS = ["Coach", "Team Captain", "Department Head", "SCRUM Master"];
 
 router.get("/projects", async (req, res) => {
   try {
@@ -23,7 +29,7 @@ router.post("/projects", async (req, res) => {
   }
 });
 
-router.put("/projects/:id", async (req, res) => {
+router.put("/projects/:id", requireRoles(...BOARD_MANAGERS), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const project = await storage.updateProject(id, req.body);
@@ -35,7 +41,7 @@ router.put("/projects/:id", async (req, res) => {
   }
 });
 
-router.delete("/projects/:id", async (req, res) => {
+router.delete("/projects/:id", requireRoles("Coach", "Team Captain"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await storage.deleteProject(id);

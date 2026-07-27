@@ -3,6 +3,7 @@ import { AppState, TaskStatus, Task, Project, Department, User } from '../types'
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
 import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause } from 'lucide-react';
 import TaskModal from './TaskModal';
+import { ProjectLinkChip } from './ProjectLinks';
 
 interface DashboardProps {
   state: AppState;
@@ -277,6 +278,11 @@ const ProjectRow: React.FC<{
       
       {expanded && (
         <div className="p-3 md:p-4 2xl:p-6 pt-0 md:pt-0 2xl:pt-0">
+          {project.links?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {project.links.map(link => <ProjectLinkChip key={link.id} link={link} compact />)}
+            </div>
+          )}
           <div className={`grid grid-cols-1 gap-2 md:gap-3 ${tasks[TaskStatus.Blocked].length > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
             <StatusColumn status={TaskStatus.Backlog} tasks={tasks[TaskStatus.Backlog]} onTaskClick={onTaskClick} label="Backlog" />
             <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />

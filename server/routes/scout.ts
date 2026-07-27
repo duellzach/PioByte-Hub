@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY, hasNexusKey } from "../helpers";
+import { BUILTIN_TEMPLATES, type ScoutKind, type TemplateField } from "../../shared/scoutingTemplates";
 
 const router = Router();
+
+/** Resolve the template a scout event uses for a kind (custom → built-in fallback). */
+async function resolveTemplateFields(event: any, kind: ScoutKind): Promise<TemplateField[]> {
+  if (event?.seasonId) {
+    const tpl = await storage.getTemplate(event.seasonId, kind);
+    if (tpl?.fields?.length) return tpl.fields as TemplateField[];
+  }
+  return BUILTIN_TEMPLATES[kind].fields;
+}
 
 router.get("/scout-events", async (req, res) => {
   try {
@@ -215,58 +225,55 @@ router.get("/scout-events/:eventId/export", async (req, res) => {
   }
 });
 
+// Escape a CSV cell, guarding against spreadsheet formula injection: a leading
+// = + - @ (or tab/CR) is neutralized with a leading apostrophe.
+function csvCell(v: any): string {
+  if (v === null || v === undefined) return '';
+  let s = Array.isArray(v) ? v.join('; ') : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+// Column order: active fields (template order), then archived fields flagged.
+function csvColumns(fields: TemplateField[]): { header: string; key: string }[] {
+  const active = fields.filter(f => !f.archived).map(f => ({ header: f.label, key: f.key }));
+  const archived = fields.filter(f => f.archived).map(f => ({ header: `${f.label} (archived)`, key: f.key }));
+  return [...active, ...archived];
+}
+
+function scoutValue(row: any, key: string): any {
+  const data = row?.data;
+  if (data && typeof data === 'object' && data[key] !== undefined) return data[key];
+  return row?.[key]; // legacy-column fallback
+}
+
 async function sendScoutCsv(eventId: number, res: any) {
   const event = await storage.getScoutEvent(eventId);
   if (!event) { res.status(404).json({ error: "Scout event not found" }); return; }
   const pitScoutsData = await storage.getPitScouts(eventId);
   const matchScoutsData = await storage.getMatchScouts(eventId);
-  const allUsers = await storage.getUsers();
-  const userMap: Record<number, string> = {};
-  for (const u of allUsers) userMap[u.id] = u.username;
-
-  const esc = (v: any): string => {
-    if (v === null || v === undefined) return '';
-    const s = Array.isArray(v) ? v.join('; ') : String(v);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
+  const pitFields = await resolveTemplateFields(event, 'pit');
+  const matchFields = await resolveTemplateFields(event, 'match');
 
   const rows: string[] = [];
-  rows.push(`PioByte Hub Scout Export — ${event.name}`);
+  rows.push(`PioByte Hub Scout Export — ${csvCell(event.name)}`);
   rows.push(`Exported,${new Date().toISOString()}`);
   rows.push('');
 
   rows.push('=== PIT SCOUTS ===');
-  rows.push([
-    'Team #','Team Name','Robot Name','Drivetrain','Weight (lbs)','Speed (1-10)','Height (in)',
-    'Fuel Capacity','Traversal','Shooter Type','Capabilities','Deficiencies',
-    'Auto Routine','Auto Options','Auto Capable',
-    'Offense Rating','Overall Rating','Photo URL',
-  ].join(','));
-  for (const p of pitScoutsData) {
-    const autoCapable = p.autoOptions && Array.isArray(p.autoOptions) && p.autoOptions.length > 0 ? 'Yes' : (p.autonomousRoutine ? 'Yes' : 'No');
-    rows.push([
-      esc(p.teamNumber), esc(p.teamName), esc(p.robotName), esc(p.drivetrain),
-      esc(p.weight), esc(p.speed), esc(p.height), esc(p.fuelCapacity),
-      esc(p.traversalAbility), esc(p.shooterType), esc(p.capabilities), esc(p.deficiencies),
-      esc(p.autonomousRoutine), esc(p.autoOptions), autoCapable,
-      esc(p.offenseRating), esc(p.overallRating), esc(p.photoUrl),
-    ].join(','));
+  const pitCols = csvColumns(pitFields);
+  rows.push(['Scouted By', ...pitCols.map(c => c.header)].map(csvCell).join(','));
+  for (const p of pitScoutsData as any[]) {
+    rows.push([csvCell((p as any).scoutedByName ?? p.scoutedBy), ...pitCols.map(c => csvCell(scoutValue(p, c.key)))].join(','));
   }
 
   rows.push('');
   rows.push('=== MATCH SCOUTS ===');
-  rows.push([
-    'Match #','Match Type','Team #','Alliance',
-    'Auto Score','Teleop Score','Endgame Score','Penalties',
-    'Auto Climb','End Climb Level',
-  ].join(','));
-  for (const m of matchScoutsData) {
-    rows.push([
-      esc(m.matchNumber), esc(m.matchType), esc(m.teamNumber), esc(m.alliance),
-      esc(m.autoScore), esc(m.teleopScore), esc(m.endgameScore), esc(m.penalties),
-      esc(m.autoClimb), esc(m.endClimbLevel),
-    ].join(','));
+  const matchCols = csvColumns(matchFields);
+  rows.push(['Scouted By', ...matchCols.map(c => c.header)].map(csvCell).join(','));
+  for (const m of matchScoutsData as any[]) {
+    rows.push([csvCell((m as any).scoutedByName ?? m.scoutedBy), ...matchCols.map(c => csvCell(scoutValue(m, c.key)))].join(','));
   }
 
   const safeName = (event.name || 'scout').replace(/[^a-z0-9_\-]/gi, '_');

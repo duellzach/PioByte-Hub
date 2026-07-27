@@ -1,5 +1,6 @@
 import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
+import type { TemplateField } from "./scoutingTemplates";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -25,6 +26,7 @@ export const projects = pgTable("projects", {
   scrumMasters: jsonb("scrum_masters").$type<number[]>().notNull().default([]),
   showInWarRoom: boolean("show_in_war_room").notNull().default(true),
   allowAllTaskCreation: boolean("allow_all_task_creation").notNull().default(false),
+  links: jsonb("links").$type<{id: string; label: string; url: string; type: string}[]>().notNull().default([]),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -163,12 +165,40 @@ export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = typeof announcements.$inferInsert;
+
+// A season owns the pit + match scouting templates and groups events/data by
+// year/game. Exactly one season is active at a time (app-enforced).
+export const seasons = pgTable("seasons", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  gameName: text("game_name").notNull().default(""),
+  year: integer("year"),
+  active: boolean("active").notNull().default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// One editable template per (season, kind). Fields are append-only with an
+// `archived` soft-delete; `revision` bumps on each save (cache-busting).
+export const scoutingTemplates = pgTable("scouting_templates", {
+  id: serial("id").primaryKey(),
+  seasonId: integer("season_id").notNull().references(() => seasons.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // 'pit' | 'match'
+  name: text("name").notNull().default(""),
+  fields: jsonb("fields").$type<TemplateField[]>().notNull().default([]),
+  revision: integer("revision").notNull().default(1),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  seasonKindUnique: uniqueIndex("scouting_templates_season_kind_unique").on(t.seasonId, t.kind),
+}));
+
 export const scoutEvents = pgTable("scout_events", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   location: text("location").notNull().default(""),
   startDate: text("start_date"),
   endDate: text("end_date"),
+  seasonId: integer("season_id").references(() => seasons.id),
   toaEventKey: text("toa_event_key"),
   tbaEventKey: text("tba_event_key"),
   nexusEventKey: text("nexus_event_key"),
@@ -201,6 +231,8 @@ export const pitScouts = pgTable("pit_scouts", {
   defenseRating: integer("defense_rating").notNull().default(5),
   overallRating: integer("overall_rating").notNull().default(5),
   coreValuesRating: integer("core_values_rating").notNull().default(3),
+  templateId: integer("template_id").references(() => scoutingTemplates.id),
+  data: jsonb("data").$type<Record<string, any>>().notNull().default({}),
   scoutedBy: integer("scouted_by").notNull().references(() => users.id),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -229,9 +261,16 @@ export const matchScouts = pgTable("match_scouts", {
   coreValuesRating: integer("core_values_rating").notNull().default(3),
   autoUsed: text("auto_used").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  templateId: integer("template_id").references(() => scoutingTemplates.id),
+  data: jsonb("data").$type<Record<string, any>>().notNull().default({}),
   scoutedBy: integer("scouted_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
+
+export type Season = typeof seasons.$inferSelect;
+export type InsertSeason = typeof seasons.$inferInsert;
+export type ScoutingTemplate = typeof scoutingTemplates.$inferSelect;
+export type InsertScoutingTemplate = typeof scoutingTemplates.$inferInsert;
 
 export type GeneralTask = typeof generalTasks.$inferSelect;
 export type InsertGeneralTask = typeof generalTasks.$inferInsert;

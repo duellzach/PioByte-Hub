@@ -131,6 +131,7 @@ export interface Project {
   scrumMasters: string[];
   showInWarRoom: boolean;
   allowAllTaskCreation?: boolean;
+  links: Attachment[];
 }
 
 export type TimeEntryStatus = 'pending_check_in' | 'checked_in' | 'pending_check_out' | 'completed';

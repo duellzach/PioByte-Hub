@@ -8,6 +8,7 @@ import { parseLocalDate, todayLocalStr } from '../utils/dates';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
 import RecurringTasksModal from './RecurringTasksModal';
+import { ProjectLinkChip } from './ProjectLinks';
 import { api } from '../services/api';
 
 interface KanbanBoardProps {
@@ -42,6 +43,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.Backlog);
   const [certifications, setCertifications] = useState<any[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -194,7 +196,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
       createdAt: Date.now(),
       archived: false,
       scrumMasters: [],
-      showInWarRoom: true
+      showInWarRoom: true,
+      links: []
     };
     onAddProject(newProject);
     selectBoard(newId);
@@ -263,7 +266,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                   <Repeat size={16} />
               </button>
-              {activeProject && (
+              {activeProject && hasLeaderRole && (
                 <button
                     onClick={() => setShowSettingsModal(true)}
                     className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
@@ -338,6 +341,39 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                 {p.name}
               </button>
             ))}
+          </div>
+        )}
+
+        {view === 'board' && activeProject && (activeProject.description?.trim() || activeProject.links?.length > 0) && (
+          <div className="mt-1 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setShowOverview(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                <Folder size={12} /> Overview
+                {activeProject.links?.length > 0 && (
+                  <span className="flex items-center gap-1 text-slate-400 dark:text-slate-500 normal-case tracking-normal">
+                    <Link2 size={11} /> {activeProject.links.length}
+                  </span>
+                )}
+              </span>
+              <ChevronDown size={16} className={`text-slate-400 transition-transform ${showOverview ? 'rotate-180' : ''}`} />
+            </button>
+            {showOverview && (
+              <div className="px-4 pb-4 pt-1 space-y-3 border-t border-slate-100 dark:border-slate-700">
+                {activeProject.description?.trim() && (
+                  <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                    {activeProject.description}
+                  </p>
+                )}
+                {activeProject.links?.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {activeProject.links.map(link => <ProjectLinkChip key={link.id} link={link} />)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

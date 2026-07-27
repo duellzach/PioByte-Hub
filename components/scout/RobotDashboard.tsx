@@ -1,10 +1,35 @@
 import React from 'react';
 import { ArrowLeft, Trophy, Calendar, Copy, Check, Download, Brain, Trash2 } from 'lucide-react';
+import { isNumericField, type TemplateField } from '../../shared/scoutingTemplates';
+
+// Value accessor: prefer the flexible `data` blob, fall back to a legacy column.
+const val = (rec: any, key: string) => (rec?.data && rec.data[key] !== undefined ? rec.data[key] : rec?.[key]);
+
+// Per-field aggregate over a set of records for a template's flagged numeric
+// fields. Returns radar-ready rows {key,label,value,max,n}.
+function computeAggregates(records: any[], fields: TemplateField[]) {
+  return fields
+    .filter(f => isNumericField(f) && !f.archived && f.aggregate && f.aggregate !== 'none')
+    .map(f => {
+      const vals = records.map(r => val(r, f.key)).filter(v => typeof v === 'number') as number[];
+      let value = 0;
+      if (vals.length) {
+        if (f.aggregate === 'sum') value = vals.reduce((s, v) => s + v, 0);
+        else if (f.aggregate === 'max') value = Math.max(...vals);
+        else value = Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10; // avg
+      }
+      return { key: f.key, label: f.label, agg: f.aggregate!, value, n: vals.length, max: f.max, showInSummary: !!f.showInSummary };
+    });
+}
 
 interface RobotDashboardProps {
   selectedRobot: any;
   activeEvent: any;
   robotMatches: any[];
+  matchTemplate?: any;
+  pitTemplate?: any;
+  isCustomMatch?: boolean;
+  isCustomPit?: boolean;
   crossEventMatches: any[];
   tbaYearEvents: any[];
   tbaYearStatuses: Record<string, any>;
@@ -21,7 +46,8 @@ interface RobotDashboardProps {
 }
 
 const RobotDashboard: React.FC<RobotDashboardProps> = ({
-  selectedRobot, activeEvent, robotMatches, crossEventMatches,
+  selectedRobot, activeEvent, robotMatches, matchTemplate, pitTemplate,
+  isCustomMatch = false, isCustomPit = false, crossEventMatches,
   tbaYearEvents, tbaYearStatuses, tbaYearLoading,
   geminiModal, copiedGemini, onBack, onEditPit, onDeletePit,
   onGenerateAIReport, onSetGeminiModal, onSetCopiedGemini, isGuest = false,
@@ -47,6 +73,39 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
         )}
       </div>
 
+      {isCustomPit && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Robot Data ({pitTemplate?.name || 'custom'})</h3>
+            {!isGuest && (
+              <div className="flex gap-2">
+                <button onClick={() => onEditPit(selectedRobot)} className="px-4 py-2 bg-teamColor text-white font-black rounded-lg uppercase tracking-widest text-[10px] hover:opacity-90">Edit</button>
+                <button onClick={() => onDeletePit(selectedRobot.id)} className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-red-600 font-black rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 size={14} /></button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {((pitTemplate?.fields || []) as TemplateField[]).filter(f => !f.archived && f.key !== 'teamNumber').map(f => {
+              const v = val(selectedRobot, f.key);
+              if (f.type === 'photo') return v ? (
+                <div key={f.key} className="sm:col-span-2 h-40 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700"><img src={v} alt="" className="w-full h-full object-cover" /></div>
+              ) : null;
+              return (
+                <div key={f.key} className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
+                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{f.label}</p>
+                  {Array.isArray(v) ? (
+                    <div className="flex flex-wrap gap-1.5 mt-1">{v.length ? v.map((x: string, i: number) => <span key={i} className="px-2 py-0.5 bg-teamColor/10 text-teamColor rounded-full text-[10px] font-bold">{x}</span>) : <span className="text-sm text-slate-400">—</span>}</div>
+                  ) : (
+                    <p className="text-sm font-black text-slate-900 dark:text-white mt-1 whitespace-pre-wrap">{f.type === 'boolean' ? (v ? 'Yes' : 'No') : (v ?? '—')}{f.max && typeof v === 'number' ? `/${f.max}` : ''}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!isCustomPit && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8 space-y-6">
           <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Robot Specs</h3>
@@ -126,8 +185,9 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
           )}
         </div>
       </div>
+      )}
 
-      {(selectedRobot.capabilities?.length > 0 || selectedRobot.deficiencies?.length > 0) && (
+      {!isCustomPit && (selectedRobot.capabilities?.length > 0 || selectedRobot.deficiencies?.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {selectedRobot.capabilities?.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
@@ -152,7 +212,7 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
         </div>
       )}
 
-      {selectedRobot.notes && (
+      {!isCustomPit && selectedRobot.notes && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
           <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Notes</h3>
           <p className="text-sm text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{selectedRobot.notes}</p>
@@ -210,7 +270,52 @@ const RobotDashboard: React.FC<RobotDashboardProps> = ({
         </div>
       ) : null}
 
-      {robotMatches.length > 0 && (() => {
+      {robotMatches.length > 0 && isCustomMatch && (() => {
+        const aggs = computeAggregates(robotMatches, (matchTemplate?.fields || []) as TemplateField[]);
+        const summary = aggs.filter(a => a.showInSummary);
+        const rest = aggs.filter(a => !a.showInSummary);
+        const tile = (a: ReturnType<typeof computeAggregates>[number], highlight: boolean) => (
+          <div key={a.key} className={`rounded-xl p-4 text-center ${highlight ? 'bg-teamColor/10' : 'bg-slate-50 dark:bg-slate-700'}`}>
+            <p className={`text-2xl font-black ${highlight ? 'text-teamColor' : 'text-slate-900 dark:text-white'}`}>{a.value}{a.max ? <span className="text-sm">/{a.max}</span> : ''}</p>
+            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">{a.agg === 'avg' ? 'Avg ' : a.agg === 'max' ? 'Max ' : 'Total '}{a.label}</p>
+            <p className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5">n={a.n}</p>
+          </div>
+        );
+        return (
+          <>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+              <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6">Performance Analysis ({robotMatches.length} matches · {matchTemplate?.name || 'custom template'})</h3>
+              {aggs.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500">No aggregatable fields flagged on this template. Mark numeric fields with an aggregate in the Template Builder.</p>
+              ) : (
+                <>
+                  {summary.length > 0 && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">{summary.map(a => tile(a, true))}</div>}
+                  {rest.length > 0 && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-4">{rest.map(a => tile(a, false))}</div>}
+                </>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 p-6 md:p-8">
+              <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Match History</h3>
+              <div className="space-y-2">
+                {[...robotMatches].sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)).map(m => (
+                  <div key={`${m.matchType}:${m.matchNumber}:${m.id}`} className={`p-3 rounded-xl border-2 ${m.alliance === 'Red' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' : 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20'}`}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.alliance === 'Red' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>Match {m.matchNumber}</span>
+                      <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        {summary.map(a => <span key={a.key}>{a.label}: <b className="text-slate-800 dark:text-slate-200">{val(m, a.key) ?? '—'}</b></span>)}
+                      </div>
+                      {m._scoutCount > 1 && <span className="px-2 py-0.5 bg-slate-200 text-slate-500 rounded-lg text-[8px] font-black">AVG of {m._scoutCount}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {robotMatches.length > 0 && !isCustomMatch && (() => {
         const totalAutoFuel = robotMatches.reduce((s, m) => s + (m.autoFuelTotal || 0), 0);
         const totalTeleopFuel = robotMatches.reduce((s, m) => s + (m.teleopFuelTotal || 0), 0);
         const avgAutoFuel = (totalAutoFuel / robotMatches.length).toFixed(1);

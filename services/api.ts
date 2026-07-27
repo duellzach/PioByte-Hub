@@ -179,6 +179,21 @@ export const api = {
     deactivateGuestPin: (eventId: number, userId: number) =>
       apiRequest<void>(`/events/${eventId}/guest-pin?userId=${userId}`, { method: 'DELETE' }),
   },
+  seasons: {
+    getAll: () => apiRequest<any[]>('/seasons'),
+    create: (data: { name: string; gameName?: string; year?: number | null; active?: boolean }) =>
+      apiRequest<any>('/seasons', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      apiRequest<any>(`/seasons/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) => apiRequest<void>(`/seasons/${id}`, { method: 'DELETE' }),
+    getTemplates: (seasonId: number) => apiRequest<any[]>(`/seasons/${seasonId}/templates`),
+    getTemplate: (seasonId: number, kind: 'pit' | 'match') =>
+      apiRequest<any>(`/seasons/${seasonId}/templates?kind=${kind}`),
+    createTemplate: (seasonId: number, data: { kind: 'pit' | 'match'; name?: string; fields: any[] }) =>
+      apiRequest<any>(`/seasons/${seasonId}/templates`, { method: 'POST', body: JSON.stringify(data) }),
+    updateTemplate: (id: number, data: { name?: string; fields?: any[] }) =>
+      apiRequest<any>(`/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
   matchExceptions: {
     list: (eventId: number) => apiRequest<any[]>(`/events/${eventId}/match-exceptions`),
     upsert: (eventId: number, data: { userId: number; matchNumber: number; type?: string; createdBy: number }) =>

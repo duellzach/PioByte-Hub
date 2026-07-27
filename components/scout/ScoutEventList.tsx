@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Trophy, MapPin, Calendar, Check, AlertCircle, Brain, Copy, Download } from 'lucide-react';
+import { Plus, X, Trophy, MapPin, Calendar, Check, AlertCircle, Brain, Copy, Download, Layers } from 'lucide-react';
 
 interface ScoutEventListProps {
   events: any[];
@@ -19,6 +19,10 @@ interface ScoutEventListProps {
   copiedGemini: boolean;
   onSetGeminiModal: (m: { open: boolean; text: string; matchLabel: string }) => void;
   onSetCopiedGemini: (v: boolean) => void;
+  seasons?: any[];
+  onManageSeasons?: () => void;
+  seasonFilter?: number | 'all';
+  onSeasonFilterChange?: (v: number | 'all') => void;
 }
 
 const ScoutEventList: React.FC<ScoutEventListProps> = ({
@@ -27,6 +31,7 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
   eventForm, setEventForm,
   onCreateEventSubmit, onCloseEventForm, geminiModal, copiedGemini,
   onSetGeminiModal, onSetCopiedGemini,
+  seasons = [], onManageSeasons, seasonFilter = 'all', onSeasonFilterChange,
 }) => {
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
@@ -35,12 +40,29 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
           <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Scout</h2>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Tournament event scouting</p>
         </div>
-        {isCoachOrCaptain && (
-          <button onClick={onCreateEvent}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest">
-            <Plus size={16} /> Create Event
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {seasons.length > 0 && onSeasonFilterChange && (
+            <select value={String(seasonFilter)} onChange={(e) => onSeasonFilterChange(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+              className="px-4 py-3 rounded-xl border-2 border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-[10px] uppercase tracking-widest text-slate-600 dark:text-slate-300 outline-none focus:border-teamColor">
+              <option value="all">All Seasons</option>
+              {seasons.map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.active ? ' ★' : ''}</option>)}
+            </select>
+          )}
+          {isCoachOrCaptain && (
+            <>
+            {onManageSeasons && (
+              <button onClick={onManageSeasons}
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl hover:border-teamColor hover:text-teamColor transition-all uppercase text-[10px] tracking-widest">
+                <Layers size={16} /> Seasons
+              </button>
+            )}
+            <button onClick={onCreateEvent}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] tracking-widest">
+              <Plus size={16} /> Create Event
+            </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -126,6 +148,18 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
                   placeholder="e.g. Phoenix, AZ"
                   className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm" />
               </div>
+              {seasons.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Season</label>
+                  <select value={eventForm.seasonId ?? ''} onChange={(e) => setEventForm({ ...eventForm, seasonId: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl md:rounded-[28px] outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white">
+                    {seasons.map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name}{s.active ? ' (active)' : ''}</option>
+                    ))}
+                  </select>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-2">Scouting fields & analytics are scoped to this season's templates</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="block text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2">Start Date</label>

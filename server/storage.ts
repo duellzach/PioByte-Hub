@@ -1,6 +1,35 @@
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, recurringTaskTemplates, eventSignups, fundraisingEntries } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
+
+/**
+ * Normalize a scout write during the seasons/templates transition. If the
+ * caller supplies a `data` blob (new clients), dual-write the built-in legacy
+ * columns from it so rollback stays possible — without clobbering any legacy
+ * field the caller set explicitly. If no `data` is supplied (old clients),
+ * synthesize it from the legacy fields so every row ends up with a `data` blob.
+ */
+function normalizeScoutWrite(kind: ScoutKind, values: Record<string, any>): Record<string, any> {
+  const v: Record<string, any> = { ...values };
+  if (v.data && typeof v.data === "object" && Object.keys(v.data).length > 0) {
+    const legacy = legacyColumnsFromData(kind, v.data);
+    for (const [col, val] of Object.entries(legacy)) {
+      if (v[col] === undefined) v[col] = val;
+    }
+  } else {
+    const derived = dataFromLegacyRow(kind, v);
+    if (Object.keys(derived).length > 0) v.data = derived;
+  }
+  return v;
+}
+
+/** Read shim: fill an empty `data` blob from legacy columns (post-backfill no-op). */
+function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): T {
+  if (!row) return row;
+  if (row.data && typeof row.data === "object" && Object.keys(row.data).length > 0) return row;
+  return { ...row, data: dataFromLegacyRow(kind, row) };
+}
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
@@ -509,6 +538,7 @@ export class DatabaseStorage implements IStorage {
     if (event.nexusEventKey !== undefined) updates.nexusEventKey = event.nexusEventKey;
     if (event.toaEventKey !== undefined) updates.toaEventKey = event.toaEventKey;
     if (event.nexusPitMapKey !== undefined) updates.nexusPitMapKey = event.nexusPitMapKey;
+    if (event.seasonId !== undefined) updates.seasonId = event.seasonId;
     if (event.archived !== undefined) updates.archived = event.archived;
     if (Object.keys(updates).length === 0) {
       const [row] = await db.select().from(scoutEvents).where(eq(scoutEvents.id, id));
@@ -523,21 +553,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPitScouts(eventId: number): Promise<PitScout[]> {
-    return db.select().from(pitScouts).where(eq(pitScouts.eventId, eventId)).orderBy(desc(pitScouts.createdAt));
+    const rows = await db.select().from(pitScouts).where(eq(pitScouts.eventId, eventId)).orderBy(desc(pitScouts.createdAt));
+    return rows.map(r => fillScoutData("pit", r));
   }
 
   async getPitScout(id: number): Promise<PitScout | undefined> {
     const [scout] = await db.select().from(pitScouts).where(eq(pitScouts.id, id));
-    return scout;
+    return scout ? fillScoutData("pit", scout) : scout;
   }
 
   async createPitScout(scout: InsertPitScout): Promise<PitScout> {
-    const [newScout] = await db.insert(pitScouts).values(scout).returning();
+    const [newScout] = await db.insert(pitScouts).values(normalizeScoutWrite("pit", scout) as InsertPitScout).returning();
     return newScout;
   }
 
   async updatePitScout(id: number, scout: Partial<InsertPitScout>): Promise<PitScout | undefined> {
-    const sanitized: any = { ...scout };
+    const sanitized: any = normalizeScoutWrite("pit", { ...scout });
     delete sanitized.id;
     const [updated] = await db.update(pitScouts).set(sanitized).where(eq(pitScouts.id, id)).returning();
     return updated;
@@ -548,7 +579,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMatchScouts(eventId: number): Promise<MatchScout[]> {
-    return db.select().from(matchScouts).where(eq(matchScouts.eventId, eventId)).orderBy(desc(matchScouts.createdAt));
+    const rows = await db.select().from(matchScouts).where(eq(matchScouts.eventId, eventId)).orderBy(desc(matchScouts.createdAt));
+    return rows.map(r => fillScoutData("match", r));
   }
 
   async getMatchScoutsByTeam(teamNumber: number): Promise<any[]> {
@@ -561,21 +593,21 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(scoutEvents, eq(matchScouts.eventId, scoutEvents.id))
       .where(eq(matchScouts.teamNumber, teamNumber))
       .orderBy(desc(matchScouts.createdAt));
-    return rows.map(r => ({ ...r.matchScout, eventName: r.eventName }));
+    return rows.map(r => ({ ...fillScoutData("match", r.matchScout), eventName: r.eventName }));
   }
 
   async getMatchScout(id: number): Promise<MatchScout | undefined> {
     const [scout] = await db.select().from(matchScouts).where(eq(matchScouts.id, id));
-    return scout;
+    return scout ? fillScoutData("match", scout) : scout;
   }
 
   async createMatchScout(scout: InsertMatchScout): Promise<MatchScout> {
-    const [newScout] = await db.insert(matchScouts).values(scout).returning();
+    const [newScout] = await db.insert(matchScouts).values(normalizeScoutWrite("match", scout) as InsertMatchScout).returning();
     return newScout;
   }
 
   async updateMatchScout(id: number, scout: Partial<InsertMatchScout>): Promise<MatchScout | undefined> {
-    const sanitized: any = { ...scout };
+    const sanitized: any = normalizeScoutWrite("match", { ...scout });
     delete sanitized.id;
     const [updated] = await db.update(matchScouts).set(sanitized).where(eq(matchScouts.id, id)).returning();
     return updated;
@@ -583,6 +615,94 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMatchScout(id: number): Promise<void> {
     await db.delete(matchScouts).where(eq(matchScouts.id, id));
+  }
+
+  // --- Seasons & scouting templates (Epic D) ---
+
+  async getSeasons(): Promise<any[]> {
+    return db.select().from(seasons).orderBy(desc(seasons.year), desc(seasons.createdAt));
+  }
+
+  async getSeason(id: number): Promise<any | undefined> {
+    const [row] = await db.select().from(seasons).where(eq(seasons.id, id));
+    return row;
+  }
+
+  async getActiveSeason(): Promise<any | undefined> {
+    const [row] = await db.select().from(seasons).where(eq(seasons.active, true)).limit(1);
+    return row;
+  }
+
+  async createSeason(data: { name: string; gameName?: string; year?: number | null; active?: boolean }): Promise<any> {
+    const [row] = await db.insert(seasons).values({
+      name: data.name,
+      gameName: data.gameName ?? "",
+      year: data.year ?? null,
+      active: data.active ?? false,
+    }).returning();
+    if (row.active) await db.update(seasons).set({ active: false }).where(sql`${seasons.id} <> ${row.id}`);
+    return row;
+  }
+
+  async updateSeason(id: number, data: { name?: string; gameName?: string; year?: number | null; active?: boolean }): Promise<any | undefined> {
+    const updates: Record<string, any> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.gameName !== undefined) updates.gameName = data.gameName;
+    if (data.year !== undefined) updates.year = data.year;
+    if (data.active !== undefined) updates.active = data.active;
+    if (Object.keys(updates).length === 0) return this.getSeason(id);
+    const [row] = await db.update(seasons).set(updates).where(eq(seasons.id, id)).returning();
+    // Exactly one active season at a time.
+    if (data.active === true && row) {
+      await db.update(seasons).set({ active: false }).where(sql`${seasons.id} <> ${id}`);
+    }
+    return row;
+  }
+
+  async deleteSeason(id: number): Promise<{ ok: boolean; reason?: string }> {
+    const [ev] = await db.select().from(scoutEvents).where(eq(scoutEvents.seasonId, id)).limit(1);
+    if (ev) return { ok: false, reason: "Season has events assigned to it" };
+    await db.delete(seasons).where(eq(seasons.id, id));
+    return { ok: true };
+  }
+
+  async getTemplatesForSeason(seasonId: number): Promise<any[]> {
+    return db.select().from(scoutingTemplates).where(eq(scoutingTemplates.seasonId, seasonId));
+  }
+
+  async getTemplate(seasonId: number, kind: ScoutKind): Promise<any | undefined> {
+    const [row] = await db.select().from(scoutingTemplates)
+      .where(and(eq(scoutingTemplates.seasonId, seasonId), eq(scoutingTemplates.kind, kind))).limit(1);
+    return row;
+  }
+
+  async getTemplateById(id: number): Promise<any | undefined> {
+    const [row] = await db.select().from(scoutingTemplates).where(eq(scoutingTemplates.id, id));
+    return row;
+  }
+
+  async createTemplate(data: { seasonId: number; kind: ScoutKind; name?: string; fields: any[]; createdBy?: number | null }): Promise<any> {
+    const [row] = await db.insert(scoutingTemplates).values({
+      seasonId: data.seasonId,
+      kind: data.kind,
+      name: data.name ?? "",
+      fields: data.fields,
+      revision: 1,
+      createdBy: data.createdBy ?? null,
+    }).returning();
+    return row;
+  }
+
+  async updateTemplate(id: number, data: { name?: string; fields?: any[] }): Promise<any | undefined> {
+    const updates: Record<string, any> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.fields !== undefined) {
+      updates.fields = data.fields;
+      updates.revision = sql`${scoutingTemplates.revision} + 1`;
+    }
+    if (Object.keys(updates).length === 0) return this.getTemplateById(id);
+    const [row] = await db.update(scoutingTemplates).set(updates).where(eq(scoutingTemplates.id, id)).returning();
+    return row;
   }
 
   async getCompetitionAssignments(eventId: number): Promise<CompetitionAssignment[]> {
@@ -1059,6 +1179,99 @@ export class DatabaseStorage implements IStorage {
   async ensureArchiveColumns(): Promise<void> {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
+  }
+
+  async ensureProjectLinksColumn(): Promise<void> {
+    await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'`);
+  }
+
+  /**
+   * Seasons + customizable scouting templates (Epic D). Idempotent: creates the
+   * tables/columns, seeds a default active season with built-in templates that
+   * mirror the legacy forms, assigns existing events to it, and backfills every
+   * scout record's `data` blob from its legacy columns. Safe to run on boot.
+   */
+  async ensureScoutingSeasonsTables(): Promise<void> {
+    // 1. Tables + columns (all additive; legacy columns kept intact).
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS seasons (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        game_name TEXT NOT NULL DEFAULT '',
+        year INTEGER,
+        active BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS scouting_templates (
+        id SERIAL PRIMARY KEY,
+        season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        fields JSONB NOT NULL DEFAULT '[]',
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS scouting_templates_season_kind_unique
+      ON scouting_templates (season_id, kind)
+    `);
+    await db.execute(sql`ALTER TABLE scout_events ADD COLUMN IF NOT EXISTS season_id INTEGER REFERENCES seasons(id)`);
+    await db.execute(sql`ALTER TABLE pit_scouts ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES scouting_templates(id)`);
+    await db.execute(sql`ALTER TABLE pit_scouts ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}'`);
+    await db.execute(sql`ALTER TABLE match_scouts ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES scouting_templates(id)`);
+    await db.execute(sql`ALTER TABLE match_scouts ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}'`);
+
+    // 2. Default season (only if none exists).
+    let [defaultSeason] = await db.select().from(seasons).limit(1);
+    if (!defaultSeason) {
+      const year = new Date().getFullYear();
+      [defaultSeason] = await db.insert(seasons)
+        .values({ name: String(year), gameName: "", year, active: true })
+        .returning();
+    }
+
+    // 3. Built-in pit + match templates for the default season (idempotent via
+    //    the unique (season_id, kind) index — insert only when missing).
+    for (const kind of ["pit", "match"] as ScoutKind[]) {
+      const existing = await db.select().from(scoutingTemplates)
+        .where(and(eq(scoutingTemplates.seasonId, defaultSeason.id), eq(scoutingTemplates.kind, kind)))
+        .limit(1);
+      if (existing.length === 0) {
+        await db.insert(scoutingTemplates).values({
+          seasonId: defaultSeason.id,
+          kind,
+          name: BUILTIN_TEMPLATES[kind].name,
+          fields: BUILTIN_TEMPLATES[kind].fields,
+          revision: 1,
+        });
+      }
+    }
+    const [pitTemplate] = await db.select().from(scoutingTemplates)
+      .where(and(eq(scoutingTemplates.seasonId, defaultSeason.id), eq(scoutingTemplates.kind, "pit"))).limit(1);
+    const [matchTemplate] = await db.select().from(scoutingTemplates)
+      .where(and(eq(scoutingTemplates.seasonId, defaultSeason.id), eq(scoutingTemplates.kind, "match"))).limit(1);
+
+    // 4. Assign orphan events to the default season.
+    await db.execute(sql`UPDATE scout_events SET season_id = ${defaultSeason.id} WHERE season_id IS NULL`);
+
+    // 5. Backfill `data` + `template_id` on every scout record whose data blob
+    //    is still empty. One-time; legacy columns are retained for safety.
+    const pitRows = await db.select().from(pitScouts).where(sql`${pitScouts.data} = '{}'::jsonb`);
+    for (const row of pitRows as any[]) {
+      await db.update(pitScouts)
+        .set({ data: dataFromLegacyRow("pit", row), templateId: row.templateId ?? pitTemplate?.id })
+        .where(eq(pitScouts.id, row.id));
+    }
+    const matchRows = await db.select().from(matchScouts).where(sql`${matchScouts.data} = '{}'::jsonb`);
+    for (const row of matchRows as any[]) {
+      await db.update(matchScouts)
+        .set({ data: dataFromLegacyRow("match", row), templateId: row.templateId ?? matchTemplate?.id })
+        .where(eq(matchScouts.id, row.id));
+    }
   }
 
   async migrateApiKeyColumns(): Promise<void> {
