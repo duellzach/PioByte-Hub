@@ -125,7 +125,7 @@ const ScoutEventList: React.FC<ScoutEventListProps> = ({
 
       {showEventForm && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl p-6 md:p-12 shadow-2xl border-t-8 border-teamColor">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[40px] w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 md:p-12 shadow-2xl border-t-8 border-teamColor">
             <div className="flex justify-between items-start mb-6 md:mb-10">
               <div>
                 <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">New Event</h2>
