@@ -180,7 +180,6 @@ initializeDatabase().then(() => {
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
       await storage.ensureProjectLinksColumn();
-      await storage.ensureScoutingSeasonsTables();
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.
       storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));
@@ -189,6 +188,11 @@ initializeDatabase().then(() => {
       }, 60 * 60 * 1000);
     } catch (e) {
       console.warn("Calendar type migration skipped:", e);
+    }
+    try {
+      await storage.ensureScoutingSeasonsTables();
+    } catch (e) {
+      console.warn("Scouting seasons migration skipped:", e);
     }
     try {
       await storage.backfillNexusEventKeys();

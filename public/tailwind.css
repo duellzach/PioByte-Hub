@@ -801,6 +801,10 @@ video {
   z-index: 115;
 }
 
+.z-\[120\] {
+  z-index: 120;
+}
+
 .z-\[200\] {
   z-index: 200;
 }
@@ -827,10 +831,6 @@ video {
 
 .z-\[9999\] {
   z-index: 9999;
-}
-
-.z-\[120\] {
-  z-index: 120;
 }
 
 .col-span-2 {
@@ -1317,6 +1317,10 @@ video {
   min-width: 0px;
 }
 
+.min-w-\[10rem\] {
+  min-width: 10rem;
+}
+
 .min-w-\[64px\] {
   min-width: 64px;
 }
@@ -1326,12 +1330,12 @@ video {
   min-width: max-content;
 }
 
-.min-w-\[10rem\] {
-  min-width: 10rem;
-}
-
 .max-w-2xl {
   max-width: 42rem;
+}
+
+.max-w-3xl {
+  max-width: 48rem;
 }
 
 .max-w-4xl {
@@ -1340,6 +1344,10 @@ video {
 
 .max-w-5xl {
   max-width: 64rem;
+}
+
+.max-w-\[12rem\] {
+  max-width: 12rem;
 }
 
 .max-w-\[14rem\] {
@@ -1376,14 +1384,6 @@ video {
 
 .max-w-xl {
   max-width: 36rem;
-}
-
-.max-w-3xl {
-  max-width: 48rem;
-}
-
-.max-w-\[12rem\] {
-  max-width: 12rem;
 }
 
 .flex-1 {
@@ -2918,6 +2918,10 @@ video {
   padding-bottom: 2rem;
 }
 
+.pb-1 {
+  padding-bottom: 0.25rem;
+}
+
 .pb-2 {
   padding-bottom: 0.5rem;
 }
@@ -3036,10 +3040,6 @@ video {
 
 .pt-8 {
   padding-top: 2rem;
-}
-
-.pb-1 {
-  padding-bottom: 0.25rem;
 }
 
 .text-left {
@@ -3200,6 +3200,10 @@ video {
   letter-spacing: 0.4em;
 }
 
+.tracking-normal {
+  letter-spacing: 0em;
+}
+
 .tracking-tight {
   letter-spacing: -0.025em;
 }
@@ -3218,10 +3222,6 @@ video {
 
 .tracking-widest {
   letter-spacing: 0.1em;
-}
-
-.tracking-normal {
-  letter-spacing: 0em;
 }
 
 .text-amber-400 {
@@ -4479,6 +4479,11 @@ body {
   color: rgb(5 150 105 / var(--tw-text-opacity, 1));
 }
 
+.hover\:text-green-600:hover {
+  --tw-text-opacity: 1;
+  color: rgb(22 163 74 / var(--tw-text-opacity, 1));
+}
+
 .hover\:text-red-500:hover {
   --tw-text-opacity: 1;
   color: rgb(239 68 68 / var(--tw-text-opacity, 1));
@@ -4527,11 +4532,6 @@ body {
 .hover\:text-white:hover {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
-}
-
-.hover\:text-green-600:hover {
-  --tw-text-opacity: 1;
-  color: rgb(22 163 74 / var(--tw-text-opacity, 1));
 }
 
 .hover\:underline:hover {
@@ -5716,12 +5716,12 @@ body {
     display: inline-flex;
   }
 
-  .sm\:w-auto {
-    width: auto;
-  }
-
   .sm\:w-40 {
     width: 10rem;
+  }
+
+  .sm\:w-auto {
+    width: auto;
   }
 
   .sm\:min-w-\[160px\] {
