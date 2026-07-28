@@ -1,5 +1,27 @@
 # Threat Model
 
+## Remediation Status (2026-07-27)
+
+**All access-control / auth findings in this document are remediated in the current codebase** (commit `Security Update`, verified live against a running server + Postgres). The categories below map each threat to its fix; the original analysis is retained after this section as the record of what was found.
+
+| Threat | Fix | Location |
+|---|---|---|
+| Rate limiter reads raw `X-Forwarded-For` | Key on Express `req.ip` (`trust proxy=1` already set) | `server/routes/users.ts` `clientIp()` |
+| Non-constant-time legacy password compare | `crypto.timingSafeEqual` on equal-length buffers | `server/security.ts` `verifyPassword()` |
+| `DELETE /tasks/:id`, task create/edit unauthorized | Leadership for delete; create gated by board `allowAllTaskCreation`; edit limited to assignees/contributors | `server/routes/tasks.ts` |
+| Hours forge/self-approve (`time-entries` confirm/edit/delete/bulk-add) | `requireRoles(...COACH_CAPTAIN)` | `server/routes/time.ts` |
+| Falsify cert checklist (`PUT /cert-requests/:id/progress`); `POST /cert-requests` arbitrary `userId` | Trainer/Coach guard; subject taken from session unless trainer acts for others | `server/routes/safety.ts` |
+| Scouting write endpoints unauthorized | Members enter records; events/deletes/imports/assignments leadership-only (`requireScoutManager`) | `server/routes/scout.ts` |
+| Guest PIN reads ALL events' scouting data | `guestEventScopeOk()` — 403 unless URL event id == session `eventId`; cross-event history denied | `server/middleware/auth.ts` |
+| `PUT /users/:id` self password change w/o current password; self-unarchive | Strip `password`/`archived`/`roles`/`muted` for non-privileged; password change must use `/change-password` (verifies current) | `server/routes/users.ts` |
+| `POST /api/seed` open to any member | Bootstrap only on empty DB; re-seed of a populated DB requires Coach/Captain | `server/routes/resources.ts` |
+| `POST /projects` unauthorized | `requireRoles(...BOARD_MANAGERS)` | `server/routes/projects.ts` |
+| Reset script logs plaintext passwords | Passwords no longer logged | `server/reset.ts` |
+
+**Remaining (Denial of Service — observations, not Required Guarantees):** no global rate limit on non-login endpoints (all are session- and role-gated); request body capped at 10 MB (`express.json`) and pit photos are compressed client-side; external API proxies (TBA/TOA/Nexus) have no explicit fetch timeout — a future hardening item. Tracked, not blocking.
+
+---
+
 ## Project Overview
 
 PioByte Hub is a web-based FRC (FIRST Robotics Competition) team management platform. It is a publicly deployed (`reserved_vm`, visibility: `public`) full-stack application built with React 19 + TypeScript (frontend), Express + TypeScript (backend), PostgreSQL via Drizzle ORM. Users are FRC team members with roles: Coach, Team Captain, SCRUM Master, Department Head, Safety Trainer, Team Member, Class Member. A guest PIN system allows external alliance partners read-only access to scouting data. The app is deployed at `https://PiobytesHub.replit.app`.
