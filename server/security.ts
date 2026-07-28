@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { timingSafeEqual } from "crypto";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -68,7 +69,13 @@ export async function verifyPassword(
     return { ok: await bcrypt.compare(plain, stored), needsRehash: false };
   }
   // Legacy plaintext row — accept on exact match, then upgrade to a hash.
-  return { ok: plain === stored, needsRehash: plain === stored };
+  // Constant-time compare so login timing doesn't leak how much of the password
+  // matched. Length is compared first (unavoidably non-secret) so the buffers
+  // fed to timingSafeEqual are equal-length.
+  const a = Buffer.from(plain);
+  const b = Buffer.from(stored);
+  const ok = a.length === b.length && timingSafeEqual(a, b);
+  return { ok, needsRehash: ok };
 }
 
 /** Strip the password field from a user object before sending it to a client. */

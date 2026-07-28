@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
 
 const router = Router();
@@ -89,6 +90,13 @@ router.post("/time-entries/check-in", async (req, res) => {
       actionType: "check_in",
       newValues: { checkInAt: entry.checkInAt, kind },
     });
+    // Reflect the student on the event's attendance roster immediately, so
+    // "Here Now" (and emergency headcounts) include self clock-ins — not just
+    // coach-driven check-ins. Non-fatal: never block the clock-in on this.
+    if (kind !== "shop" && calendarEventId) {
+      storage.selfCheckInSignup(calendarEventId, parseInt(userId), entry.checkInAt)
+        .catch((e) => console.error("selfCheckInSignup:", e));
+    }
     res.status(201).json(entry);
   } catch (error) {
     console.error("Error checking in:", error);
@@ -116,6 +124,11 @@ router.post("/time-entries/:id/check-out", async (req, res) => {
       previousValues: { checkOutAt: null },
       newValues: { checkOutAt },
     });
+    // Clear the roster's "here now" state when clocking out of an event.
+    if (entry.kind !== "shop" && entry.calendarEventId) {
+      storage.selfCheckOutSignup(entry.calendarEventId, entry.userId, checkOutAt)
+        .catch((e) => console.error("selfCheckOutSignup:", e));
+    }
 
     if (entry.workingOnTaskId) {
       const task = await storage.getTask(entry.workingOnTaskId);
@@ -141,7 +154,7 @@ router.post("/time-entries/:id/check-out", async (req, res) => {
   }
 });
 
-router.post("/time-entries/:id/confirm", async (req, res) => {
+router.post("/time-entries/:id/confirm", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { coachId, confirmType } = req.body;
@@ -188,7 +201,7 @@ router.post("/time-entries/:id/confirm", async (req, res) => {
   }
 });
 
-router.put("/time-entries/:id", async (req, res) => {
+router.put("/time-entries/:id", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { coachId, checkInAt, checkOutAt, notes } = req.body;
@@ -264,7 +277,7 @@ router.get("/time-entries/:id/audit", async (req, res) => {
   }
 });
 
-router.delete("/time-entries/:id", async (req, res) => {
+router.delete("/time-entries/:id", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { coachId } = req.body;
@@ -306,7 +319,7 @@ router.patch("/time-entries/:id/set-working-on", async (req, res) => {
   }
 });
 
-router.post("/time-entries/bulk-add", async (req, res) => {
+router.post("/time-entries/bulk-add", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const { coachId, userIds, minutes, notes, date } = req.body;
     const results = [];

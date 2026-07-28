@@ -23,8 +23,11 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const LOGIN_RATE_LIMIT = 10;
 const LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000;
 
+// Use Express's resolved req.ip. With `trust proxy=1` (server/index.ts), this is
+// the client address as seen by the single trusted proxy hop — unlike the raw
+// X-Forwarded-For header, a client cannot spoof it to rotate the rate-limit key.
 function clientIp(req: Request): string {
-  return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  return req.ip || req.socket.remoteAddress || 'unknown';
 }
 
 // NOTE: in-memory limiter — per-instance under Replit autoscale. Acceptable for
@@ -43,7 +46,7 @@ function checkLoginRateLimit(req: Request): boolean {
 }
 
 function checkGuestRateLimit(req: Request): boolean {
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const ip = clientIp(req);
   const now = Date.now();
   const entry = guestLoginAttempts.get(ip);
   if (!entry || now > entry.resetAt) {
@@ -103,11 +106,16 @@ router.put("/users/:id", async (req, res) => {
       return res.status(403).json({ error: "You can only edit your own profile" });
     }
     const updateData = { ...req.body };
-    // Only privileged users may change roles or another account's password.
+    // Only privileged users (Coach/Captain) may change roles, mute state,
+    // archived state, or set a password directly. Self-service password changes
+    // must go through POST /users/:id/change-password, which verifies the
+    // current password; stripping it here also blocks an archived user from
+    // reactivating their own account via this endpoint.
     if (!isPrivileged) {
       delete updateData.roles;
       delete updateData.muted;
-      if (!isSelf) delete updateData.password;
+      delete updateData.archived;
+      delete updateData.password;
     }
     if (updateData.username) {
       updateData.username = updateData.username.toLowerCase().trim();

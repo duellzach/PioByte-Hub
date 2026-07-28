@@ -19,7 +19,7 @@ router.get("/projects", async (req, res) => {
   }
 });
 
-router.post("/projects", async (req, res) => {
+router.post("/projects", requireRoles(...BOARD_MANAGERS), async (req, res) => {
   try {
     const project = await storage.createProject(req.body);
     res.status(201).json(project);

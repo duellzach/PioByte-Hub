@@ -110,12 +110,15 @@ async function reset() {
 
   console.log('✅  Done! Demo accounts ready:');
   console.log('');
-  console.log('   Username          Role             Password');
-  console.log('   ─────────────────────────────────────────────');
+  console.log('   Username          Role');
+  console.log('   ─────────────────────────────────');
   for (const u of demoUsers) {
-    console.log(`   ${u.username.padEnd(17)} ${u.roles[0].padEnd(16)} ${u.password}`);
+    console.log(`   ${u.username.padEnd(17)} ${u.roles[0]}`);
   }
   console.log('');
+  // Passwords are intentionally NOT logged — stdout is often captured by log
+  // aggregators. All seeded accounts share the documented dev password.
+  console.log('   All demo accounts use the standard seed password (see server/reset.ts).');
   console.log('   ⚠️  Change all passwords after your first login.');
 }
 

@@ -1,9 +1,16 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY, hasNexusKey } from "../helpers";
+import { requireRoles } from "../middleware/auth";
 import { BUILTIN_TEMPLATES, type ScoutKind, type TemplateField } from "../../shared/scoutingTemplates";
 
 const router = Router();
+
+// Members may enter scouting records (the normal competition workflow), but
+// managing scout events, deleting records, imports, and assignments are
+// leadership-only.
+const SCOUT_MANAGERS = ["Coach", "Team Captain", "SCRUM Master"];
+const requireScoutManager = requireRoles(...SCOUT_MANAGERS);
 
 /** Resolve the template a scout event uses for a kind (custom → built-in fallback). */
 async function resolveTemplateFields(event: any, kind: ScoutKind): Promise<TemplateField[]> {
@@ -24,7 +31,7 @@ router.get("/scout-events", async (req, res) => {
   }
 });
 
-router.post("/scout-events", async (req, res) => {
+router.post("/scout-events", requireScoutManager, async (req, res) => {
   try {
     const event = await storage.createScoutEvent(req.body);
     res.status(201).json(event);
@@ -34,7 +41,7 @@ router.post("/scout-events", async (req, res) => {
   }
 });
 
-router.put("/scout-events/:id", async (req, res) => {
+router.put("/scout-events/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const event = await storage.updateScoutEvent(id, req.body);
@@ -46,7 +53,7 @@ router.put("/scout-events/:id", async (req, res) => {
   }
 });
 
-router.delete("/scout-events/:id", async (req, res) => {
+router.delete("/scout-events/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await storage.deleteScoutEvent(id);
@@ -91,7 +98,7 @@ router.put("/pit-scouts/:id", async (req, res) => {
   }
 });
 
-router.delete("/pit-scouts/:id", async (req, res) => {
+router.delete("/pit-scouts/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await storage.deletePitScout(id);
@@ -156,7 +163,7 @@ router.put("/match-scouts/:id", async (req, res) => {
   }
 });
 
-router.delete("/match-scouts/:id", async (req, res) => {
+router.delete("/match-scouts/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await storage.deleteMatchScout(id);
@@ -167,7 +174,7 @@ router.delete("/match-scouts/:id", async (req, res) => {
   }
 });
 
-router.post("/scout-events/:eventId/import", async (req, res) => {
+router.post("/scout-events/:eventId/import", requireScoutManager, async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
     const { matchScouts: matchData, pitScouts: pitData } = req.body;
@@ -528,7 +535,7 @@ router.get("/scout-events/:eventId/assignments", async (req, res) => {
   }
 });
 
-router.post("/scout-events/:eventId/assignments", async (req, res) => {
+router.post("/scout-events/:eventId/assignments", requireScoutManager, async (req, res) => {
   try {
     const eventId = parseInt(req.params.eventId);
     const actorId = parseInt(req.body.createdBy);
@@ -546,7 +553,7 @@ router.post("/scout-events/:eventId/assignments", async (req, res) => {
   }
 });
 
-router.put("/scout-events/:eventId/assignments/:id", async (req, res) => {
+router.put("/scout-events/:eventId/assignments/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const eventId = parseInt(req.params.eventId);
@@ -567,7 +574,7 @@ router.put("/scout-events/:eventId/assignments/:id", async (req, res) => {
   }
 });
 
-router.delete("/scout-events/:eventId/assignments/:id", async (req, res) => {
+router.delete("/scout-events/:eventId/assignments/:id", requireScoutManager, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const eventId = parseInt(req.params.eventId);
@@ -693,7 +700,7 @@ async function requireTeamMember(userId: number | undefined, res: any): Promise<
   return true;
 }
 
-router.get("/events/:id/guest-pin", async (req, res) => {
+router.get("/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const userId = parseInt(req.query.userId as string);
     if (!(await requireTeamMember(userId, res))) return;
@@ -706,7 +713,7 @@ router.get("/events/:id/guest-pin", async (req, res) => {
   }
 });
 
-router.post("/events/:id/guest-pin", async (req, res) => {
+router.post("/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const { label, createdBy } = req.body;
@@ -727,7 +734,7 @@ router.post("/events/:id/guest-pin", async (req, res) => {
   }
 });
 
-router.delete("/events/:id/guest-pin", async (req, res) => {
+router.delete("/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const userId = parseInt(req.query.userId as string);
     if (!(await requireTeamMember(userId, res))) return;
@@ -740,7 +747,7 @@ router.delete("/events/:id/guest-pin", async (req, res) => {
   }
 });
 
-router.get("/scout/events/:id/guest-pin", async (req, res) => {
+router.get("/scout/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const userId = parseInt(req.query.userId as string);
     if (!(await requireTeamMember(userId, res))) return;
@@ -751,7 +758,7 @@ router.get("/scout/events/:id/guest-pin", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch guest pin" });
   }
 });
-router.post("/scout/events/:id/guest-pin", async (req, res) => {
+router.post("/scout/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const { label, createdBy } = req.body;
@@ -770,7 +777,7 @@ router.post("/scout/events/:id/guest-pin", async (req, res) => {
     res.status(500).json({ error: "Failed to create guest pin" });
   }
 });
-router.delete("/scout/events/:id/guest-pin", async (req, res) => {
+router.delete("/scout/events/:id/guest-pin", requireScoutManager, async (req, res) => {
   try {
     const userId = parseInt(req.query.userId as string);
     if (!(await requireTeamMember(userId, res))) return;

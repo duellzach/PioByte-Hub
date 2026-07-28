@@ -1393,6 +1393,37 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  // Self-service check-in from the time clock: mark the student present on the
+  // event roster the moment they clock in. Mirrors upsertAndCheckIn but records
+  // the student as their own checker-in and never downgrades an existing status
+  // (an accepted/waitlisted signup keeps its status; a walk-in is created as
+  // 'accepted').
+  async selfCheckInSignup(eventId: number, userId: number, time?: Date): Promise<EventSignup> {
+    const at = time ?? new Date();
+    const existing = await this.getEventSignup(eventId, userId);
+    if (existing) {
+      const [row] = await db.update(eventSignups)
+        .set({ checkedInAt: at, checkedOutAt: null, checkedInBy: userId })
+        .where(eq(eventSignups.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(eventSignups)
+      .values({ calendarEventId: eventId, userId, status: 'accepted', checkedInAt: at, checkedInBy: userId })
+      .returning();
+    return row;
+  }
+
+  // Self-service check-out from the time clock: clear the roster's "here now"
+  // state. No-op if there is no signup row for this (event, user).
+  async selfCheckOutSignup(eventId: number, userId: number, time?: Date): Promise<EventSignup | undefined> {
+    const existing = await this.getEventSignup(eventId, userId);
+    if (!existing) return undefined;
+    const [row] = await db.update(eventSignups)
+      .set({ checkedOutAt: time ?? new Date() })
+      .where(eq(eventSignups.id, existing.id)).returning();
+    return row;
+  }
+
   async ensureRequirementsAndFundraising(): Promise<void> {
     // Note: DDL DEFAULTs can't be parameterized, so the JSON is inlined as a
     // literal. It contains only double quotes (safe inside single-quoted SQL).

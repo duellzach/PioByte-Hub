@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { requireRoles } from "../middleware/auth";
 import { getUserRoles, hasAnyRole, COACH_CAPTAIN, COACH_CAPTAIN_TRAINER, TRAINER_COACH } from "../helpers";
 
 const router = Router();
@@ -180,11 +181,17 @@ router.get("/cert-requests", async (req, res) => {
 
 router.post("/cert-requests", async (req, res) => {
   try {
-    const { userId, certId } = req.body;
-    if (!userId || !certId) {
-      return res.status(400).json({ error: "userId and certId are required" });
+    const { certId } = req.body;
+    if (!certId) {
+      return res.status(400).json({ error: "certId is required" });
     }
-    const parsedUserId = parseInt(userId);
+    // Students request for themselves; only Trainers/Coaches may file a request
+    // on behalf of another user (otherwise the body `userId` is ignored).
+    const actorRoles = await getUserRoles(req.userId!);
+    const canActForOthers = hasAnyRole(actorRoles, TRAINER_COACH);
+    const parsedUserId = canActForOthers && req.body.userId
+      ? parseInt(req.body.userId)
+      : req.userId!;
     const parsedCertId = parseInt(certId);
     const existingCerts = await storage.getUserCertifications(parsedUserId);
     if (existingCerts.some((c: any) => c.certificationId === parsedCertId)) {
@@ -220,7 +227,7 @@ router.post("/cert-requests/:id/claim", async (req, res) => {
   }
 });
 
-router.put("/cert-requests/:id/progress", async (req, res) => {
+router.put("/cert-requests/:id/progress", requireRoles(...TRAINER_COACH), async (req, res) => {
   try {
     const requestId = parseInt(req.params.id);
     const { checklistProgress, notes } = req.body;

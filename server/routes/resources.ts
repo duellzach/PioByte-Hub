@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN, COACH_CAPTAIN_DEPT_HEAD } from "../helpers";
 
 const router = Router();
 
@@ -80,6 +80,15 @@ router.delete("/resources/:id", async (req, res) => {
 
 router.post("/seed", async (req, res) => {
   try {
+    // Bootstrap (empty DB) is open to any authed caller; re-seeding a populated
+    // database is destructive-adjacent and restricted to Coach/Team Captain.
+    const existingUsers = await storage.getUsers();
+    if (existingUsers.length > 0) {
+      const roles = await getUserRoles(req.userId!);
+      if (!hasAnyRole(roles, COACH_CAPTAIN)) {
+        return res.status(403).json({ error: "Only a coach or captain can re-seed an initialized team" });
+      }
+    }
     await storage.seedDatabase();
     res.json({ success: true, message: "Database seeded successfully" });
   } catch (error) {

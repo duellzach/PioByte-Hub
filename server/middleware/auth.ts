@@ -47,6 +47,24 @@ function guestAllowed(method: string, path: string): boolean {
   );
 }
 
+/**
+ * A guest PIN authenticates against ONE scout event. Beyond the method/path
+ * allow-list above, a guest may only read data for their own event: any path
+ * carrying an explicit event id must match the session's `eventId`, and
+ * cross-event history is denied outright. Paths without an event id (the bare
+ * event list, third-party proxies) are permitted.
+ */
+function guestEventScopeOk(path: string, eventId: number): boolean {
+  // Cross-event team history spans all events — not scopable to one; deny.
+  if (/^\/scout\/team\//.test(path)) return false;
+  const m =
+    path.match(/^\/scout-events\/(\d+)(?:\/|$)/) ||
+    path.match(/^\/scout\/events\/(\d+)(?:\/|$)/) ||
+    path.match(/^\/events\/(\d+)\/(?:team-claims|match-exceptions)/);
+  if (m) return parseInt(m[1], 10) === eventId;
+  return true;
+}
+
 export function authenticate(req: Request, res: Response, next: NextFunction) {
   const path = req.path; // path within the /api router, e.g. "/users"
   if (isPublic(req.method, path)) return next();
@@ -57,7 +75,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   }
 
   if (session.kind === "guest") {
-    if (!guestAllowed(req.method, path)) {
+    if (!guestAllowed(req.method, path) || !guestEventScopeOk(path, session.eventId)) {
       return res.status(403).json({ error: "Guests have read-only access to scouting for their event" });
     }
     req.guestEventId = session.eventId;
