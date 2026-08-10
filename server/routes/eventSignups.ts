@@ -64,6 +64,51 @@ async function syncEventTimeEntry(signup: EventSignup): Promise<void> {
   // Hours only count once the person has checked out.
 }
 
+/**
+ * After a COACH checks a student in (upsertAndCheckIn), open a matching
+ * time_entries row so the student's own time window sees an active session
+ * and can request check-out. Without this, the coach-driven roster check-in
+ * is invisible on the shared time clock — syncEventTimeEntry() above only
+ * ever creates an entry at check-out time, so a coach check-in with no
+ * check-out yet would otherwise leave the student with nothing to see.
+ * Non-fatal and idempotent: skips if the student already has an open entry
+ * (self clock-in already covered them) or an entry already linked to this
+ * event.
+ */
+async function syncEventCheckInEntry(signup: EventSignup, coachId: number): Promise<void> {
+  const { calendarEventId, userId, checkedInAt } = signup;
+  if (!calendarEventId || !checkedInAt) return;
+
+  const event = await storage.getCalendarEvent(calendarEventId);
+  if (!event || !CLOCKABLE_TYPES.includes(event.type)) return;
+
+  const alreadyOpen = await storage.getOpenTimeEntry(userId);
+  if (alreadyOpen) return;
+
+  const [existing] = await db
+    .select()
+    .from(timeEntries)
+    .where(and(eq(timeEntries.calendarEventId, calendarEventId), eq(timeEntries.userId, userId)))
+    .limit(1);
+  if (existing) return;
+
+  const entry = await storage.createTimeEntry({
+    userId,
+    checkInAt: new Date(checkedInAt as any),
+    status: "checked_in",
+    checkInConfirmedBy: coachId,
+    checkInConfirmedAt: new Date(),
+    kind: event.type,
+    calendarEventId,
+  } as any);
+  await storage.createTimeEntryAudit({
+    entryId: entry.id,
+    actorId: coachId,
+    actionType: "check_in",
+    newValues: { checkInAt: entry.checkInAt, kind: event.type, source: "coach_event_checkin" },
+  });
+}
+
 const router = Router();
 
 function isLeadership(roles: string[] = []): boolean {
@@ -158,6 +203,9 @@ router.post("/calendar/:id/checkin", requireRoles(...LEADERSHIP), async (req, re
     if (!userId) return res.status(400).json({ error: "userId required" });
     const parsedTime = time ? new Date(time) : undefined;
     const signup = await storage.upsertAndCheckIn(eventId, parseInt(userId), req.userId!, parsedTime);
+    // Bridge to time_entries so the student sees this on their own time window
+    // and can request check-out (see syncEventCheckInEntry for why this is needed).
+    syncEventCheckInEntry(signup, req.userId!).catch((e) => console.error("syncEventCheckInEntry:", e));
     res.json(signup);
   } catch (error) {
     console.error("Error checking in:", error);
@@ -201,12 +249,13 @@ router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req,
 });
 
 // Today's events the user may clock into → the check-in picker. Events that take
-// sign-ups need an accepted one; open events are clockable by anyone.
+// sign-ups are clockable unless the sign-up was explicitly declined; open
+// events are clockable by anyone.
 router.get("/me/clockable-events", async (req, res) => {
   try {
     const today = todayLocalStr();
     const mySignups = await storage.getUserSignups(req.userId!);
-    const accepted = new Set(mySignups.filter((s) => s.status === "accepted").map((s) => s.calendarEventId));
+    const declined = new Set(mySignups.filter((s) => s.status === "declined").map((s) => s.calendarEventId));
     const events = await storage.getCalendarEvents();
     // A weekly recurrence that is overridden or cancelled on a given date has a
     // separate row for that date; skip the parent's occurrence when one exists.
@@ -214,7 +263,7 @@ router.get("/me/clockable-events", async (req, res) => {
       events.filter((e) => e.parentEventId && e.instanceDate).map((e) => `${e.parentEventId}::${e.instanceDate}`)
     );
     const clockable = events.filter((e) =>
-      (e.signupEnabled ? accepted.has(e.id) : true) &&
+      (e.signupEnabled ? !declined.has(e.id) : true) &&
       CLOCKABLE_TYPES.includes(e.type) &&
       !overridden.has(`${e.id}::${today}`) &&
       eventOccursOn(e, today)

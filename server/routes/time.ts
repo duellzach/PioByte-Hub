@@ -59,16 +59,17 @@ router.post("/time-entries/check-in", async (req, res) => {
     const calendarEventId = req.body.calendarEventId ? parseInt(req.body.calendarEventId) : null;
 
     // Every non-shop kind is clocked against a calendar event. Events that take
-    // sign-ups additionally require an accepted one; open events (most meetings)
-    // let anyone clock in — a coach still confirms the hours either way.
+    // sign-ups block clock-in only once a signup has been explicitly declined;
+    // requested/waitlisted/no-signup-yet are all still clockable — a coach
+    // still confirms the hours either way.
     if (kind !== "shop") {
       if (!calendarEventId) return res.status(400).json({ error: "An event is required for this kind of time" });
       const event = await storage.getCalendarEvent(calendarEventId);
       if (!event) return res.status(404).json({ error: "Event not found" });
       if (event.signupEnabled) {
         const signup = await storage.getEventSignup(calendarEventId, parseInt(userId));
-        if (!signup || signup.status !== "accepted") {
-          return res.status(403).json({ error: "You must be accepted to this event before clocking in" });
+        if (signup && signup.status === "declined") {
+          return res.status(403).json({ error: "Your sign-up for this event was declined" });
         }
       }
     }

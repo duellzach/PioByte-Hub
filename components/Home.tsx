@@ -8,6 +8,7 @@ import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
 import { parseLocalDate } from '../utils/dates';
 import RequirementsCard from './RequirementsCard';
 import UpcomingCard from './UpcomingCard';
+import TeamHoursCard from './TeamHoursCard';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
@@ -350,9 +351,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-start">
         <RequirementsCard />
         <UpcomingCard />
+        <TeamHoursCard timeEntries={state.timeEntries} />
 
         {/* Announcements Preview in a compact column */}
         <section className="bg-slate-950 rounded-2xl md:rounded-[28px] p-6 flex flex-col h-[300px]">
