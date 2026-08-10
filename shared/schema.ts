@@ -129,6 +129,11 @@ export const timeEntries = pgTable("time_entries", {
   // clocked against.
   kind: text("kind").notNull().default("shop"),
   calendarEventId: integer("calendar_event_id").references(() => calendarEvents.id, { onDelete: "set null" }),
+  // Competition time ("kind" = "competition") is clocked against a scouting
+  // competition (scout_events), not a calendar event — the two are separate
+  // entities. Exactly one of calendarEventId/scoutEventId is set, or neither
+  // for plain shop time. See server/routes/competition.ts.
+  scoutEventId: integer("scout_event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -444,6 +449,9 @@ export const calendarEvents = pgTable("calendar_events", {
   signupEnabled: boolean("signup_enabled").notNull().default(false),
   capacity: integer("capacity"), // null = unlimited
   archived: boolean("archived").notNull().default(false),
+  // Invite-only visibility: hidden from everyone except invitees, the
+  // creator, and leadership. See server/services/eventVisibility.ts.
+  inviteOnly: boolean("invite_only").notNull().default(false),
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
@@ -528,6 +536,18 @@ export const guestTokens = pgTable("guest_tokens", {
 export type GuestToken = typeof guestTokens.$inferSelect;
 export type InsertGuestToken = typeof guestTokens.$inferInsert;
 
+// One secret per user for their personal calendar subscription feed
+// (webcal/ICS). "Regenerating" is an update-in-place — the old URL stops
+// working the instant a new token is written. See server/routes/calendarFeed.ts.
+export const calendarFeedTokens = pgTable("calendar_feed_tokens", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type CalendarFeedToken = typeof calendarFeedTokens.$inferSelect;
+export type InsertCalendarFeedToken = typeof calendarFeedTokens.$inferInsert;
+
 // Web Push (VAPID) subscriptions — one row per browser/device a user enabled.
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: serial("id").primaryKey(),
@@ -571,13 +591,17 @@ export const eventSignups = pgTable("event_signups", {
   id: serial("id").primaryKey(),
   calendarEventId: integer("calendar_event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted
+  status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted | invited
   approvedBy: integer("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   note: text("note"),
   checkedInAt: timestamp("checked_in_at"),
   checkedOutAt: timestamp("checked_out_at"),
   checkedInBy: integer("checked_in_by").references(() => users.id),
+  // Set when status is (or was) "invited" — who invited this person to a
+  // private event, and when. See server/services/eventVisibility.ts.
+  invitedBy: integer("invited_by").references(() => users.id),
+  invitedAt: timestamp("invited_at"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqSignup: uniqueIndex("event_signups_unique_idx").on(t.calendarEventId, t.userId),

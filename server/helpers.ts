@@ -4,6 +4,12 @@ export const COACH_CAPTAIN = ['Coach', 'Team Captain'];
 export const COACH_CAPTAIN_DEPT_HEAD = ['Coach', 'Team Captain', 'Department Head'];
 export const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', 'Safety Trainer'];
 export const TRAINER_COACH = ['Safety Trainer', 'Coach'];
+// The union of every role that acts as "leadership" somewhere in the app.
+// `eventSignups.ts`'s LEADERSHIP (Coach/Captain/SCRUM Master) and this file's
+// COACH_CAPTAIN_DEPT_HEAD (Coach/Captain/Dept Head) disagreed on who counts —
+// this is the combined set, used where the distinction matters (e.g. who can
+// see an invite-only event).
+export const LEADERSHIP_ALL = ['Coach', 'Team Captain', 'Department Head', 'SCRUM Master'];
 
 export async function getUserRoles(userId: number): Promise<string[]> {
   const user = await storage.getUser(userId);

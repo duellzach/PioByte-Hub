@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 import { todayLocalStr } from '../utils/dates';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
+import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
 
 interface TimeTrackingProps {
   state: AppState;
@@ -225,17 +226,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }
   };
 
-  const doShopCheckIn = async () => {
-    setShowKindPicker(false);
-    setCheckInLoading(true);
-    setPickerSelectedTaskId(null);
-    setPickerSelectedGeneralTaskId(null);
+  // Opens the "what are you working on?" task picker for a freshly-created
+  // entry. Shared by shop check-ins and any event category that should behave
+  // like shop time (currently Class — see TASK_LINKED_CATEGORIES).
+  const openTaskPicker = async (entryId: number) => {
+    setPendingEntryId(entryId);
+    setShowTaskPicker(true);
+    setTaskPickerLoading(true);
     try {
-      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'shop' });
-      const entryId = parseInt(entry.id);
-      setPendingEntryId(entryId);
-      setShowTaskPicker(true);
-      setTaskPickerLoading(true);
       const [allAvailableTasks, generalTaskList] = await Promise.all([
         api.timeEntries.availableTasks(currentUserId),
         api.generalTasks.getAll(false),
@@ -243,12 +241,24 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       setAvailableAssignedTasks(allAvailableTasks.filter((t: AvailableTask) => t.isAssigned));
       setAvailableOpenTasks(allAvailableTasks.filter((t: AvailableTask) => !t.isAssigned));
       setAvailableGeneralTasks(generalTaskList);
+    } finally {
+      setTaskPickerLoading(false);
+    }
+  };
+
+  const doShopCheckIn = async () => {
+    setShowKindPicker(false);
+    setCheckInLoading(true);
+    setPickerSelectedTaskId(null);
+    setPickerSelectedGeneralTaskId(null);
+    try {
+      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'shop' });
+      await openTaskPicker(parseInt(entry.id));
     } catch (error) {
       console.error('Check-in failed:', error);
       onRefresh();
     } finally {
       setCheckInLoading(false);
-      setTaskPickerLoading(false);
     }
   };
 
@@ -256,7 +266,12 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     setShowKindPicker(false);
     setCheckInLoading(true);
     try {
-      await api.timeEntries.checkIn(currentUserId, { kind: event.type, calendarEventId: event.id });
+      const entry = await api.timeEntries.checkIn(currentUserId, { kind: event.type, calendarEventId: event.id });
+      if ((TASK_LINKED_CATEGORIES as readonly string[]).includes(event.type)) {
+        setPickerSelectedTaskId(null);
+        setPickerSelectedGeneralTaskId(null);
+        await openTaskPicker(parseInt(entry.id));
+      }
     } catch (error: any) {
       alert(error?.message || 'Could not clock in to that event.');
     } finally {

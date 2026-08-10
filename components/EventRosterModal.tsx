@@ -40,6 +40,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   accepted:   { label: 'Accepted',   cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
   declined:   { label: 'Declined',   cls: 'bg-slate-200 text-slate-500 dark:bg-slate-600' },
   waitlisted: { label: 'Waitlisted', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  invited:    { label: 'Invited',    cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
 };
 
 type EditTarget = { signupId: number; field: 'in' | 'out'; value: string };

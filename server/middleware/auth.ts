@@ -26,6 +26,10 @@ const PUBLIC: Array<{ method: string; test: (path: string) => boolean }> = [
   { method: "GET", test: (p) => p === "/settings/tba-logo" },
   { method: "GET", test: (p) => p === "/settings/toa-logo" },
   { method: "GET", test: (p) => p === "/settings/api-status" },
+  // Personal calendar subscription feed — polled by external calendar apps
+  // (Google/Apple/Outlook) that never carry a session cookie. The feed token
+  // itself is the credential; see server/routes/calendarFeed.ts.
+  { method: "GET", test: (p) => /^\/calendar\/feed\/[^/]+\.ics$/i.test(p) },
 ];
 
 function isPublic(method: string, path: string): boolean {

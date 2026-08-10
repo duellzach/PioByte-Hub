@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, tbaFetch, TBA_KEY, toaFetch, TOA_KEY } from "../helpers";
+import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, LEADERSHIP_ALL, tbaFetch, TBA_KEY, toaFetch, TOA_KEY } from "../helpers";
+import { filterVisibleEvents } from "../services/eventVisibility";
+import { sendPushToUsers } from "../push";
 
 const router = Router();
 
@@ -8,7 +10,9 @@ router.get("/calendar", async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
     const events = await storage.getCalendarEvents(includeArchived);
-    const enriched = await Promise.all(events.map(async (e) => {
+    const roles = req.userId ? await getUserRoles(req.userId) : [];
+    const visible = await filterVisibleEvents(events, req.userId!, roles);
+    const enriched = await Promise.all(visible.map(async (e) => {
       const cap = (e as any).capacity as number | null;
       if (cap == null) return e;
       const acceptedCount = await storage.countAcceptedSignups(e.id);
@@ -38,9 +42,39 @@ router.patch("/calendar/:id/archive", async (req, res) => {
   }
 });
 
+// Invite the given userIds to an event and notify the newly-added ones
+// (in-app notification + push). Never blocks the caller on failure.
+async function applyInvites(eventId: number, eventTitle: string, invitees: number[] | undefined, actorId: number) {
+  if (!Array.isArray(invitees)) return;
+  const before = new Set(await storage.getEventInviteeIds(eventId));
+  const after = new Set(invitees.map((id) => parseInt(String(id))));
+
+  const added = [...after].filter((id) => !before.has(id));
+  const removed = [...before].filter((id) => !after.has(id) && id !== actorId);
+
+  await storage.inviteUsersToEvent(eventId, added, actorId);
+  await Promise.all(removed.map((id) => storage.uninviteUserFromEvent(eventId, id)));
+
+  if (added.length === 0) return;
+  const actor = await storage.getUser(actorId).catch(() => null);
+  await Promise.all(added.map((toUserId) =>
+    storage.createNotification({
+      toUserId,
+      fromUserId: actorId,
+      message: `You've been invited to "${eventTitle}".`,
+    }).catch((e) => console.error("createNotification (invite):", e))
+  ));
+  sendPushToUsers(added, {
+    title: actor?.name ? `${actor.name} • PioByte Hub` : "PioByte Hub",
+    body: `You've been invited to "${eventTitle}"`,
+    url: "/#/calendar",
+    tag: `event-invite-${eventId}`,
+  }).catch((e) => console.error("sendPushToUsers (invite):", e));
+}
+
 router.post("/calendar", async (req, res) => {
   try {
-    const { requesterId, ...data } = req.body;
+    const { requesterId, invitees, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
@@ -51,6 +85,9 @@ router.post("/calendar", async (req, res) => {
       data.signupEnabled = true;
     }
     const event = await storage.createCalendarEvent({ ...data, createdBy: parseInt(requesterId) });
+    if (data.inviteOnly) {
+      await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
+    }
     res.status(201).json(event);
   } catch (error) {
     console.error("Error creating calendar event:", error);
@@ -61,7 +98,7 @@ router.post("/calendar", async (req, res) => {
 router.put("/calendar/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { requesterId, ...data } = req.body;
+    const { requesterId, invitees, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
@@ -69,6 +106,9 @@ router.put("/calendar/:id", async (req, res) => {
     }
     const event = await storage.updateCalendarEvent(id, data);
     if (!event) return res.status(404).json({ error: "Calendar event not found" });
+    if (event.inviteOnly) {
+      await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
+    }
     res.json(event);
   } catch (error) {
     console.error("Error updating calendar event:", error);

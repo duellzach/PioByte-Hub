@@ -1,31 +1,27 @@
 import { storage } from "../storage";
 import { HOUR_CATEGORIES, type HourCategory } from "../../shared/hourCategories";
+import { localDatePT as localDate } from "../../utils/dates";
 
-// The one place that answers "what counts as earned hours". Two systems record
-// time — the shared clock (`time_entries`) and competition check-ins — and both
-// normalize into the same row shape here so requirements, dashboards and
-// exports never have to know which table a row came from.
+// The one place that answers "what counts as earned hours". `time_entries` is
+// the single source — shop time, event-clocked time (meeting/volunteer/
+// outreach/class/fundraising), and competition time (kind='competition',
+// scoutEventId set — see server/routes/competition.ts) all live there.
+// competition_checkins is legacy: it predates the unification and is no
+// longer read anywhere; see storage.ensureCompetitionUnification for the
+// one-time backfill that moved its rows into time_entries.
 
 export interface LedgerRow {
   userId: number;
   category: HourCategory;
   minutes: number;
   date: string; // YYYY-MM-DD, team-local
-  source: "time_entry" | "competition_checkin";
+  source: "time_entry";
   sourceId: number;
   occurredAt: Date;
 }
 
-const localDate = (d: Date) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(d);
-
 export async function getLedgerRows(userId?: number): Promise<LedgerRow[]> {
-  const [timeEntries, checkins] = await Promise.all([
-    storage.getTimeEntries(),
-    userId
-      ? storage.getCompetitionCheckinsByUser(userId)
-      : storage.getAllCompetitionCheckins(),
-  ]);
+  const timeEntries = await storage.getTimeEntries();
 
   const rows: LedgerRow[] = [];
 
@@ -41,20 +37,6 @@ export async function getLedgerRows(userId?: number): Promise<LedgerRow[]> {
       date: localDate(checkInAt),
       source: "time_entry",
       sourceId: e.id,
-      occurredAt: checkInAt,
-    });
-  }
-
-  for (const c of checkins as any[]) {
-    if (c.status !== "approved" || !c.roundedMinutes) continue;
-    const checkInAt = new Date(c.checkInAt);
-    rows.push({
-      userId: c.userId,
-      category: "competition",
-      minutes: c.roundedMinutes,
-      date: localDate(checkInAt),
-      source: "competition_checkin",
-      sourceId: c.id,
       occurredAt: checkInAt,
     });
   }
@@ -79,16 +61,32 @@ export const totalsFromRows = (rows: LedgerRow[]): CategoryTotals => {
   return totals;
 };
 
-/** Per-user category totals, keyed by user id. */
-export async function getTotalsByUser(): Promise<Record<number, CategoryTotals>> {
+const inWindow = (r: LedgerRow, start: string | null, end: string | null) =>
+  (!start || r.date >= start) && (!end || r.date <= end);
+
+/** Per-user category totals, keyed by user id. Optionally scoped to a date window. */
+export async function getTotalsByUser(
+  start: string | null = null,
+  end: string | null = null,
+): Promise<Record<number, CategoryTotals>> {
   const rows = await getLedgerRows();
   const byUser: Record<number, CategoryTotals> = {};
   for (const r of rows) {
+    if (!inWindow(r, start, end)) continue;
     if (!byUser[r.userId]) byUser[r.userId] = emptyTotals();
     byUser[r.userId][r.category] += r.minutes;
     byUser[r.userId].total += r.minutes;
   }
   return byUser;
+}
+
+/** Team-wide category totals (everyone summed together), scoped to a date window. */
+export async function getTeamTotals(
+  start: string | null = null,
+  end: string | null = null,
+): Promise<CategoryTotals> {
+  const rows = await getLedgerRows();
+  return totalsFromRows(rows.filter((r) => inWindow(r, start, end)));
 }
 
 /** Minutes a user earned in the given categories within an optional date window. */

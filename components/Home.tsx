@@ -89,14 +89,20 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [state.notifications, user]);
 
-  const myTotalHours = useMemo(() => {
-    const totalMins = state.timeEntries
-      .filter(e => String(e.userId) === String(user?.id) && e.status === 'completed' && e.roundedMinutes)
-      .reduce((acc, e) => acc + (e.roundedMinutes || 0), 0);
-    const hours = Math.floor(totalMins / 60);
-    const mins = totalMins % 60;
-    return { hours, mins, totalMins };
-  }, [state.timeEntries, user]);
+  // Ledger-backed (shop clock + competition check-ins) so this agrees with the
+  // Team Hours card and Requirements — summing state.timeEntries directly
+  // would miss competition hours.
+  const [myTotalHours, setMyTotalHours] = useState({ hours: 0, mins: 0, totalMins: 0 });
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    api.hours.mine().then(({ totals }) => {
+      if (cancelled) return;
+      const totalMins = (totals as any)?.total || 0;
+      setMyTotalHours({ hours: Math.floor(totalMins / 60), mins: totalMins % 60, totalMins });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const velocityData = useMemo(() => {
     const weeks: Record<string, number> = {};
@@ -354,7 +360,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-start">
         <RequirementsCard />
         <UpcomingCard />
-        <TeamHoursCard timeEntries={state.timeEntries} />
+        <TeamHoursCard />
 
         {/* Announcements Preview in a compact column */}
         <section className="bg-slate-950 rounded-2xl md:rounded-[28px] p-6 flex flex-col h-[300px]">
@@ -493,7 +499,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
             </span>
           </div>
 
-          <div className="space-y-4">
+          <div className="max-h-[420px] overflow-auto pr-2 kanban-scroll space-y-4">
             {myTasks.length > 0 ? myTasks.map(task => (
               <button
                 key={task.id}
@@ -546,7 +552,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Personal Mentions</span>
           </div>
 
-          <div className="space-y-4">
+          <div className="max-h-[420px] overflow-auto pr-2 kanban-scroll space-y-4">
             {myNotifications.length > 0 ? myNotifications.map(n => {
               const isBroadcast = n.message.startsWith('[broadcast:');
               const broadcastMatch = n.message.match(/^\[broadcast:(\d+)\]\s*/);

@@ -3,12 +3,16 @@ import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { todayLocalStr, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
-import { roundToQuarterHour } from "../helpers";
+import { roundToQuarterHour, hasAnyRole, LEADERSHIP_ALL } from "../helpers";
+import { filterVisibleEvents } from "../services/eventVisibility";
 import { db } from "../db";
 import { timeEntries } from "../../shared/schema";
 import { and, eq } from "drizzle-orm";
 import type { EventSignup } from "../../shared/schema";
 
+// Kept for roster-management gating (accept/decline/check-in/check-out),
+// which is a narrower privilege than "can see invite-only events" — see
+// LEADERSHIP_ALL (server/helpers.ts) for the visibility-level set.
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const CLOCKABLE_TYPES: readonly string[] = EVENT_HOUR_CATEGORIES;
 
@@ -150,10 +154,18 @@ router.delete("/calendar/:id/signup", async (req, res) => {
 });
 
 // Roster. Leadership sees everyone (enriched with names + clocked minutes for
-// this event); a member sees only their own row.
+// this event); a member sees only their own row. An invite-only event's
+// roster is hidden entirely from anyone who isn't leadership, the creator, or
+// on the invite list — same visibility rule as the event itself.
 router.get("/calendar/:id/signups", async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
+    const event = await storage.getCalendarEvent(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    if ((event as any).inviteOnly && !hasAnyRole(req.userRoles || [], LEADERSHIP_ALL) && event.createdBy !== req.userId) {
+      const invitees = await storage.getEventInviteeIds(eventId);
+      if (!invitees.includes(req.userId!)) return res.status(404).json({ error: "Event not found" });
+    }
     const leadership = isLeadership(req.userRoles);
     let signups = await storage.getEventSignups(eventId);
     if (!leadership) signups = signups.filter((s) => s.userId === req.userId);
@@ -256,12 +268,15 @@ router.get("/me/clockable-events", async (req, res) => {
     const today = todayLocalStr();
     const mySignups = await storage.getUserSignups(req.userId!);
     const declined = new Set(mySignups.filter((s) => s.status === "declined").map((s) => s.calendarEventId));
-    const events = await storage.getCalendarEvents();
+    const allEvents = await storage.getCalendarEvents();
     // A weekly recurrence that is overridden or cancelled on a given date has a
     // separate row for that date; skip the parent's occurrence when one exists.
+    // Computed from the full set, before visibility filtering, so an
+    // invite-only override still suppresses its (possibly visible) parent.
     const overridden = new Set(
-      events.filter((e) => e.parentEventId && e.instanceDate).map((e) => `${e.parentEventId}::${e.instanceDate}`)
+      allEvents.filter((e) => e.parentEventId && e.instanceDate).map((e) => `${e.parentEventId}::${e.instanceDate}`)
     );
+    const events = await filterVisibleEvents(allEvents, req.userId!, req.userRoles || []);
     const clockable = events.filter((e) =>
       (e.signupEnabled ? !declined.has(e.id) : true) &&
       CLOCKABLE_TYPES.includes(e.type) &&
@@ -281,7 +296,8 @@ router.get("/me/upcoming", async (req, res) => {
     const today = todayLocalStr();
     const mySignups = await storage.getUserSignups(req.userId!);
     const statusByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.status]));
-    const events = await storage.getCalendarEvents();
+    const allEvents = await storage.getCalendarEvents();
+    const events = await filterVisibleEvents(allEvents, req.userId!, req.userRoles || []);
     const filtered = events
       .filter((e) => (e as any).signupEnabled && (e.endDate || e.startDate) >= today)
       .sort((a, b) => a.startDate.localeCompare(b.startDate))

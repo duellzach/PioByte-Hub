@@ -1,12 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { HOUR_CATEGORIES, HOUR_CATEGORY_LABELS, styleFor } from './hourCategoryStyles';
-
-interface TimeEntryLike {
-  status: string;
-  roundedMinutes?: number | null;
-  kind?: string | null;
-}
+import { api } from '../services/api';
+import { teamYearRange, formatLocalDate } from '../utils/dates';
 
 const fmtHours = (mins: number) => {
   const h = Math.floor(mins / 60);
@@ -17,25 +13,25 @@ const fmtHours = (mins: number) => {
 
 /**
  * Team-wide hours counter, broken down by category (shop/competition/meeting/
- * volunteer/outreach/other). Visible to everyone on the homepage — it reads
- * from the already-loaded time_entries in app state, so it needs no extra
- * fetch and no role gating.
+ * volunteer/outreach/other/class/fundraising). Visible to everyone on the
+ * homepage. Scoped to the current team year (July 1 – June 30, resetting each
+ * year) and backed by the server-side hours ledger, so it agrees with every
+ * other total in the app — including competition hours.
  */
-const TeamHoursCard: React.FC<{ timeEntries: TimeEntryLike[]; className?: string }> = ({ timeEntries, className = '' }) => {
-  const { totalMinutes, byCategory } = useMemo(() => {
-    const minutesByCategory: Record<string, number> = {};
-    let total = 0;
-    for (const e of timeEntries) {
-      if (e.status !== 'completed' || !e.roundedMinutes) continue;
-      const category = e.kind || 'shop';
-      minutesByCategory[category] = (minutesByCategory[category] || 0) + e.roundedMinutes;
-      total += e.roundedMinutes;
-    }
-    return { totalMinutes: total, byCategory: minutesByCategory };
-  }, [timeEntries]);
+const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => {
+  const [totals, setTotals] = useState<(Record<string, number> & { total: number }) | null>(null);
+  const range = teamYearRange();
 
+  useEffect(() => {
+    let cancelled = false;
+    api.hours.teamTotals(range).then((t) => { if (!cancelled) setTotals(t); }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.start, range.end]);
+
+  const totalMinutes = totals?.total || 0;
   const rows = HOUR_CATEGORIES
-    .map((cat) => ({ cat, minutes: byCategory[cat] || 0 }))
+    .map((cat) => ({ cat, minutes: totals?.[cat] || 0 }))
     .filter((r) => r.minutes > 0)
     .sort((a, b) => b.minutes - a.minutes);
 
@@ -45,12 +41,16 @@ const TeamHoursCard: React.FC<{ timeEntries: TimeEntryLike[]; className?: string
         <div className="w-9 h-9 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Clock size={18} /></div>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Team Hours</h3>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">All confirmed time, by category</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
+            {formatLocalDate(range.start, { month: 'short', year: 'numeric' })} – {formatLocalDate(range.end, { month: 'short', year: 'numeric' })}
+          </p>
         </div>
         <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums flex-shrink-0">{fmtHours(totalMinutes)}</span>
       </div>
 
-      {rows.length === 0 ? (
+      {!totals ? (
+        <p className="text-xs text-slate-400 dark:text-slate-500 font-bold italic">Loading…</p>
+      ) : rows.length === 0 ? (
         <p className="text-xs text-slate-400 dark:text-slate-500 font-bold italic">No confirmed hours logged yet.</p>
       ) : (
         <div className="space-y-2">

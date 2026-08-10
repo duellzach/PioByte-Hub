@@ -319,6 +319,9 @@ export const api = {
       apiRequest<any[]>(`/calendar/toa-preview?requesterId=${requesterId}${season ? `&season=${season}` : ''}`),
     toaImport: (requesterId: number, events: any[]) =>
       apiRequest<{ created: number; skipped: number }>('/calendar/toa-import', { method: 'POST', body: JSON.stringify({ requesterId, events }) }),
+    // Personal webcal/ICS subscription feed — see server/routes/calendarFeed.ts.
+    getFeedToken: () => apiRequest<{ token: string; url: string; webcalUrl: string }>('/calendar/feed-token'),
+    regenerateFeedToken: () => apiRequest<{ token: string; url: string; webcalUrl: string }>('/calendar/feed-token/regenerate', { method: 'POST' }),
   },
   settings: {
     get: () => apiRequest<any>('/settings'),
@@ -350,7 +353,16 @@ export const api = {
   hours: {
     // Combined ledger — shop clock + competition check-ins, by category.
     mine: () => apiRequest<{ rows: any[]; totals: Record<string, number> }>('/me/hours'),
-    totalsByUser: () => apiRequest<Record<string, Record<string, number>>>('/hours/totals'),
+    totalsByUser: (range?: { start?: string; end?: string }) =>
+      apiRequest<Record<string, Record<string, number>>>(
+        `/hours/totals${range?.start || range?.end ? `?${new URLSearchParams(range as Record<string, string>).toString()}` : ''}`
+      ),
+    // Team-wide (everyone summed together) totals for a date window — powers
+    // the Home "Team Hours" card. Omit range for all-time.
+    teamTotals: (range?: { start?: string; end?: string }) =>
+      apiRequest<Record<string, number> & { total: number }>(
+        `/hours/team-totals${range?.start || range?.end ? `?${new URLSearchParams(range as Record<string, string>).toString()}` : ''}`
+      ),
   },
   timeEntries: {
     getAll: () => apiRequest<any[]>('/time-entries'),

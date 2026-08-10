@@ -34,6 +34,7 @@
     "express": "^5.2.1",
     "firebase": "^12.7.0",
     "html5-qrcode": "^2.3.8",
+    "ical-generator": "^11.1.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.562.0",
     "pako": "^2.1.0",
@@ -46,6 +47,7 @@
     "react-is": "^19.2.4",
     "react-router-dom": "^7.18.1",
     "recharts": "^3.6.0",
+    "rrule": "^2.8.1",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.21.0",
     "web-push": "^3.6.7",
@@ -61,12 +63,25 @@
     "minimatch": "^9.0.9",
     "path-to-regexp": "^8.4.2",
     "websocket-driver": "^0.7.5",
-    "fdir": { "picomatch": "^4.0.5" },
-    "tinyglobby": { "picomatch": "^4.0.5" },
-    "chokidar": { "picomatch": "^2.3.2" },
-    "micromatch": { "picomatch": "^2.3.2" },
-    "anymatch": { "picomatch": "^2.3.2" },
-    "readdirp": { "picomatch": "^2.3.2" },
+    "@types/express-serve-static-core": "5.1.0",
+    "fdir": {
+      "picomatch": "^4.0.5"
+    },
+    "tinyglobby": {
+      "picomatch": "^4.0.5"
+    },
+    "chokidar": {
+      "picomatch": "^2.3.2"
+    },
+    "micromatch": {
+      "picomatch": "^2.3.2"
+    },
+    "anymatch": {
+      "picomatch": "^2.3.2"
+    },
+    "readdirp": {
+      "picomatch": "^2.3.2"
+    },
     "esbuild": "^0.25.0"
   },
   "devDependencies": {

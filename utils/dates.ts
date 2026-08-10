@@ -20,6 +20,47 @@ export function todayLocalStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Team-local (Pacific) `YYYY-MM-DD` for a given instant, independent of the
+ * viewer's/server's own timezone. This is the bucketing the hours ledger uses
+ * (`server/services/hoursLedger.ts`) — use this instead of re-deriving it, so
+ * every "which day did this happen on" question agrees.
+ */
+export function localDatePT(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(d);
+}
+
+/**
+ * The current "team year" hours window: July 1 through June 30, Pacific-local,
+ * resetting every July 1st. Used to scope team-wide and personal hour totals
+ * to the current season rather than all-time.
+ */
+export function teamYearRange(now: Date = new Date()): { start: string; end: string } {
+  const [y, m] = localDatePT(now).split('-').map(Number); // m is 1-12
+  const startYear = m >= 7 ? y : y - 1;
+  return { start: `${startYear}-07-01`, end: `${startYear + 1}-06-30` };
+}
+
+/**
+ * Combine a `YYYY-MM-DD` date and `HH:MM` time into the correct UTC instant
+ * for that wall-clock time in the team's fixed operating timezone (Pacific),
+ * correctly handling the PDT/PST boundary. Needed anywhere a server process
+ * (which may run in UTC) must produce a real point-in-time from a Pacific
+ * wall-clock time — as opposed to `parseLocalDate`, whose day-only round trip
+ * happens to be timezone-safe without this.
+ */
+export function pacificDateTime(dateStr: string, timeStr: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [hh, mm] = timeStr.split(':').map(Number);
+  // Probe noon-ish UTC on the target day to determine PDT vs PST for that date.
+  const probe = new Date(Date.UTC(y, (mo || 1) - 1, d || 1, 20, 0, 0));
+  const tzAbbr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', timeZoneName: 'short',
+  }).formatToParts(probe).find((p) => p.type === 'timeZoneName')?.value;
+  const offsetHours = tzAbbr === 'PDT' ? 7 : 8; // PDT = UTC-7, PST = UTC-8
+  return new Date(Date.UTC(y, (mo || 1) - 1, d || 1, (hh || 0) + offsetHours, mm || 0, 0, 0));
+}
+
 interface RecurringEventShape {
   startDate: string;
   endDate?: string | null;

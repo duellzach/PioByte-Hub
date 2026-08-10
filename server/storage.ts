@@ -1,6 +1,7 @@
+import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
 
 /**
@@ -427,6 +428,27 @@ export class DatabaseStorage implements IStorage {
     const results = await db.select().from(timeEntries)
       .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.checkOutAt)));
     return results.find(e => e.status !== 'completed');
+  }
+
+  // --- Competition time (kind='competition', scoutEventId set) ---
+  async getTimeEntriesByScoutEvent(scoutEventId: number): Promise<TimeEntry[]> {
+    return db.select().from(timeEntries)
+      .where(eq(timeEntries.scoutEventId, scoutEventId))
+      .orderBy(desc(timeEntries.createdAt));
+  }
+  async getTimeEntriesByUserAndKind(userId: number, kind: string): Promise<TimeEntry[]> {
+    return db.select().from(timeEntries)
+      .where(and(eq(timeEntries.userId, userId), eq(timeEntries.kind, kind)))
+      .orderBy(desc(timeEntries.createdAt));
+  }
+  async getOpenTimeEntryForScoutEvent(userId: number, scoutEventId: number): Promise<TimeEntry | undefined> {
+    const [row] = await db.select().from(timeEntries)
+      .where(and(
+        eq(timeEntries.userId, userId),
+        eq(timeEntries.scoutEventId, scoutEventId),
+        isNull(timeEntries.checkOutAt),
+      ));
+    return row;
   }
 
   async createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry> {
@@ -1313,6 +1335,147 @@ export class DatabaseStorage implements IStorage {
     `);
   }
 
+  /**
+   * Unify competition time onto the shared clock (`time_entries`). Historically
+   * competition attendance was its own table (`competition_checkins`), keyed to
+   * `scout_events` rather than `calendar_events`, so it never showed up in the
+   * hours ledger, the Home team-hours card, or the "Who's Here" board. This
+   * adds the `scout_event_id` column time_entries needs to carry competition
+   * rows, then backfills every existing competition_checkins row across
+   * (idempotent via NOT EXISTS — safe to re-run). `competition_checkins` and
+   * its audit table are left in place, untouched and unread, purely as a
+   * historical record — nothing after this reads them.
+   */
+  async ensureCompetitionUnification(): Promise<void> {
+    await db.execute(sql`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS scout_event_id INTEGER REFERENCES scout_events(id) ON DELETE SET NULL`);
+    await db.execute(sql`
+      INSERT INTO time_entries (user_id, scout_event_id, kind, check_in_at, check_out_at, status, rounded_minutes, notes, check_out_confirmed_by, check_out_confirmed_at, created_at)
+      SELECT
+        c.user_id, c.event_id, 'competition', c.check_in_at, c.check_out_at,
+        CASE c.status
+          WHEN 'checked_in' THEN 'checked_in'
+          WHEN 'pending_approval' THEN 'pending_check_out'
+          WHEN 'approved' THEN 'completed'
+          WHEN 'rejected' THEN 'rejected'
+          ELSE c.status
+        END,
+        c.rounded_minutes, c.notes, c.approved_by, c.approved_at, c.created_at
+      FROM competition_checkins c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM time_entries t
+        WHERE t.scout_event_id = c.event_id AND t.user_id = c.user_id AND t.check_in_at = c.check_in_at
+      )
+    `);
+  }
+
+  // Invite-only events (Epic — private events). A coach can mark an event
+  // invite-only and pick specific invitees; visibility filtering happens in
+  // server/services/eventVisibility.ts. Invites piggyback on event_signups
+  // (status "invited") so the same roster the signup system already tracks
+  // also carries invite state.
+  async ensureInviteOnlyEvents(): Promise<void> {
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS invite_only BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS invited_by INTEGER REFERENCES users(id)`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP`);
+  }
+
+  // --- Event invites ---
+
+  /** All userIds invited (or otherwise on the roster) for an event. */
+  async getEventInviteeIds(calendarEventId: number): Promise<number[]> {
+    const rows = await db.select({ userId: eventSignups.userId }).from(eventSignups)
+      .where(eq(eventSignups.calendarEventId, calendarEventId));
+    return rows.map((r) => r.userId);
+  }
+
+  /** Bulk version of getEventInviteeIds — one query for many events, used when
+   *  filtering a whole calendar list by visibility. */
+  async getInviteeIdsForEvents(calendarEventIds: number[]): Promise<Record<number, number[]>> {
+    if (calendarEventIds.length === 0) return {};
+    const rows = await db.select({ calendarEventId: eventSignups.calendarEventId, userId: eventSignups.userId })
+      .from(eventSignups)
+      .where(inArray(eventSignups.calendarEventId, calendarEventIds));
+    const byEvent: Record<number, number[]> = {};
+    for (const r of rows) {
+      (byEvent[r.calendarEventId] ||= []).push(r.userId);
+    }
+    return byEvent;
+  }
+
+  /**
+   * Invite users to an event. Never downgrades an existing signup — someone
+   * who already requested/accepted/declined keeps that status; only users
+   * with no row (or an existing "invited" row) are touched.
+   */
+  async inviteUsersToEvent(calendarEventId: number, userIds: number[], invitedBy: number): Promise<void> {
+    for (const userId of userIds) {
+      const existing = await this.getEventSignup(calendarEventId, userId);
+      if (existing) {
+        if (existing.status === 'invited') {
+          await db.update(eventSignups)
+            .set({ invitedBy, invitedAt: new Date() })
+            .where(eq(eventSignups.id, existing.id));
+        }
+        continue;
+      }
+      await db.insert(eventSignups).values({
+        calendarEventId, userId, status: 'invited', invitedBy, invitedAt: new Date(),
+      } as any);
+    }
+  }
+
+  /** Remove an invite — only while it's still in "invited" status; never
+   *  touches someone who has since requested/accepted/declined. */
+  async uninviteUserFromEvent(calendarEventId: number, userId: number): Promise<void> {
+    const existing = await this.getEventSignup(calendarEventId, userId);
+    if (existing && existing.status === 'invited') {
+      await db.delete(eventSignups).where(eq(eventSignups.id, existing.id));
+    }
+  }
+
+  // Personal calendar subscription feed (webcal/ICS). One secret token per
+  // user; "regenerating" just overwrites it, which is all it takes to
+  // invalidate the old URL. See server/routes/calendarFeed.ts.
+  async ensureCalendarFeedTokens(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS calendar_feed_tokens (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  private newFeedToken(): string {
+    return crypto.randomBytes(24).toString("base64url");
+  }
+
+  /** Returns the user's existing feed token, minting one on first use. */
+  async getOrCreateCalendarFeedToken(userId: number): Promise<string> {
+    const [existing] = await db.select().from(calendarFeedTokens).where(eq(calendarFeedTokens.userId, userId));
+    if (existing) return existing.token;
+    const token = this.newFeedToken();
+    await db.insert(calendarFeedTokens).values({ userId, token })
+      // Race-safe: if another request minted one first, just re-read it below.
+      .onConflictDoNothing({ target: calendarFeedTokens.userId });
+    const [row] = await db.select().from(calendarFeedTokens).where(eq(calendarFeedTokens.userId, userId));
+    return row?.token ?? token;
+  }
+
+  /** Overwrites the user's token, immediately invalidating any URL built from the old one. */
+  async regenerateCalendarFeedToken(userId: number): Promise<string> {
+    const token = this.newFeedToken();
+    await db.insert(calendarFeedTokens).values({ userId, token })
+      .onConflictDoUpdate({ target: calendarFeedTokens.userId, set: { token } });
+    return token;
+  }
+
+  /** Resolves a feed token back to the owning user id, or undefined if it's unknown/revoked. */
+  async getUserIdByFeedToken(token: string): Promise<number | undefined> {
+    const [row] = await db.select().from(calendarFeedTokens).where(eq(calendarFeedTokens.token, token));
+    return row?.userId;
+  }
+
   // --- Event signups (roster) ---
   async getEventSignups(calendarEventId: number): Promise<EventSignup[]> {
     return db.select().from(eventSignups).where(eq(eventSignups.calendarEventId, calendarEventId));
@@ -1438,6 +1601,35 @@ export class DatabaseStorage implements IStorage {
     });
     await db.execute(sql.raw(`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '${defaultReq}'::jsonb`));
     await db.execute(sql.raw(`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS fundraising_categories JSONB NOT NULL DEFAULT '["Concessions","Farmers Market","Parent Night Out","Sponsorship","Other"]'::jsonb`));
+
+    // Backfill: 'class' and 'fundraising' were added to HOUR_CATEGORIES after
+    // some teams already had an hour requirement configured with "all
+    // categories". Their saved `categories` array predates the two new
+    // values, so it silently excludes them. Only touch a requirement whose
+    // categories are exactly the pre-existing full set — a coach who chose a
+    // narrower list meant it, and should not have categories added for them.
+    const PRE_EXISTING_ALL: readonly string[] = ["shop", "competition", "meeting", "volunteer", "outreach", "other"];
+    const settingsRows = await db.select().from(teamSettings);
+    for (const row of settingsRows) {
+      const req: any = (row as any).requirements;
+      if (!req?.hours?.length) continue;
+      let changed = false;
+      const hours = req.hours.map((h: any) => {
+        const cats: string[] = Array.isArray(h.categories) ? h.categories : [];
+        const isPreExistingFullSet =
+          cats.length === PRE_EXISTING_ALL.length && PRE_EXISTING_ALL.every((c) => cats.includes(c));
+        if (isPreExistingFullSet) {
+          changed = true;
+          return { ...h, categories: [...HOUR_CATEGORIES] };
+        }
+        return h;
+      });
+      if (changed) {
+        await db.update(teamSettings)
+          .set({ requirements: { ...req, hours } } as any)
+          .where(eq(teamSettings.id, (row as any).id));
+      }
+    }
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS fundraising_goal_cents INTEGER`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS hour_requirement_overrides JSONB`);
     await db.execute(sql`

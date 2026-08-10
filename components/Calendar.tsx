@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore, Lock, Rss, Copy, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { todayLocalStr } from '../utils/dates';
 import EventRosterModal from './EventRosterModal';
+import UserMultiSelect from './UserMultiSelect';
 import { CATEGORY_STYLES, HOUR_CATEGORIES } from './hourCategoryStyles';
 
 interface CalendarEvent {
@@ -24,6 +25,7 @@ interface CalendarEvent {
   instanceDate?: string | null;
   deletedDates?: string | null;
   attending: boolean;
+  inviteOnly?: boolean;
 }
 
 interface VirtualInstance extends CalendarEvent {
@@ -63,6 +65,8 @@ const EMPTY_FORM = {
   recurrenceEndsOn: '',
   attending: true,
   capacity: '',
+  inviteOnly: false,
+  invitees: [] as (number | string)[],
 };
 
 function getTypeStyle(ev: CalendarEvent) {
@@ -136,9 +140,23 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [toaImporting, setToaImporting] = useState(false);
   const [toaError, setToaError] = useState('');
 
+  const [subscribeModal, setSubscribeModal] = useState(false);
+  const [feedUrls, setFeedUrls] = useState<{ url: string; webcalUrl: string } | null>(null);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedRegenerating, setFeedRegenerating] = useState(false);
+  const [feedCopied, setFeedCopied] = useState(false);
+
   const isCoachOrCaptain = currentUser?.roles?.some(r => ['Coach', 'Team Captain', 'Department Head'].includes(r));
 
   const [showArchivedEvents, setShowArchivedEvents] = useState(false);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+
+  // Only leadership can mark an event invite-only, so only fetch the roster
+  // for the picker when they can actually see the create/edit dialog.
+  useEffect(() => {
+    if (!isCoachOrCaptain) return;
+    api.users.getAll().then(setAllUsers).catch(() => {});
+  }, [isCoachOrCaptain]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -251,9 +269,16 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       recurrenceEndsOn: ev.recurrenceEndsOn || '',
       attending: ev.attending !== false,
       capacity: (ev as any).capacity != null ? String((ev as any).capacity) : '',
+      inviteOnly: !!ev.inviteOnly,
+      invitees: [],
     });
     setError('');
     setShowModal(true);
+    if (ev.inviteOnly) {
+      api.events.roster(ev.id)
+        .then((rows: any[]) => setForm(f => ({ ...f, invitees: rows.map(r => r.userId) })))
+        .catch(() => {});
+    }
   };
 
   const handleSave = async () => {
@@ -278,6 +303,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         recurrenceType: form.recurrenceType !== 'none' ? form.recurrenceType : null,
         recurrenceEndsOn: form.recurrenceType !== 'none' ? form.recurrenceEndsOn : null,
         capacity: form.capacity.trim() ? parseInt(form.capacity, 10) : null,
+        inviteOnly: form.inviteOnly,
+        invitees: form.inviteOnly ? form.invitees : [],
       };
       if (editingEvent) {
         await api.calendar.update(editingEvent.id, parseInt(currentUser.id), payload);
@@ -356,6 +383,43 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     } catch (e) {
       console.error('Failed to create exception occurrence:', e);
     }
+  };
+
+  const openSubscribeModal = async () => {
+    setSubscribeModal(true);
+    setFeedCopied(false);
+    if (feedUrls) return; // already loaded this session
+    setFeedLoading(true);
+    try {
+      const data = await api.calendar.getFeedToken();
+      setFeedUrls(data);
+    } catch (e) {
+      console.error('Failed to load calendar feed link:', e);
+    } finally {
+      setFeedLoading(false);
+    }
+  };
+
+  const regenerateFeed = async () => {
+    if (!confirm('This invalidates your current calendar link — anything already subscribed to it will stop updating. Continue?')) return;
+    setFeedRegenerating(true);
+    try {
+      const data = await api.calendar.regenerateFeedToken();
+      setFeedUrls(data);
+      setFeedCopied(false);
+    } catch (e) {
+      console.error('Failed to regenerate calendar feed link:', e);
+    } finally {
+      setFeedRegenerating(false);
+    }
+  };
+
+  const copyFeedUrl = () => {
+    if (!feedUrls) return;
+    navigator.clipboard?.writeText(feedUrls.url).then(() => {
+      setFeedCopied(true);
+      setTimeout(() => setFeedCopied(false), 2000);
+    }).catch(() => {});
   };
 
   const openTbaModal = async () => {
@@ -469,6 +533,12 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               </button>
             </>
           )}
+          <button
+            onClick={openSubscribeModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+          >
+            <Rss size={12} /> Subscribe
+          </button>
           <button
             onClick={() => setView('month')}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${view === 'month' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
@@ -706,6 +776,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   <div className="flex-1 min-w-0">
                     <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${style.bg} ${style.text} ${(style as any).border || ''} text-[8px] font-black uppercase mb-1`}>
                       {style.icon} {style.label}
+                      {(ev as any).inviteOnly && <span title="Invite only"><Lock size={7} /></span>}
                       {isRecurring && <RotateCcw size={7} className="opacity-60" />}
                     </div>
                     <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{ev.title}</p>
@@ -770,6 +841,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                 <div className={`flex items-center gap-1.5 ${style.text}`}>
                   {style.icon}
                   <span className="text-[9px] font-black uppercase tracking-wider">{style.label}</span>
+                  {(ev as any).inviteOnly && <span title="Invite only"><Lock size={9} /></span>}
                   {isRecurring && <span className="text-[7px] font-black bg-black/10 px-1 rounded uppercase flex items-center gap-0.5"><RotateCcw size={6} />Recurring</span>}
                   {ev.type === 'competition' && (
                     <span className={`text-[7px] font-black px-1 rounded uppercase ${ev.attending ? 'bg-green-500/20 text-green-700 dark:text-green-300' : 'bg-slate-500/20 text-slate-600'}`}>
@@ -1032,6 +1104,34 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               )}
 
               <div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={form.inviteOnly}
+                    onChange={e => setForm(f => ({ ...f, inviteOnly: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-teamColor"
+                  />
+                  <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+                    <Lock size={11} /> Invite Only
+                  </span>
+                </label>
+                <p className="text-[9px] font-medium normal-case text-slate-400 dark:text-slate-500 mt-1 ml-6">
+                  Hidden from everyone except invitees, the creator, and leadership.
+                </p>
+              </div>
+
+              {form.inviteOnly && (
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Invitees</label>
+                  <UserMultiSelect
+                    users={allUsers}
+                    selectedIds={form.invitees}
+                    onChange={(ids) => setForm(f => ({ ...f, invitees: ids }))}
+                  />
+                </div>
+              )}
+
+              <div>
                 <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Notes</label>
                 <textarea
                   value={form.description}
@@ -1050,6 +1150,80 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               >
                 {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : (editingEvent ? 'Update Event' : 'Add Event')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {subscribeModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[300] p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl border-t-4 border-teamColor">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                  <Rss size={18} className="text-teamColor" /> Subscribe to Calendar
+                </h2>
+                <p className="text-[10px] text-teamColor font-bold uppercase tracking-widest mt-0.5">
+                  Sync with Google, Apple, or Outlook Calendar
+                </p>
+              </div>
+              <button onClick={() => setSubscribeModal(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {feedLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 size={28} className="animate-spin text-teamColor" />
+                </div>
+              ) : feedUrls ? (
+                <>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    This link is personal — it shows exactly what you see in-app, including any invite-only events you're part of. Don't share it.
+                  </p>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Calendar URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={feedUrls.url}
+                        onFocus={(e) => e.target.select()}
+                        className="flex-1 min-w-0 px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-xs font-mono outline-none dark:text-white truncate"
+                      />
+                      <button
+                        onClick={copyFeedUrl}
+                        className={`flex-shrink-0 px-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 transition-all ${feedCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                        {feedCopied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                      </button>
+                    </div>
+                  </div>
+
+                  <a
+                    href={feedUrls.webcalUrl}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-teamColor text-white font-black rounded-xl hover:opacity-90 shadow-lg shadow-teamColor/20 uppercase tracking-widest text-sm transition-all"
+                  >
+                    <Rss size={16} /> Open in Calendar App
+                  </a>
+
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 space-y-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    <p><span className="font-black text-slate-700 dark:text-slate-300">Google Calendar:</span> Settings → Add calendar → From URL, paste the link above.</p>
+                    <p><span className="font-black text-slate-700 dark:text-slate-300">Apple Calendar:</span> File → New Calendar Subscription, paste the link above (or tap "Open in Calendar App").</p>
+                    <p><span className="font-black text-slate-700 dark:text-slate-300">Outlook:</span> Add calendar → Subscribe from web, paste the link above.</p>
+                  </div>
+
+                  <button
+                    onClick={regenerateFeed}
+                    disabled={feedRegenerating}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-black rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 uppercase tracking-widest text-[10px] transition-all disabled:opacity-50"
+                  >
+                    {feedRegenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Regenerate Link
+                  </button>
+                </>
+              ) : (
+                <p className="text-red-600 dark:text-red-400 text-sm font-bold text-center py-8">Failed to load your calendar link. Try again.</p>
+              )}
             </div>
           </div>
         </div>

@@ -2,13 +2,13 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
-import { getLedgerRows, getTotalsByUser, sumMinutes, totalsFromRows } from "../services/hoursLedger";
+import { getLedgerRows, getTeamTotals, getTotalsByUser, sumMinutes, totalsFromRows } from "../services/hoursLedger";
+import { localDatePT as localDate } from "../../utils/dates";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const router = Router();
 
 const isLeadership = (roles: string[] = []) => roles.some((r) => LEADERSHIP.includes(r));
-const localDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(d);
 
 // ---------------------------------------------------------------------------
 // Fundraising CRUD
@@ -159,13 +159,30 @@ router.get("/me/requirements", async (req, res) => {
 });
 
 // Category totals for the whole team — powers the Time page stat chips and the
-// per-member breakdown in Team Management.
+// per-member breakdown in Team Management. Optional start/end (YYYY-MM-DD,
+// team-local, inclusive) scope the window; omitted means all-time.
 router.get("/hours/totals", async (req, res) => {
   try {
-    res.json(await getTotalsByUser());
+    const start = (req.query.start as string) || null;
+    const end = (req.query.end as string) || null;
+    res.json(await getTotalsByUser(start, end));
   } catch (error) {
     console.error("Error computing hour totals:", error);
     res.status(500).json({ error: "Failed to compute hour totals" });
+  }
+});
+
+// Team-wide (everyone summed together) category totals — powers the Home
+// "Team Hours" card, scoped to the current July 1–June 30 team year by default
+// (the client passes start/end; see utils/dates.ts#teamYearRange).
+router.get("/hours/team-totals", async (req, res) => {
+  try {
+    const start = (req.query.start as string) || null;
+    const end = (req.query.end as string) || null;
+    res.json(await getTeamTotals(start, end));
+  } catch (error) {
+    console.error("Error computing team hour totals:", error);
+    res.status(500).json({ error: "Failed to compute team hour totals" });
   }
 });
 
