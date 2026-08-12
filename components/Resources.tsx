@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, BookOpen, Zap, Code2, Trophy, Cpu, Globe, ChevronRight, Plus, Edit2, Trash2, X, Loader2, ShieldCheck, Check, Tag } from 'lucide-react';
 import { api } from '../services/api';
+import { useTeamTime } from '../utils/timeFormat';
 
 interface ResourceItem {
   id: number;
@@ -460,6 +461,7 @@ interface ResourceCardProps {
 }
 
 const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, allCategories, canEdit, isCoach, onEdit, onDelete, onPinToggle }) => {
+  const { fmtDate } = useTeamTime();
   const meta = getCatMeta(resource.category, allCategories);
 
   return (
@@ -522,7 +524,7 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, addedByName, allC
           <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">{addedByName}</span>
           <span className="text-[9px] text-slate-300 dark:text-slate-600">·</span>
           <span className="text-[9px] text-slate-400 dark:text-slate-500">
-            {new Date(resource.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}
+            {fmtDate(resource.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
         </div>
       </a>

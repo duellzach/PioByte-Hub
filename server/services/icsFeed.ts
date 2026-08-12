@@ -1,7 +1,8 @@
 import ical, { ICalEventRepeatingFreq, ICalWeekday } from "ical-generator";
+import { getVtimezoneComponent } from "@touch4it/ical-timezones";
 import type { CalendarEvent } from "../../shared/schema";
 import { HOUR_CATEGORY_LABELS, isHourCategory } from "../../shared/hourCategories";
-import { parseLocalDate, pacificDateTime } from "../../utils/dates";
+import { parseLocalDate } from "../../utils/dates";
 
 // Builds an RFC 5545 (.ics) feed from a user's already visibility-filtered
 // calendar events (see server/services/eventVisibility.ts — invite-only
@@ -14,6 +15,25 @@ const WEEKDAY_BY_INDEX: ICalWeekday[] = [
   ICalWeekday.TH, ICalWeekday.FR, ICalWeekday.SA,
 ];
 
+/**
+ * A Date built purely to CARRY wall-clock components — never to represent a
+ * real instant. ical-generator's timed-event formatter reads a Date back
+ * with LOCAL getters (getFullYear/getHours/...) and pairs them with the
+ * TZID we ask for; it does not convert. So if we hand it a genuine instant
+ * (e.g. "8:30 AM Pacific" converted to its correct UTC point), the output
+ * is wrong on any server that isn't itself running in Pacific time — the
+ * getters read back whatever wall-clock the SERVER's zone assigns to that
+ * instant (production runs in UTC, so 8:30 AM Pacific = 15:30 UTC was
+ * coming out the other end as "3:30 PM"). Building the Date from local
+ * components instead means the getters read back exactly what we put in,
+ * regardless of what timezone the Node process happens to run in.
+ */
+function wallClock(dateStr: string, timeStr: string): Date {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  return new Date(y, (mo || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+}
+
 function parseDeletedDates(json: string | null | undefined): string[] {
   if (!json) return [];
   try {
@@ -24,7 +44,7 @@ function parseDeletedDates(json: string | null | undefined): string[] {
   }
 }
 
-/** Start/end/allDay for an event row, converted to real instants. */
+/** Start/end/allDay for an event row, as wall-clock carrier Dates. */
 function eventTiming(ev: Pick<CalendarEvent, "startDate" | "endDate" | "startTime" | "endTime">) {
   const allDay = !ev.startTime;
   if (allDay) {
@@ -34,8 +54,8 @@ function eventTiming(ev: Pick<CalendarEvent, "startDate" | "endDate" | "startTim
     end.setDate(end.getDate() + 1);
     return { start, end, allDay: true as const };
   }
-  const start = pacificDateTime(ev.startDate, ev.startTime!);
-  const end = ev.endTime ? pacificDateTime(ev.endDate || ev.startDate, ev.endTime) : undefined;
+  const start = wallClock(ev.startDate, ev.startTime!);
+  const end = ev.endTime ? wallClock(ev.endDate || ev.startDate, ev.endTime) : undefined;
   return { start, end, allDay: false as const };
 }
 
@@ -50,10 +70,14 @@ function categoriesFor(ev: CalendarEvent) {
   return isHourCategory(ev.type) ? [{ name: HOUR_CATEGORY_LABELS[ev.type] }] : undefined;
 }
 
-export function buildCalendarFeed(events: CalendarEvent[], teamName: string): string {
+export function buildCalendarFeed(events: CalendarEvent[], teamName: string, teamTimezone: string): string {
   const calendar = ical({
     name: `${teamName} Calendar`,
-    timezone: "America/Los_Angeles",
+    // Passing a generator makes ical-generator emit a VTIMEZONE block, so
+    // TZID actually resolves to a real, DST-aware zone definition instead of
+    // a bare, unresolvable label — without it, a weekly recurring event's
+    // wall-clock time would drift by an hour across the DST boundary.
+    timezone: { name: teamTimezone, generator: getVtimezoneComponent },
     prodId: { company: "PioByte", product: "PioByte Hub Calendar Feed" },
   });
 
@@ -71,12 +95,12 @@ export function buildCalendarFeed(events: CalendarEvent[], teamName: string): st
       repeating = {
         freq: ICalEventRepeatingFreq.WEEKLY,
         byDay: [WEEKDAY_BY_INDEX[parseLocalDate(ev.startDate).getDay()]],
-        until: allDay ? parseLocalDate(ev.recurrenceEndsOn!) : pacificDateTime(ev.recurrenceEndsOn!, ev.startTime!),
+        until: allDay ? parseLocalDate(ev.recurrenceEndsOn!) : wallClock(ev.recurrenceEndsOn!, ev.startTime!),
         // An empty array is still truthy — ical-generator would emit a blank,
         // invalid `EXDATE:` line if we always set this key. Only include it
         // when there's something to exclude.
         ...(deleted.length > 0
-          ? { exclude: deleted.map((d) => (allDay ? parseLocalDate(d) : pacificDateTime(d, ev.startTime!))) }
+          ? { exclude: deleted.map((d) => (allDay ? parseLocalDate(d) : wallClock(d, ev.startTime!))) }
           : {}),
       };
     }
@@ -86,7 +110,7 @@ export function buildCalendarFeed(events: CalendarEvent[], teamName: string): st
       start,
       end,
       allDay,
-      timezone: allDay ? undefined : "America/Los_Angeles",
+      timezone: allDay ? undefined : teamTimezone,
       summary: ev.title,
       description: describe(ev),
       location: ev.location || undefined,
@@ -104,8 +128,8 @@ export function buildCalendarFeed(events: CalendarEvent[], teamName: string): st
     // parent isn't in this feed (e.g. visibility edge case).
     const parentAllDay = parent ? !parent.startTime : allDay;
     const recurrenceId = parent
-      ? (parentAllDay ? parseLocalDate(ev.instanceDate!) : pacificDateTime(ev.instanceDate!, parent.startTime!))
-      : (allDay ? parseLocalDate(ev.instanceDate!) : pacificDateTime(ev.instanceDate!, ev.startTime || "00:00"));
+      ? (parentAllDay ? parseLocalDate(ev.instanceDate!) : wallClock(ev.instanceDate!, parent.startTime!))
+      : (allDay ? parseLocalDate(ev.instanceDate!) : wallClock(ev.instanceDate!, ev.startTime || "00:00"));
 
     calendar.createEvent({
       id: `event-${ev.parentEventId}@piobyte-hub`,
@@ -113,7 +137,7 @@ export function buildCalendarFeed(events: CalendarEvent[], teamName: string): st
       start,
       end,
       allDay,
-      timezone: allDay ? undefined : "America/Los_Angeles",
+      timezone: allDay ? undefined : teamTimezone,
       summary: ev.title,
       description: describe(ev),
       location: ev.location || undefined,

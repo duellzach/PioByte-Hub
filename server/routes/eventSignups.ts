@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
-import { todayLocalStr, eventOccursOn } from "../../utils/dates";
+import { localDatePT, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
 import { roundToQuarterHour, hasAnyRole, LEADERSHIP_ALL } from "../helpers";
 import { filterVisibleEvents } from "../services/eventVisibility";
+import { getTeamTimezone } from "../services/teamTime";
 import { db } from "../db";
 import { timeEntries } from "../../shared/schema";
 import { and, eq } from "drizzle-orm";
@@ -265,7 +266,7 @@ router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req,
 // events are clockable by anyone.
 router.get("/me/clockable-events", async (req, res) => {
   try {
-    const today = todayLocalStr();
+    const today = localDatePT(new Date(), await getTeamTimezone());
     const mySignups = await storage.getUserSignups(req.userId!);
     const declined = new Set(mySignups.filter((s) => s.status === "declined").map((s) => s.calendarEventId));
     const allEvents = await storage.getCalendarEvents();
@@ -293,7 +294,7 @@ router.get("/me/clockable-events", async (req, res) => {
 // Upcoming signup-enabled events (today forward) with the user's signup status.
 router.get("/me/upcoming", async (req, res) => {
   try {
-    const today = todayLocalStr();
+    const today = localDatePT(new Date(), await getTeamTimezone());
     const mySignups = await storage.getUserSignups(req.userId!);
     const statusByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.status]));
     const allEvents = await storage.getCalendarEvents();

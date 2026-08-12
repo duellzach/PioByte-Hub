@@ -3,6 +3,7 @@ import { Clock } from 'lucide-react';
 import { HOUR_CATEGORIES, HOUR_CATEGORY_LABELS, styleFor } from './hourCategoryStyles';
 import { api } from '../services/api';
 import { teamYearRange, formatLocalDate } from '../utils/dates';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 
 const fmtHours = (mins: number) => {
   const h = Math.floor(mins / 60);
@@ -19,8 +20,9 @@ const fmtHours = (mins: number) => {
  * other total in the app — including competition hours.
  */
 const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => {
+  const { settings } = useTeamSettings();
   const [totals, setTotals] = useState<(Record<string, number> & { total: number }) | null>(null);
-  const range = teamYearRange();
+  const range = teamYearRange(new Date(), settings.timezone);
 
   useEffect(() => {
     let cancelled = false;

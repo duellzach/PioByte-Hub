@@ -4,6 +4,7 @@ import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDow
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
 import { todayLocalStr } from '../utils/dates';
+import { useTeamTime } from '../utils/timeFormat';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
 
@@ -11,16 +12,6 @@ interface TimeTrackingProps {
   state: AppState;
   onRefresh: () => void;
 }
-
-const formatTime = (date: Date | number | string) => {
-  const d = new Date(date);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
-};
-
-const formatDate = (date: Date | number | string) => {
-  const d = new Date(date);
-  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
-};
 
 const formatDuration = (minutes: number) => {
   const hours = Math.floor(minutes / 60);
@@ -39,6 +30,12 @@ const toLocalDateTimeString = (date: Date | number | string) => {
 };
 
 const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
+  // Device time, with home-base time shown in parens whenever they differ —
+  // see utils/timeFormat.ts. Shadows the plain-function names every call
+  // site below already uses. formatDate keeps its original weekday-included
+  // default (the hook's own default omits weekday).
+  const { fmtTime: formatTime, fmtDate: fmtDateBase, fmtDateTime } = useTeamTime();
+  const formatDate = (date: Date | number | string) => fmtDateBase(date, { weekday: 'short', month: 'short', day: 'numeric' });
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [auditEntry, setAuditEntry] = useState<TimeEntry | null>(null);
   const [auditLogs, setAuditLogs] = useState<TimeEntryAudit[]>([]);
@@ -1141,7 +1138,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                         )}
                       </div>
                       <p className="text-[9px] text-slate-400 font-bold whitespace-nowrap flex-shrink-0">
-                        {new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        {fmtDateTime(log.createdAt, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
@@ -1918,7 +1915,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-black text-red-600 uppercase">{log.actionType.replace('_', ' ')}</span>
                     <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
-                      {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
+                      {fmtDateTime(log.createdAt)}
                     </span>
                   </div>
                   <p className="text-xs font-bold text-slate-600 dark:text-slate-300">By: {getUserName(log.actorId)}</p>

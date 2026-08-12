@@ -2,12 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { CalendarDays, Check, Loader2, MapPin } from 'lucide-react';
 import { api } from '../services/api';
 import { parseLocalDate } from '../utils/dates';
+import { styleFor } from './hourCategoryStyles';
 
-const TYPE_COLORS: Record<string, string> = {
-  outreach: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  volunteer: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  competition: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-};
 const STATUS_LABEL: Record<string, string> = {
   requested: 'Requested', accepted: 'Accepted ✓', declined: 'Declined', waitlisted: 'Waitlisted',
 };
@@ -49,7 +45,7 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-black text-sm text-slate-900 dark:text-white truncate">{e.title}</p>
-                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide ${TYPE_COLORS[e.type] || 'bg-slate-200 text-slate-600'}`}>{e.type}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide ${styleFor(e.type).bg} ${styleFor(e.type).text}`}>{e.type}</span>
               </div>
               <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 truncate">
                 {e.startTime ? `${e.startTime} · ` : ''}{e.location ? <><MapPin size={9} /> {e.location}</> : 'No location set'}

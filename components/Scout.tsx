@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { useTeamTime } from '../utils/timeFormat';
 import { api } from '../services/api';
 import { Plus, ArrowLeft, Search, X, ChevronLeft, ChevronRight, QrCode, Camera, Download, Upload, Bot, Swords, Trophy, Hash, Users, MapPin, Calendar, Trash2, Flame, Monitor, WifiOff, Wifi, ArrowUpDown, Grid3X3, List, ImageIcon, Brain, Video, UserCheck, AlertCircle, Copy, Check, Settings, Zap, RefreshCw, KeyRound } from 'lucide-react';
 import pako from 'pako';
@@ -56,6 +57,7 @@ interface ScoutProps {
 const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
   const location = useLocation();
   const { settings } = useTeamSettings();
+  const { fmtTime } = useTeamTime();
   const teamNumber = settings.teamNumber;
   const frcKey = `frc${teamNumber}`;
   const teamKeyPrefix = settings.teamProgram === 'FTC' ? 'ftc' : 'frc';
@@ -2374,7 +2376,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {time && (
                                   <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold hidden sm:block">
-                                    {new Date(time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                    {fmtTime(time * 1000, { hour: 'numeric', minute: '2-digit' })}
                                   </span>
                                 )}
                                 {isMine ? (

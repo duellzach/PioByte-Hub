@@ -3,7 +3,8 @@ import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
 import { getLedgerRows, getTeamTotals, getTotalsByUser, sumMinutes, totalsFromRows } from "../services/hoursLedger";
-import { localDatePT as localDate } from "../../utils/dates";
+import { localDatePT } from "../../utils/dates";
+import { getTeamTimezone } from "../services/teamTime";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const router = Router();
@@ -44,7 +45,7 @@ router.post("/fundraising", async (req, res) => {
       amountCents,
       category: req.body.category || "Other",
       description: req.body.description || "",
-      occurredOn: req.body.occurredOn || localDate(new Date()),
+      occurredOn: req.body.occurredOn || localDatePT(new Date(), await getTeamTimezone()),
       status,
       verifiedBy: leadership ? req.userId! : null,
       verifiedAt: leadership ? new Date() : null,

@@ -35,9 +35,12 @@ import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notifi
 import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 
-// --- Recurring-task date helpers (Pacific, matching the app's date convention) ---
-function todayServerLocalStr(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+// --- Recurring-task date helpers (team-local, matching the app's date convention) ---
+// No cache import here (server/services/teamTime.ts imports `storage`, so the
+// reverse import would be circular) — callers fetch the timezone via
+// `this.getTeamSettings()` and pass it in.
+function todayServerLocalStr(tz: string = 'America/Los_Angeles'): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
 }
 function addDaysStr(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -254,6 +257,7 @@ export interface IStorage {
   getTeamSettings(): Promise<TeamSettings>;
   upsertTeamSettings(data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>): Promise<TeamSettings>;
   migrateApiKeyColumns(): Promise<void>;
+  ensureTeamTimezoneColumn(): Promise<void>;
 
   seedDatabase(): Promise<void>;
 }
@@ -1222,7 +1226,7 @@ export class DatabaseStorage implements IStorage {
         game_name TEXT NOT NULL DEFAULT '',
         year INTEGER,
         active BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await db.execute(sql`
@@ -1234,7 +1238,7 @@ export class DatabaseStorage implements IStorage {
         fields JSONB NOT NULL DEFAULT '[]',
         revision INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await db.execute(sql`
@@ -1302,6 +1306,10 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS nexus_api_key TEXT`);
   }
 
+  async ensureTeamTimezoneColumn(): Promise<void> {
+    await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Los_Angeles'`);
+  }
+
   async ensurePushSubscriptionsTable(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -1310,7 +1318,7 @@ export class DatabaseStorage implements IStorage {
         endpoint TEXT NOT NULL UNIQUE,
         p256dh TEXT NOT NULL,
         auth TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
   }
@@ -1327,9 +1335,9 @@ export class DatabaseStorage implements IStorage {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         status TEXT NOT NULL DEFAULT 'requested',
         approved_by INTEGER REFERENCES users(id),
-        approved_at TIMESTAMP,
+        approved_at TIMESTAMPTZ,
         note TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (calendar_event_id, user_id)
       )
     `);
@@ -1376,7 +1384,7 @@ export class DatabaseStorage implements IStorage {
   async ensureInviteOnlyEvents(): Promise<void> {
     await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS invite_only BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS invited_by INTEGER REFERENCES users(id)`);
-    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`);
   }
 
   // --- Event invites ---
@@ -1441,7 +1449,7 @@ export class DatabaseStorage implements IStorage {
       CREATE TABLE IF NOT EXISTS calendar_feed_tokens (
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         token TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
   }
@@ -1516,8 +1524,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async ensureAttendanceColumns(): Promise<void> {
-    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
-    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMPTZ`);
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMPTZ`);
     await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS checked_in_by INTEGER REFERENCES users(id)`);
   }
 
@@ -1608,6 +1616,10 @@ export class DatabaseStorage implements IStorage {
     // values, so it silently excludes them. Only touch a requirement whose
     // categories are exactly the pre-existing full set — a coach who chose a
     // narrower list meant it, and should not have categories added for them.
+    // This list is intentionally a frozen historical snapshot, not a color
+    // map — unlike UpcomingCard.tsx / TeamManagement.tsx, it must NOT be
+    // updated when a new category is added, or the backfill's "was this the
+    // old full set" check would misfire on new data.
     const PRE_EXISTING_ALL: readonly string[] = ["shop", "competition", "meeting", "volunteer", "outreach", "other"];
     const settingsRows = await db.select().from(teamSettings);
     for (const row of settingsRows) {
@@ -1642,9 +1654,9 @@ export class DatabaseStorage implements IStorage {
         occurred_on TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'verified',
         verified_by INTEGER REFERENCES users(id),
-        verified_at TIMESTAMP,
+        verified_at TIMESTAMPTZ,
         created_by INTEGER NOT NULL REFERENCES users(id),
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
   }
@@ -1690,7 +1702,7 @@ export class DatabaseStorage implements IStorage {
         active BOOLEAN NOT NULL DEFAULT true,
         last_generated_date TEXT,
         created_by INTEGER NOT NULL REFERENCES users(id),
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
   }
@@ -1729,7 +1741,8 @@ export class DatabaseStorage implements IStorage {
    * Returns the number of tasks created.
    */
   async generateDueRecurringTasks(): Promise<number> {
-    const today = todayServerLocalStr();
+    const settings = await this.getTeamSettings();
+    const today = todayServerLocalStr((settings as any).timezone || 'America/Los_Angeles');
     const templates = await this.getRecurringTemplates();
     let created = 0;
     for (const t of templates) {

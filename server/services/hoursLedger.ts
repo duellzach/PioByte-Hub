@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { HOUR_CATEGORIES, type HourCategory } from "../../shared/hourCategories";
-import { localDatePT as localDate } from "../../utils/dates";
+import { localDatePT } from "../../utils/dates";
+import { getTeamTimezone } from "./teamTime";
 
 // The one place that answers "what counts as earned hours". `time_entries` is
 // the single source — shop time, event-clocked time (meeting/volunteer/
@@ -21,7 +22,7 @@ export interface LedgerRow {
 }
 
 export async function getLedgerRows(userId?: number): Promise<LedgerRow[]> {
-  const timeEntries = await storage.getTimeEntries();
+  const [timeEntries, tz] = await Promise.all([storage.getTimeEntries(), getTeamTimezone()]);
 
   const rows: LedgerRow[] = [];
 
@@ -34,7 +35,9 @@ export async function getLedgerRows(userId?: number): Promise<LedgerRow[]> {
       userId: e.userId,
       category,
       minutes: e.roundedMinutes,
-      date: localDate(checkInAt),
+      // Bucketed by the TEAM's home timezone regardless of viewer — this is
+      // a business rule (what day did this count toward), not a display choice.
+      date: localDatePT(checkInAt, tz),
       source: "time_entry",
       sourceId: e.id,
       occurredAt: checkInAt,

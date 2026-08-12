@@ -8,6 +8,7 @@ import { spawnSync } from "child_process";
 import { storage } from "./storage";
 import { pool } from "./db.js";
 import { authenticate } from "./middleware/auth";
+import { getTeamTimezone } from "./services/teamTime";
 import { SESSION_SECRET } from "./security";
 
 import usersRouter from "./routes/users";
@@ -174,6 +175,7 @@ initializeDatabase().then(() => {
     console.log(`Server running on port ${PORT}`);
     try {
       await storage.migrateApiKeyColumns();
+      await storage.ensureTeamTimezoneColumn();
       await storage.migrateCalendarTypes();
       await storage.ensurePushSubscriptionsTable();
       await storage.ensureRecurringTasksTable();
@@ -185,6 +187,7 @@ initializeDatabase().then(() => {
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
       await storage.ensureProjectLinksColumn();
+      await getTeamTimezone(); // warm the cache and surface any DB issue at boot
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.
       storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));

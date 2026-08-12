@@ -5,6 +5,7 @@ import { getPushStatus, enablePush, disablePush, type PushStatus } from '../serv
 import { api } from '../services/api';
 import TeamLogo from './TeamLogo';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { useTeamTime } from '../utils/timeFormat';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,6 +38,7 @@ const EXPIRY_OPTIONS = [
 
 const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onLogout, isSynced = false, stats, darkMode, onToggleDarkMode }) => {
   const { settings } = useTeamSettings();
+  const { fmtTime } = useTeamTime();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [pushStatus, setPushStatus] = useState<PushStatus>('default');
@@ -438,7 +440,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
                             {alert.targetPitDisplay && <span className="text-[9px] font-black text-violet-500 uppercase">Pit Display</span>}
                             {alert.expiresAt && (
                               <span className="text-[9px] font-black text-orange-500 uppercase">
-                                Exp {new Date(alert.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                                Exp {fmtTime(alert.expiresAt)}
                               </span>
                             )}
                           </div>

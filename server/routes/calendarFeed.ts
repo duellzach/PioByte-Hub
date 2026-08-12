@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { getUserRoles } from "../helpers";
 import { filterVisibleEvents } from "../services/eventVisibility";
 import { buildCalendarFeed } from "../services/icsFeed";
+import { getTeamTimezone } from "../services/teamTime";
 
 const router = Router();
 
@@ -50,10 +51,10 @@ router.get("/calendar/feed/:tokenWithExt", async (req, res) => {
     const events = await storage.getCalendarEvents(false);
     const visible = await filterVisibleEvents(events, userId, roles);
 
-    const settings = await storage.getTeamSettings();
+    const [settings, teamTimezone] = await Promise.all([storage.getTeamSettings(), getTeamTimezone()]);
     const teamName = (settings.teamName as string) || "PioByte Hub";
 
-    const ics = buildCalendarFeed(visible as any, teamName);
+    const ics = buildCalendarFeed(visible as any, teamName, teamTimezone);
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", `inline; filename="${teamName.replace(/[^a-z0-9]+/gi, "-")}-calendar.ics"`);
     res.setHeader("Cache-Control", "no-cache");

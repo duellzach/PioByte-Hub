@@ -3,6 +3,8 @@ import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit
 import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { useTeamTime } from '../utils/timeFormat';
+import { pacificDateTime } from '../utils/dates';
 import { HOUR_CATEGORIES, styleFor } from './hourCategoryStyles';
 
 interface TeamProps {
@@ -14,6 +16,7 @@ interface TeamProps {
 
 const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, onDeleteUser }) => {
   const { settings } = useTeamSettings();
+  const { fmtTime: formatTime, fmtDate: fmtDateBase, fmtDateTime } = useTeamTime();
   const deptNames = settings.departments.map(d => d.name);
   const roleNames = settings.roles.map(r => r.name);
 
@@ -149,20 +152,16 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  const formatTime = (date: Date | number | string) => {
-    const d = new Date(date);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' });
-  };
+  const formatDate = (date: Date | number | string) => fmtDateBase(date, { weekday: 'short', month: 'short', day: 'numeric' });
 
-  const formatDate = (date: Date | number | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
-  };
-
+  // These edit-form conversions are deliberately anchored to the team's HOME
+  // timezone, not the viewer's device — a coach editing a time-clock record
+  // (possibly while traveling) is recording what the wall clock read at the
+  // shop, not wherever they happen to be.
   const toLocalDateTimeString = (date: Date | number | string) => {
     const d = new Date(date);
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Los_Angeles',
+      timeZone: settings.timezone,
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hour12: false
     }).formatToParts(d);
@@ -170,19 +169,13 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
   };
 
-  // Convert a datetime-local string (which represents Pacific time) to a UTC ISO string.
-  // We must NOT use `new Date(str)` directly because that treats the string as local
-  // browser time, which may not be Pacific. Instead, we append the correct PT offset.
+  // Convert a datetime-local string (which represents team-home-timezone time)
+  // to a UTC ISO string. We must NOT use `new Date(str)` directly because that
+  // treats the string as local BROWSER time, which may differ from home base.
   const pacificLocalToISO = (localStr: string): string => {
     if (!localStr) return '';
-    const datePart = localStr.slice(0, 10); // "YYYY-MM-DD"
-    // Use 20:00 UTC on that date as a reference to discover the PT offset (noon-ish PT).
-    const ref = new Date(datePart + 'T20:00:00Z');
-    const tzAbbr = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Los_Angeles', timeZoneName: 'short',
-    }).formatToParts(ref).find(p => p.type === 'timeZoneName')?.value;
-    const offsetStr = tzAbbr === 'PDT' ? '-07:00' : '-08:00';
-    return new Date(localStr + ':00' + offsetStr).toISOString();
+    const [datePart, timePart] = localStr.split('T');
+    return pacificDateTime(datePart, timePart, settings.timezone).toISOString();
   };
 
   const openTimeEditModal = (entry: TimeEntry) => {
@@ -1031,11 +1024,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                     {entry.roundedMinutes && (
                                       <span className="text-xs font-black text-green-600">{formatDuration(entry.roundedMinutes)}</span>
                                     )}
-                                    <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${
-                                      !entry.kind || entry.kind === 'shop' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                                      entry.kind === 'outreach' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                                      'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-                                    }`}>
+                                    <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${styleFor(entry.kind).bg} ${styleFor(entry.kind).text}`}>
                                       {entry.kind || 'shop'}
                                     </span>
                                     <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${
@@ -1190,7 +1179,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-black text-teamColor uppercase">{log.actionType.replace('_', ' ')}</span>
                       <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
-                        {new Date(log.createdAt).toLocaleString([], { timeZone: 'America/Los_Angeles' })}
+                        {fmtDateTime(log.createdAt)}
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-600 dark:text-slate-400">By: {getUserName(log.actorId)}</p>

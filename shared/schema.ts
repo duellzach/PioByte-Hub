@@ -14,7 +14,7 @@ export const users = pgTable("users", {
   // Per-student requirement overrides (Epic C). null = use team defaults.
   fundraisingGoalCents: integer("fundraising_goal_cents"),
   hourRequirementOverrides: jsonb("hour_requirement_overrides").$type<Record<string, number>>(),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const projects = pgTable("projects", {
@@ -27,7 +27,7 @@ export const projects = pgTable("projects", {
   showInWarRoom: boolean("show_in_war_room").notNull().default(true),
   allowAllTaskCreation: boolean("allow_all_task_creation").notNull().default(false),
   links: jsonb("links").$type<{id: string; label: string; url: string; type: string}[]>().notNull().default([]),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const tasks = pgTable("tasks", {
@@ -51,9 +51,9 @@ export const tasks = pgTable("tasks", {
   helpRequested: boolean("help_requested").notNull().default(false),
   deptOnly: boolean("dept_only").notNull().default(false),
   blockedReason: text("blocked_reason"),
-  completedAt: timestamp("completed_at"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   requiredCertificationId: integer("required_certification_id").references(() => safetyCertifications.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const notifications = pgTable("notifications", {
@@ -63,7 +63,7 @@ export const notifications = pgTable("notifications", {
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
   read: boolean("read").notNull().default(false),
-  timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const announcements = pgTable("announcements", {
@@ -73,7 +73,7 @@ export const announcements = pgTable("announcements", {
   scope: text("scope").notNull().default("Global"),
   targetDepartment: text("target_department"),
   comments: jsonb("comments").$type<{id: string; userId: number; text: string; timestamp: number}[]>().notNull().default([]),
-  timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -106,18 +106,18 @@ export const generalTasks = pgTable("general_tasks", {
   description: text("description").notNull().default(""),
   active: boolean("active").notNull().default(true),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const timeEntries = pgTable("time_entries", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  checkInAt: timestamp("check_in_at").notNull(),
-  checkOutAt: timestamp("check_out_at"),
+  checkInAt: timestamp("check_in_at", { withTimezone: true }).notNull(),
+  checkOutAt: timestamp("check_out_at", { withTimezone: true }),
   checkInConfirmedBy: integer("check_in_confirmed_by").references(() => users.id),
-  checkInConfirmedAt: timestamp("check_in_confirmed_at"),
+  checkInConfirmedAt: timestamp("check_in_confirmed_at", { withTimezone: true }),
   checkOutConfirmedBy: integer("check_out_confirmed_by").references(() => users.id),
-  checkOutConfirmedAt: timestamp("check_out_confirmed_at"),
+  checkOutConfirmedAt: timestamp("check_out_confirmed_at", { withTimezone: true }),
   status: text("status").notNull().default("pending_check_in"),
   roundedMinutes: integer("rounded_minutes"),
   notes: text("notes"),
@@ -134,7 +134,7 @@ export const timeEntries = pgTable("time_entries", {
   // entities. Exactly one of calendarEventId/scoutEventId is set, or neither
   // for plain shop time. See server/routes/competition.ts.
   scoutEventId: integer("scout_event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const timeEntryAudit = pgTable("time_entry_audit", {
@@ -145,7 +145,7 @@ export const timeEntryAudit = pgTable("time_entry_audit", {
   previousValues: jsonb("previous_values").$type<Record<string, any>>(),
   newValues: jsonb("new_values").$type<Record<string, any>>(),
   deltaMinutes: integer("delta_minutes"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const timeEntriesRelations = relations(timeEntries, ({ one, many }) => ({
@@ -179,7 +179,7 @@ export const seasons = pgTable("seasons", {
   gameName: text("game_name").notNull().default(""),
   year: integer("year"),
   active: boolean("active").notNull().default(false),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 // One editable template per (season, kind). Fields are append-only with an
@@ -192,7 +192,7 @@ export const scoutingTemplates = pgTable("scouting_templates", {
   fields: jsonb("fields").$type<TemplateField[]>().notNull().default([]),
   revision: integer("revision").notNull().default(1),
   createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   seasonKindUnique: uniqueIndex("scouting_templates_season_kind_unique").on(t.seasonId, t.kind),
 }));
@@ -210,7 +210,7 @@ export const scoutEvents = pgTable("scout_events", {
   nexusPitMapKey: text("nexus_pit_map_key"),
   createdBy: integer("created_by").notNull().references(() => users.id),
   archived: boolean("archived").notNull().default(false),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const pitScouts = pgTable("pit_scouts", {
@@ -239,8 +239,8 @@ export const pitScouts = pgTable("pit_scouts", {
   templateId: integer("template_id").references(() => scoutingTemplates.id),
   data: jsonb("data").$type<Record<string, any>>().notNull().default({}),
   scoutedBy: integer("scouted_by").notNull().references(() => users.id),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const matchScouts = pgTable("match_scouts", {
@@ -269,7 +269,7 @@ export const matchScouts = pgTable("match_scouts", {
   templateId: integer("template_id").references(() => scoutingTemplates.id),
   data: jsonb("data").$type<Record<string, any>>().notNull().default({}),
   scoutedBy: integer("scouted_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type Season = typeof seasons.$inferSelect;
@@ -300,8 +300,8 @@ export const competitionAssignments = pgTable("competition_assignments", {
   notes: text("notes"),
   autoAssignScouting: boolean("auto_assign_scouting").notNull().default(false),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const eventInfo = pgTable("event_info", {
@@ -315,7 +315,7 @@ export const eventInfo = pgTable("event_info", {
   resources: text("resources"),
   notes: text("notes"),
   updatedBy: integer("updated_by").references(() => users.id),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const competitionCheckinAudit = pgTable("competition_checkin_audit", {
@@ -326,21 +326,21 @@ export const competitionCheckinAudit = pgTable("competition_checkin_audit", {
   previousValues: jsonb("previous_values").$type<Record<string, any>>(),
   newValues: jsonb("new_values").$type<Record<string, any>>(),
   notes: text("notes"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const competitionCheckins = pgTable("competition_checkins", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   eventId: integer("event_id").notNull().references(() => scoutEvents.id, { onDelete: "cascade" }),
-  checkInAt: timestamp("check_in_at").notNull(),
-  checkOutAt: timestamp("check_out_at"),
+  checkInAt: timestamp("check_in_at", { withTimezone: true }).notNull(),
+  checkOutAt: timestamp("check_out_at", { withTimezone: true }),
   status: text("status").notNull().default("checked_in"),
   approvedBy: integer("approved_by").references(() => users.id),
-  approvedAt: timestamp("approved_at"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   roundedMinutes: integer("rounded_minutes"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const fullscreenAlerts = pgTable("fullscreen_alerts", {
@@ -351,8 +351,8 @@ export const fullscreenAlerts = pgTable("fullscreen_alerts", {
   targetAll: boolean("target_all").notNull().default(true),
   targetPitDisplay: boolean("target_pit_display").notNull().default(false),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   active: boolean("active").notNull().default(true),
 });
 
@@ -374,7 +374,7 @@ export const teamClaims = pgTable("team_claims", {
   teamNumber: integer("team_number").notNull(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   userName: text("user_name").notNull(),
-  claimedAt: timestamp("claimed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqSlot: uniqueIndex("team_claims_slot_idx").on(t.eventId, t.matchKey, t.teamNumber),
 }));
@@ -390,7 +390,7 @@ export const safetyCertifications = pgTable("safety_certifications", {
   safetyGuide: text("safety_guide").notNull().default(""),
   checklistItems: jsonb("checklist_items").$type<{ id: string; text: string }[]>().notNull().default([]),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const userCertifications = pgTable("user_certifications", {
@@ -398,7 +398,7 @@ export const userCertifications = pgTable("user_certifications", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   certificationId: integer("certification_id").notNull().references(() => safetyCertifications.id, { onDelete: "cascade" }),
   grantedBy: integer("granted_by").notNull().references(() => users.id),
-  grantedAt: timestamp("granted_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqUserCert: uniqueIndex("user_certifications_user_cert_idx").on(t.userId, t.certificationId),
 }));
@@ -411,8 +411,8 @@ export const certificationRequests = pgTable("certification_requests", {
   trainerId: integer("trainer_id").references(() => users.id),
   checklistProgress: jsonb("checklist_progress").$type<{ id: string; completed: boolean }[]>().notNull().default([]),
   notes: text("notes"),
-  requestedAt: timestamp("requested_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqActiveRequest: uniqueIndex("cert_requests_active_uniq_idx")
     .on(t.userId, t.certificationId)
@@ -437,7 +437,7 @@ export const calendarEvents = pgTable("calendar_events", {
   type: text("type").notNull().default("shop"),
   location: text("location").notNull().default(""),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   recurrenceType: text("recurrence_type"),
   recurrenceEndsOn: text("recurrence_ends_on"),
   parentEventId: integer("parent_event_id").references((): AnyPgColumn => calendarEvents.id, { onDelete: 'cascade' }),
@@ -465,7 +465,7 @@ export const resources = pgTable("resources", {
   category: text("category").notNull().default("Other"),
   addedBy: integer("added_by").notNull().references(() => users.id),
   pinned: boolean("pinned").notNull().default(false),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type Resource = typeof resources.$inferSelect;
@@ -496,13 +496,19 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Class Member', tier: 'member' },
   ]),
   teamProgram: text("team_program").notNull().default("FRC"),
+  // Home-base IANA timezone (e.g. "America/Los_Angeles"). Business rules that
+  // must stay pinned to the team regardless of viewer (hours-day bucketing,
+  // the calendar subscription feed) use this; personal display of instants
+  // uses the viewer's own device timezone with this shown alongside when
+  // they differ — see utils/timeFormat.ts.
+  timezone: text("timezone").notNull().default("America/Los_Angeles"),
   tbaApiKey: text("tba_api_key"),
   toaApiKey: text("toa_api_key"),
   nexusApiKey: text("nexus_api_key"),
   // Requirements config (Epic C) — fundraising goal + per-category hour requirements.
   requirements: jsonb("requirements").$type<any>(),
   fundraisingCategories: jsonb("fundraising_categories").$type<string[]>(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type TeamSettings = typeof teamSettings.$inferSelect;
@@ -515,7 +521,7 @@ export const matchExceptions = pgTable("match_exceptions", {
   matchNumber: integer("match_number").notNull(),
   type: text("type").notNull().default("off"),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqException: uniqueIndex("match_exceptions_unique_idx").on(t.eventId, t.userId, t.matchNumber),
 }));
@@ -530,7 +536,7 @@ export const guestTokens = pgTable("guest_tokens", {
   label: text("label").notNull().default("Guest"),
   active: boolean("active").notNull().default(true),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type GuestToken = typeof guestTokens.$inferSelect;
@@ -542,7 +548,7 @@ export type InsertGuestToken = typeof guestTokens.$inferInsert;
 export const calendarFeedTokens = pgTable("calendar_feed_tokens", {
   userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type CalendarFeedToken = typeof calendarFeedTokens.$inferSelect;
@@ -555,7 +561,7 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   endpoint: text("endpoint").notNull().unique(),
   p256dh: text("p256dh").notNull(),
   auth: text("auth").notNull(),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
@@ -579,7 +585,7 @@ export const recurringTaskTemplates = pgTable("recurring_task_templates", {
   active: boolean("active").notNull().default(true),
   lastGeneratedDate: text("last_generated_date"), // YYYY-MM-DD of the most recent generation
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type RecurringTaskTemplate = typeof recurringTaskTemplates.$inferSelect;
@@ -593,16 +599,16 @@ export const eventSignups = pgTable("event_signups", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted | invited
   approvedBy: integer("approved_by").references(() => users.id),
-  approvedAt: timestamp("approved_at"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   note: text("note"),
-  checkedInAt: timestamp("checked_in_at"),
-  checkedOutAt: timestamp("checked_out_at"),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+  checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
   checkedInBy: integer("checked_in_by").references(() => users.id),
   // Set when status is (or was) "invited" — who invited this person to a
   // private event, and when. See server/services/eventVisibility.ts.
   invitedBy: integer("invited_by").references(() => users.id),
-  invitedAt: timestamp("invited_at"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  invitedAt: timestamp("invited_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
   uniqSignup: uniqueIndex("event_signups_unique_idx").on(t.calendarEventId, t.userId),
 }));
@@ -620,9 +626,9 @@ export const fundraisingEntries = pgTable("fundraising_entries", {
   occurredOn: text("occurred_on").notNull(), // YYYY-MM-DD
   status: text("status").notNull().default("verified"), // verified | pending
   verifiedBy: integer("verified_by").references(() => users.id),
-  verifiedAt: timestamp("verified_at"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdBy: integer("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export type FundraisingEntry = typeof fundraisingEntries.$inferSelect;

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PNG } from "pngjs";
 import { storage } from "../storage";
 import { getUserRoles, hasAnyRole, COACH_CAPTAIN, hasTbaKey, hasToaKey, hasNexusKey, invalidateApiKeyCache, getResolvedKeys } from "../helpers";
+import { invalidateTeamTimezoneCache } from "../services/teamTime";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
@@ -89,6 +90,7 @@ router.put("/settings", async (req, res) => {
       return res.status(403).json({ error: "Only Coaches or Captains can modify team settings" });
     }
     const settings = await storage.upsertTeamSettings(data);
+    invalidateTeamTimezoneCache();
     res.json(settings);
   } catch (error) {
     console.error("Error updating team settings:", error);
@@ -110,9 +112,11 @@ router.post("/settings/reset", async (req, res) => {
       themeColor: '#dc2626',
       logoUrl: null,
       teamProgram: 'FRC',
+      timezone: 'America/Los_Angeles',
       departments: DEFAULT_DEPARTMENTS,
       roles: DEFAULT_ROLES,
     });
+    invalidateTeamTimezoneCache();
     res.json(settings);
   } catch (error) {
     console.error("Error resetting team settings:", error);

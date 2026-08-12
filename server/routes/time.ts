@@ -4,6 +4,7 @@ import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../
 import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
 import { localDatePT, pacificDateTime } from "../../utils/dates";
+import { getTeamTimezone } from "../services/teamTime";
 
 const router = Router();
 
@@ -326,8 +327,9 @@ router.post("/time-entries/bulk-add", requireRoles(...COACH_CAPTAIN), async (req
     const { coachId, userIds, minutes, notes, date } = req.body;
     const results = [];
 
-    // Build 9 AM Pacific on the given date (or today in PT if no date supplied).
-    const checkInAt = pacificDateTime(date || localDatePT(), '09:00');
+    // Build 9 AM team-local on the given date (or today, team-local, if no date supplied).
+    const tz = await getTeamTimezone();
+    const checkInAt = pacificDateTime(date || localDatePT(new Date(), tz), '09:00', tz);
     const checkOutAt = new Date(checkInAt.getTime() + minutes * 60000);
     const roundedMinutes = roundToQuarterHour(minutes);
 

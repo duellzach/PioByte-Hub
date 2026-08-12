@@ -6,6 +6,7 @@ import { todayLocalStr, parseLocalDate } from '../utils/dates';
 import { Task, TaskStatus, Priority, Department, User, Activity, Comment, Role, SuccessCriterion } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS, PRIORITIES, STATUSES, EFFORT_POINTS } from '../constants';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { useTeamTime } from '../utils/timeFormat';
 import { api } from '../services/api';
 
 interface TaskModalProps {
@@ -43,6 +44,7 @@ const taskSignature = (t: Task): string => JSON.stringify({
 
 const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
   const { settings } = useTeamSettings();
+  const { fmtTime, fmtDate, fmtDateTime } = useTeamTime();
   const deptNames = settings.departments.map(d => d.name);
 
   const [editedTask, setEditedTask] = useState<Task>(task || {
@@ -313,7 +315,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   className="text-3xl font-black text-slate-900 dark:text-white bg-transparent border-none outline-none focus:ring-4 focus:ring-teamColor/10 rounded-xl px-2 w-full uppercase tracking-tighter"
                 />
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
-                   <Clock size={10} /> POSTED {new Date(editedTask.createdAt).toLocaleDateString([], { timeZone: 'America/Los_Angeles' })} {new Date(editedTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
+                   <Clock size={10} /> POSTED {fmtDate(editedTask.createdAt)} {fmtTime(editedTask.createdAt)}
                 </p>
             </div>
           </div>
@@ -460,7 +462,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{user?.name || 'Unknown'}</span>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">{new Date(c.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
+                                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">{fmtTime(c.timestamp)}</span>
                                       {isCoach && (
                                         <button 
                                           onClick={() => deleteComment(c.id)}
@@ -515,7 +517,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                 <div className={`w-1 rounded-full ${isSOS && !isResolved ? 'bg-red-600' : isResolved ? 'bg-green-500' : 'bg-red-600/20 dark:bg-red-600/40'}`} />
                                 <div>
                                     <p className={`font-black uppercase tracking-tight text-[10px] ${isSOS && !isResolved ? 'text-red-600' : isResolved ? 'text-green-600' : 'text-slate-800 dark:text-slate-100'}`}>{h.action}</p>
-                                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {new Date(h.timestamp).toLocaleString([], { timeZone: 'America/Los_Angeles' })}</p>
+                                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {fmtDateTime(h.timestamp)}</p>
                                 </div>
                             </div>
                           );

@@ -29,6 +29,22 @@ const DEPT_COLOR_OPTIONS = [
 
 const PROTECTED_ROLES = ['Coach', 'Team Captain', 'Team Member'];
 
+// Common IANA zones covering the US + a few international spots teams travel
+// to for competitions. `Intl.supportedValuesOf('timeZone')` would give the
+// full list, but a curated set keeps the dropdown scannable.
+const COMMON_TIMEZONES = [
+  { value: 'America/Los_Angeles', label: 'Pacific Time (Los Angeles)' },
+  { value: 'America/Denver', label: 'Mountain Time (Denver)' },
+  { value: 'America/Phoenix', label: 'Mountain Time — no DST (Phoenix)' },
+  { value: 'America/Chicago', label: 'Central Time (Chicago)' },
+  { value: 'America/New_York', label: 'Eastern Time (New York)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (Anchorage)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (Honolulu)' },
+  { value: 'America/Puerto_Rico', label: 'Atlantic Time (Puerto Rico)' },
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Europe/London', label: 'UK Time (London)' },
+];
+
 const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => (
   <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
     <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
@@ -141,6 +157,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         departments: form.departments,
         roles: form.roles,
         teamProgram: form.teamProgram,
+        timezone: form.timezone,
       });
       setSettings(updated);
       setSaveSuccess(true);
@@ -401,6 +418,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                 </div>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">Home Timezone</label>
+            <select
+              value={form.timezone || 'America/Los_Angeles'}
+              onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))}
+              className="w-full px-3 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2"
+            >
+              {COMMON_TIMEZONES.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium mt-1.5">
+              Used for the calendar subscription feed and for bucketing hours by day. Everyone still sees their own device time for timestamps, with the home time shown alongside when they differ.
+            </p>
           </div>
 
           <div>
