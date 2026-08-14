@@ -58,7 +58,10 @@ async function initializeDatabase() {
     console.log("⏳  Fresh database detected — pushing schema …");
     const result = spawnSync(
       "npx",
-      ["drizzle-kit", "push", "--force"],
+      // --config is required: drizzle.config.ts deliberately lives in db/
+      // rather than the repo root, so Replit's Publish step doesn't find a
+      // Drizzle project and run its own destructive push. See db/drizzle.config.ts.
+      ["drizzle-kit", "push", "--force", "--config=db/drizzle.config.ts"],
       { stdio: "inherit", shell: true }
     );
     if (result.status !== 0) {

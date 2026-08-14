@@ -14,6 +14,8 @@ The frontend is built with Vite, React 19, and TypeScript, utilizing `react-rout
 ### Backend
 The backend is an Express API that communicates with a PostgreSQL database using Drizzle ORM for type-safe data operations.
 
+**The Drizzle config lives at `db/drizzle.config.ts`, not the repo root — don't move it back.** Replit's Publish step looks for a Drizzle project and, on finding one, runs its own `drizzle-kit push` against the *production* database; that push has repeatedly proposed dropping live data this repo's schema never asks to drop (`calendar_feed_tokens`, `time_entries.scout_event_id`, `event_signups.invited_by`/`invited_at`, `calendar_events.invite_only`). Keeping the config out of the conventional location prevents that detection. For the same reason `npm run db:push` is an intentional no-op — the real command is `npm run schema:push`, which passes `--config=db/drizzle.config.ts`.
+
 **Schema changes are applied at boot, never by the post-merge hook.** `scripts/post-merge.sh` deliberately does *not* run `drizzle-kit push`: that hook runs against the live database after every GitHub sync, and `push` prompts to drop anything it thinks is missing (`You're about to delete <table> with N items`) — with `-- --force` it drops silently. Instead, `initializeDatabase()` in `server/index.ts` pushes only when the database is empty (error `42P01`), and existing databases are maintained by the idempotent `ensure*` chain that runs on every start (`ensureCalendarFeedTokens`, `ensureInviteOnlyEvents`, `ensureCompetitionUnification`, …), all using `IF NOT EXISTS`. To add a column, add an `ensure*` function.
 
 ### Core Features and Design Decisions
