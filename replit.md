@@ -14,6 +14,8 @@ The frontend is built with Vite, React 19, and TypeScript, utilizing `react-rout
 ### Backend
 The backend is an Express API that communicates with a PostgreSQL database using Drizzle ORM for type-safe data operations.
 
+**Schema changes are applied at boot, never by the post-merge hook.** `scripts/post-merge.sh` deliberately does *not* run `drizzle-kit push`: that hook runs against the live database after every GitHub sync, and `push` prompts to drop anything it thinks is missing (`You're about to delete <table> with N items`) — with `-- --force` it drops silently. Instead, `initializeDatabase()` in `server/index.ts` pushes only when the database is empty (error `42P01`), and existing databases are maintained by the idempotent `ensure*` chain that runs on every start (`ensureCalendarFeedTokens`, `ensureInviteOnlyEvents`, `ensureCompetitionUnification`, …), all using `IF NOT EXISTS`. To add a column, add an `ensure*` function.
+
 ### Core Features and Design Decisions
 - **Multi-Team Configurability**: A Master Control Panel allows teams to customize identity (team number, name, logo), theme colors, departments, and roles.
 - **Project & Task Management**: Includes Kanban boards, task assignment, status tracking, priority setting, department-based filtering, and a "War Room" dashboard. Tasks support dependencies and can be restricted to departmental visibility.
