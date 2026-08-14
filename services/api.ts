@@ -85,6 +85,10 @@ export const api = {
       apiRequest<any>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(task) }),
     delete: (id: number) =>
       apiRequest<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    bulkCreate: (payload: { projectId: number; tasks: any[] }) =>
+      apiRequest<{ created: number; tasks: any[]; errors: { row: number; message: string }[] }>(
+        '/tasks/bulk', { method: 'POST', body: JSON.stringify(payload) }
+      ),
   },
   events: {
     signup: (eventId: number) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST' }),

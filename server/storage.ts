@@ -145,6 +145,7 @@ export interface IStorage {
   getTask(id: number): Promise<Task | undefined>;
   getTasksByProject(projectId: number): Promise<Task[]>;
   createTask(task: InsertTask): Promise<Task>;
+  createTasksBulk(tasks: (InsertTask & { dependencyTitles?: string[] })[]): Promise<Task[]>;
   updateTask(id: number, task: Partial<InsertTask>): Promise<Task | undefined>;
   deleteTask(id: number): Promise<void>;
 
@@ -338,6 +339,56 @@ export class DatabaseStorage implements IStorage {
     const sanitized = sanitizeTask(task);
     const [newTask] = await db.insert(tasks).values(sanitized).returning();
     return newTask;
+  }
+
+  // Insert every task in one transaction: a bulk import should either land
+  // in full or not at all, so the caller (e.g. a CSV import) never has to
+  // figure out which rows silently made it onto the board.
+  //
+  // Two passes, same transaction: a row's dependency on another row in this
+  // same batch can't be expressed until both exist, so pass one inserts
+  // everything and pass two links same-batch dependencies by id, using each
+  // task's title to find the row it was pointing at (`dependencyTitles`,
+  // resolved server-side in server/routes/tasks.ts before this is called).
+  // If pass two fails, pass one rolls back with it.
+  async createTasksBulk(taskList: (InsertTask & { dependencyTitles?: string[] })[]): Promise<Task[]> {
+    if (taskList.length === 0) return [];
+    return db.transaction(async (tx) => {
+      const linkNames = taskList.map(t => t.dependencyTitles || []);
+      const toInsert = taskList.map(t => {
+        const { dependencyTitles, ...rest } = t;
+        return sanitizeTask(rest);
+      });
+
+      // A single multi-row INSERT ... RETURNING preserves the VALUES order
+      // in Postgres, so inserted[i] corresponds to taskList[i] — that's what
+      // lets pass two line up each row with its dependencyTitles.
+      const inserted = await tx.insert(tasks).values(toInsert).returning();
+
+      const titleToId = new Map<string, number>();
+      for (const row of inserted) titleToId.set(row.title.trim().toLowerCase(), row.id);
+
+      const updates: { id: number; dependencies: number[] }[] = [];
+      inserted.forEach((row, i) => {
+        const names = linkNames[i];
+        if (names.length === 0) return;
+        const linkedIds = names
+          .map(n => titleToId.get(n.trim().toLowerCase()))
+          .filter((id): id is number => id !== undefined && id !== row.id);
+        if (linkedIds.length === 0) return;
+        const merged = Array.from(new Set([...(row.dependencies as number[] || []), ...linkedIds]));
+        updates.push({ id: row.id, dependencies: merged });
+      });
+
+      if (updates.length === 0) return inserted;
+
+      for (const u of updates) {
+        await tx.update(tasks).set({ dependencies: u.dependencies }).where(eq(tasks.id, u.id));
+      }
+      const updatedRows = await tx.select().from(tasks).where(inArray(tasks.id, updates.map(u => u.id)));
+      const updatedById = new Map(updatedRows.map(r => [r.id, r]));
+      return inserted.map(row => updatedById.get(row.id) || row);
+    });
   }
 
   async updateTask(id: number, task: Partial<InsertTask>): Promise<Task | undefined> {

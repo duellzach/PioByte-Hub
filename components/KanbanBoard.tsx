@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, Task, TaskStatus, Department, Project, Priority, Role } from '../types';
 import { STATUSES, STATUS_COLORS, PRIORITY_COLORS, DEPT_BORDER_COLORS } from '../constants';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive, Repeat } from 'lucide-react';
+import { Plus, GripVertical, FolderPlus, LifeBuoy, AlertTriangle, X, CheckCircle, Folder, Clock, ChevronDown, Settings, ShieldCheck, Link2, Archive, Repeat, FileSpreadsheet } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import { parseLocalDate, todayLocalStr } from '../utils/dates';
 import TaskModal from './TaskModal';
 import BoardSettingsModal from './BoardSettingsModal';
 import RecurringTasksModal from './RecurringTasksModal';
+import TaskImportExportModal from './TaskImportExportModal';
 import { ProjectLinkChip } from './ProjectLinks';
 import { api } from '../services/api';
 
@@ -20,9 +21,10 @@ interface KanbanBoardProps {
   onUpdateProject: (p: Project) => void;
   onArchiveProject: (id: string) => void;
   onNotify: (taskId: string, toUserId: string, message: string) => void;
+  onDataChanged?: () => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDeleteTask, onAddTask, onAddProject, onUpdateProject, onArchiveProject, onNotify, onDataChanged }) => {
   const { settings } = useTeamSettings();
   const deptNames = settings.departments.map(d => d.name);
 
@@ -33,6 +35,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [showImportExportModal, setShowImportExportModal] = useState(false);
   
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
@@ -266,6 +269,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               >
                   <Repeat size={16} />
               </button>
+              {activeProject && hasLeaderRole && (
+                <button
+                    onClick={() => setShowImportExportModal(true)}
+                    className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
+                    title="Import / Export Tasks"
+                >
+                    <FileSpreadsheet size={16} />
+                </button>
+              )}
               {activeProject && hasLeaderRole && (
                 <button
                     onClick={() => setShowSettingsModal(true)}
@@ -656,6 +668,16 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
           projects={state.projects.filter(p => !p.archived).map(p => ({ id: String(p.id), name: p.name }))}
           canManage={(state.currentUser?.roles || []).some((r: string) => ['Coach', 'Team Captain', 'SCRUM Master', 'Department Head'].includes(r))}
           onClose={() => setShowRecurringModal(false)}
+        />
+      )}
+
+      {showImportExportModal && activeProject && (
+        <TaskImportExportModal
+          project={{ id: activeProject.id, name: activeProject.name }}
+          boardTasks={projectTasks}
+          users={state.users.map(u => ({ id: u.id, username: u.username }))}
+          onClose={() => setShowImportExportModal(false)}
+          onImported={() => onDataChanged?.()}
         />
       )}
     </div>

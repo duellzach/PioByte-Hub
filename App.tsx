@@ -582,8 +582,9 @@ const App: React.FC = () => {
                 />
               } />
               <Route path="/boards" element={isGuest ? <Navigate to="/scout" replace /> :
-                <KanbanBoard 
-                  state={state} 
+                <KanbanBoard
+                  state={state}
+                  onDataChanged={fetchData}
                   onAddTask={async (t) => {
                       const taskData: any = { ...t };
                       if (taskData.status === TaskStatus.Complete) taskData.completedAt = new Date().toISOString();
