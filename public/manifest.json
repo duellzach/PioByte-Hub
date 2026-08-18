@@ -1,6 +1,6 @@
 {
-  "name": "PioByte Hub",
-  "short_name": "PioByte",
+  "name": "Hub",
+  "short_name": "Hub",
   "description": "FRC Team 10991 Project Management & Scouting",
   "start_url": "/",
   "display": "standalone",

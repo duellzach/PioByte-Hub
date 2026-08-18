@@ -1,4 +1,5 @@
 import type { AvailableTask, GeneralTask } from '../types';
+import type { DepartmentUsageMap } from '../shared/departments';
 
 const API_BASE = '/api';
 
@@ -331,6 +332,7 @@ export const api = {
     get: () => apiRequest<any>('/settings'),
     update: (data: any) => apiRequest<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
     reset: (requesterId: number) => apiRequest<any>('/settings/reset', { method: 'POST', body: JSON.stringify({ requesterId }) }),
+    departmentUsage: () => apiRequest<DepartmentUsageMap>('/settings/department-usage'),
     fetchTbaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/tba-logo?team=${teamNumber}`),
     fetchToaLogo: (teamNumber: number) => apiRequest<{ logoUrl: string | null }>(`/settings/toa-logo?team=${teamNumber}`),
     getApiStatus: () => apiRequest<{ tba: boolean; toa: boolean; nexus: boolean }>('/settings/api-status'),

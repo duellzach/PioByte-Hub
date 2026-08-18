@@ -76,14 +76,19 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [users, projects, tasks, notifications, announcements, timeEntries] = await Promise.all([
+      const [users, projects, tasks, notifications, announcements, timeEntries, settings] = await Promise.all([
         api.users.getAll(),
         api.projects.getAll(),
         api.tasks.getAll(),
         api.notifications.getAll(),
         api.announcements.getAll(),
         api.timeEntries.getAll(),
+        // Polled alongside records (rather than fetched once) so a department
+        // rename/deletion made by another Coach — or in another tab — reaches
+        // this session within one interval instead of needing a hard reload.
+        api.settings.get(),
       ]);
+      setTeamSettings(settings);
       setState(prev => ({
         ...prev,
         users: users.map((u: any) => ({ ...u, id: String(u.id) })),
@@ -228,6 +233,10 @@ const App: React.FC = () => {
       setTeamSettings(s);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    document.title = `${teamSettings.teamName} Hub`;
+  }, [teamSettings.teamName]);
 
   useEffect(() => {
     const hex = teamSettings.themeColor.replace('#', '');

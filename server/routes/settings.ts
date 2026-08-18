@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { PNG } from "pngjs";
-import { storage } from "../storage";
+import { storage, DepartmentChangeError } from "../storage";
 import { getUserRoles, hasAnyRole, COACH_CAPTAIN, hasTbaKey, hasToaKey, hasNexusKey, invalidateApiKeyCache, getResolvedKeys } from "../helpers";
 import { invalidateTeamTimezoneCache } from "../services/teamTime";
+import { requireRoles } from "../middleware/auth";
+import { EMPTY_DEPARTMENT_CHANGES, derivedRemovals } from "../../shared/departments";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
@@ -68,13 +70,17 @@ const DEFAULT_ROLES = [
   { name: 'Class Member', tier: 'member' },
 ];
 
+// Never expose stored API keys to clients. The UI reads presence/absence from
+// GET /settings/api-status (booleans) instead.
+function stripApiKeys(settings: any) {
+  const { tbaApiKey, toaApiKey, nexusApiKey, ...safe } = settings;
+  return safe;
+}
+
 router.get("/settings", async (req, res) => {
   try {
     const settings = await storage.getTeamSettings();
-    // Never expose stored API keys to clients. The UI reads presence/absence
-    // from GET /settings/api-status (booleans) instead.
-    const { tbaApiKey, toaApiKey, nexusApiKey, ...safe } = settings as any;
-    res.json(safe);
+    res.json(stripApiKeys(settings));
   } catch (error) {
     console.error("Error fetching team settings:", error);
     res.status(500).json({ error: "Failed to fetch settings" });
@@ -83,16 +89,31 @@ router.get("/settings", async (req, res) => {
 
 router.put("/settings", async (req, res) => {
   try {
-    const { requesterId, ...data } = req.body;
+    const { requesterId, departmentChanges, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
       return res.status(403).json({ error: "Only Coaches or Captains can modify team settings" });
     }
-    const settings = await storage.upsertTeamSettings(data);
+
+    // Partial saves that don't touch departments (e.g. RequirementsSettings)
+    // have nothing to reconcile or propagate — keep the old, simpler path.
+    if (data.departments === undefined) {
+      const settings = await storage.upsertTeamSettings(data);
+      invalidateTeamTimezoneCache();
+      return res.json(stripApiKeys(settings));
+    }
+
+    const { settings, propagation } = await storage.updateTeamSettingsWithDepartmentChanges(
+      data,
+      departmentChanges ?? EMPTY_DEPARTMENT_CHANGES,
+    );
     invalidateTeamTimezoneCache();
-    res.json(settings);
+    res.json({ ...stripApiKeys(settings), departmentPropagation: propagation });
   } catch (error) {
+    if (error instanceof DepartmentChangeError) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error("Error updating team settings:", error);
     res.status(500).json({ error: "Failed to update settings" });
   }
@@ -106,21 +127,44 @@ router.post("/settings/reset", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
       return res.status(403).json({ error: "Only Coaches or Captains can reset team settings" });
     }
-    const settings = await storage.upsertTeamSettings({
-      teamNumber: 10991,
-      teamName: 'piobyte',
-      themeColor: '#dc2626',
-      logoUrl: null,
-      teamProgram: 'FRC',
-      timezone: 'America/Los_Angeles',
-      departments: DEFAULT_DEPARTMENTS,
-      roles: DEFAULT_ROLES,
-    });
+
+    // Resetting departments back to the defaults is exactly as destructive as
+    // deleting every custom one at once — route it through the same
+    // propagation path instead of orphaning every reference in one shot.
+    // NOTE: `roles` has the identical bug on reset (custom roles vanish from
+    // team_settings while users.roles keeps them) — out of scope here.
+    const current = await storage.getTeamSettings();
+    const changes = derivedRemovals(
+      (current.departments as { name: string }[]).map(d => d.name),
+      DEFAULT_DEPARTMENTS.map(d => d.name),
+    );
+    const { settings, propagation } = await storage.updateTeamSettingsWithDepartmentChanges(
+      {
+        teamNumber: 10991,
+        teamName: 'piobyte',
+        themeColor: '#dc2626',
+        logoUrl: null,
+        teamProgram: 'FRC',
+        timezone: 'America/Los_Angeles',
+        departments: DEFAULT_DEPARTMENTS,
+        roles: DEFAULT_ROLES,
+      },
+      changes,
+    );
     invalidateTeamTimezoneCache();
-    res.json(settings);
+    res.json({ ...stripApiKeys(settings), departmentPropagation: propagation });
   } catch (error) {
     console.error("Error resetting team settings:", error);
     res.status(500).json({ error: "Failed to reset settings" });
+  }
+});
+
+router.get("/settings/department-usage", requireRoles(...COACH_CAPTAIN), async (_req, res) => {
+  try {
+    res.json(await storage.getDepartmentUsageCounts());
+  } catch (error) {
+    console.error("Error fetching department usage:", error);
+    res.status(500).json({ error: "Failed to load department usage" });
   }
 });
 

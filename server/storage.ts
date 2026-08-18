@@ -32,8 +32,22 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
   return { ...row, data: dataFromLegacyRow(kind, row) };
 }
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
-import { eq, desc, and, isNull, lt, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
+import {
+  type DepartmentChangeSet,
+  type DepartmentPropagationCounts,
+  type DepartmentUsageMap,
+  normalizeDepartmentChanges,
+  remapDepartmentName,
+  remapDepartmentList,
+  reconcileDepartmentChanges,
+} from "../shared/departments";
+
+/** Thrown by `updateTeamSettingsWithDepartmentChanges` when the client's declared
+ *  department rename/removal intent doesn't reconcile against what's actually
+ *  stored — the route layer maps this to a 400 instead of a 500. */
+export class DepartmentChangeError extends Error {}
 
 // --- Recurring-task date helpers (team-local, matching the app's date convention) ---
 // No cache import here (server/services/teamTime.ts imports `storage`, so the
@@ -83,6 +97,11 @@ function migrateSuccessCriteria(criteria: any[]): {id: string; text: string; com
     }
     return item;
   });
+}
+
+/** Shallow same-elements-same-order comparison, used to skip a write when a department remap is a no-op. */
+function sameStringList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 function sanitizeTask(task: any): any {
@@ -257,6 +276,21 @@ export interface IStorage {
 
   getTeamSettings(): Promise<TeamSettings>;
   upsertTeamSettings(data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>): Promise<TeamSettings>;
+  /**
+   * Like `upsertTeamSettings`, but for saves that touch `departments`: the
+   * declared `DepartmentChangeSet` is reconciled against the current row
+   * (inside the same transaction, under a row lock) and then propagated to
+   * every table that references a department by name — users, tasks,
+   * projects, announcements, recurring task templates — before the settings
+   * row itself is written. Throws `DepartmentChangeError` if the declared
+   * changes don't reconcile.
+   */
+  updateTeamSettingsWithDepartmentChanges(
+    data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>,
+    declared: DepartmentChangeSet,
+  ): Promise<{ settings: TeamSettings; propagation: DepartmentPropagationCounts }>;
+  /** Per-department reference counts across every table that can name one, keyed by department name. */
+  getDepartmentUsageCounts(): Promise<DepartmentUsageMap>;
   migrateApiKeyColumns(): Promise<void>;
   ensureTeamTimezoneColumn(): Promise<void>;
 
@@ -2018,6 +2052,144 @@ export class DatabaseStorage implements IStorage {
     const merged: InsertTeamSettings = { ...this.defaultTeamSettings(), ...data };
     const [created] = await db.insert(teamSettings).values(merged).returning();
     return created;
+  }
+
+  async updateTeamSettingsWithDepartmentChanges(
+    data: Partial<Omit<TeamSettings, 'id' | 'updatedAt'>>,
+    declared: DepartmentChangeSet,
+  ): Promise<{ settings: TeamSettings; propagation: DepartmentPropagationCounts }> {
+    return db.transaction(async (tx) => {
+      // Lock the settings row so two concurrent Coach saves can't both
+      // validate against the same pre-state and have the second one silently
+      // no-op its propagation while still writing a "successful" settings row.
+      let [current] = await tx.select().from(teamSettings).for('update');
+      if (!current) {
+        const defaults = this.defaultTeamSettings();
+        [current] = await tx.insert(teamSettings).values(defaults).returning();
+      }
+
+      const storedNames = (current.departments as { name: string; color: string }[]).map(d => d.name);
+      const incomingNames = ((data.departments as { name: string; color: string }[] | undefined) ?? storedNames.map(n => ({ name: n }))).map((d: any) => d.name);
+      const verdict = reconcileDepartmentChanges(storedNames, incomingNames, declared);
+      // `'error' in verdict` (rather than `!verdict.ok`) because this repo's
+      // tsconfig doesn't enable strictNullChecks, and discriminated-union
+      // narrowing on a boolean literal tag is unreliable without it.
+      if ('error' in verdict) throw new DepartmentChangeError(verdict.error);
+
+      const norm = normalizeDepartmentChanges(verdict.changes);
+      const affected = [...norm.renameMap.keys(), ...norm.removed];
+      const counts: DepartmentPropagationCounts = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0 };
+
+      if (affected.length > 0) {
+        const containsAny = (col: any) => or(...affected.map(n => sql`${col} @> ${JSON.stringify([n])}::jsonb`))!;
+
+        // users.departments (jsonb string[])
+        const userRows = await tx.select({ id: users.id, departments: users.departments }).from(users).where(containsAny(users.departments));
+        for (const row of userRows) {
+          const next = remapDepartmentList(row.departments as string[], norm);
+          if (sameStringList(next, row.departments as string[])) continue;
+          await tx.update(users).set({ departments: next }).where(eq(users.id, row.id));
+          counts.users++;
+        }
+
+        // tasks.departments (jsonb string[]) — clearing the last department on
+        // a dept-only task must also clear deptOnly, mirroring the invariant
+        // TaskModal already enforces on manual save (a dept-only task with no
+        // departments left is invisible on every board).
+        const taskRows = await tx.select({ id: tasks.id, departments: tasks.departments, deptOnly: tasks.deptOnly }).from(tasks).where(containsAny(tasks.departments));
+        for (const row of taskRows) {
+          const next = remapDepartmentList(row.departments as string[], norm);
+          if (sameStringList(next, row.departments as string[])) continue;
+          const patch: { departments: string[]; deptOnly?: boolean } = { departments: next };
+          if (row.deptOnly && next.length === 0) patch.deptOnly = false;
+          await tx.update(tasks).set(patch).where(eq(tasks.id, row.id));
+          counts.tasks++;
+        }
+
+        // recurring_task_templates.departments (jsonb string[]) — same deptOnly rule,
+        // otherwise every future generated task would inherit the invisible state.
+        const templateRows = await tx.select({ id: recurringTaskTemplates.id, departments: recurringTaskTemplates.departments, deptOnly: recurringTaskTemplates.deptOnly }).from(recurringTaskTemplates).where(containsAny(recurringTaskTemplates.departments));
+        for (const row of templateRows) {
+          const next = remapDepartmentList(row.departments as string[], norm);
+          if (sameStringList(next, row.departments as string[])) continue;
+          const patch: { departments: string[]; deptOnly?: boolean } = { departments: next };
+          if (row.deptOnly && next.length === 0) patch.deptOnly = false;
+          await tx.update(recurringTaskTemplates).set(patch).where(eq(recurringTaskTemplates.id, row.id));
+          counts.recurringTemplates++;
+        }
+
+        // projects.department (text, nullable)
+        const projRows = await tx.select({ id: projects.id, department: projects.department }).from(projects).where(inArray(projects.department, affected));
+        for (const row of projRows) {
+          const next = remapDepartmentName(row.department, norm);
+          if (next === row.department) continue;
+          await tx.update(projects).set({ department: next }).where(eq(projects.id, row.id));
+          counts.projects++;
+        }
+
+        // announcements.targetDepartment (text, nullable) — removal sets it to
+        // null and leaves `scope` alone (fail closed, never broadcast wider).
+        const annRows = await tx.select({ id: announcements.id, targetDepartment: announcements.targetDepartment }).from(announcements).where(inArray(announcements.targetDepartment, affected));
+        for (const row of annRows) {
+          const next = remapDepartmentName(row.targetDepartment, norm);
+          if (next === row.targetDepartment) continue;
+          await tx.update(announcements).set({ targetDepartment: next }).where(eq(announcements.id, row.id));
+          counts.announcements++;
+        }
+      }
+
+      const [settings] = await tx.update(teamSettings)
+        .set({ ...(data as Partial<InsertTeamSettings>), updatedAt: new Date() })
+        .where(eq(teamSettings.id, current.id))
+        .returning();
+
+      return { settings, propagation: counts };
+    });
+  }
+
+  async getDepartmentUsageCounts(): Promise<DepartmentUsageMap> {
+    const settings = await this.getTeamSettings();
+    const map: DepartmentUsageMap = {};
+    for (const dept of settings.departments as { name: string }[]) {
+      map[dept.name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, total: 0 };
+    }
+    const ensure = (name: string) => {
+      if (!map[name]) map[name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, total: 0 };
+      return map[name];
+    };
+
+    const textCount = async (table: any, column: any, key: keyof DepartmentPropagationCounts) => {
+      const result = await db.execute(sql`SELECT ${column} AS name, count(*)::int AS n FROM ${table} WHERE ${column} IS NOT NULL GROUP BY 1`);
+      for (const row of (result as any).rows as { name: string; n: number }[]) {
+        ensure(row.name)[key] = row.n;
+      }
+    };
+    const jsonbListCount = async (table: any, idColumn: any, column: any, key: keyof DepartmentPropagationCounts) => {
+      // No FROM-clause alias here on purpose — aliasing `table` would put the
+      // unaliased table name out of scope for `${idColumn}`/`${column}`,
+      // since those embed the column's own table-qualified reference.
+      const result = await db.execute(sql`
+        SELECT elem AS name, count(DISTINCT ${idColumn})::int AS n
+        FROM ${table}, LATERAL jsonb_array_elements_text(${column}) AS elem
+        GROUP BY 1
+      `);
+      for (const row of (result as any).rows as { name: string; n: number }[]) {
+        ensure(row.name)[key] = row.n;
+      }
+    };
+
+    await Promise.all([
+      textCount(projects, projects.department, 'projects'),
+      textCount(announcements, announcements.targetDepartment, 'announcements'),
+      jsonbListCount(users, users.id, users.departments, 'users'),
+      jsonbListCount(tasks, tasks.id, tasks.departments, 'tasks'),
+      jsonbListCount(recurringTaskTemplates, recurringTaskTemplates.id, recurringTaskTemplates.departments, 'recurringTemplates'),
+    ]);
+
+    for (const usage of Object.values(map)) {
+      usage.total = usage.users + usage.projects + usage.tasks + usage.announcements + usage.recurringTemplates;
+    }
+    return map;
   }
 
   async seedDatabase(): Promise<void> {

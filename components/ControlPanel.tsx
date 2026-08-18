@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, AlertTriangle, KeyRound, Copy, RefreshCw, Upload } from 'lucide-react';
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 import RequirementsSettings from './RequirementsSettings';
+import type { DepartmentChangeSet, DepartmentUsageMap } from '../shared/departments';
 
 interface ControlPanelProps {
   currentUserRoles: string[];
@@ -28,6 +29,22 @@ const DEPT_COLOR_OPTIONS = [
 ];
 
 const PROTECTED_ROLES = ['Coach', 'Team Captain', 'Team Member'];
+
+// `DepartmentSetting` has no stable id, so the Control Panel tracks each row's
+// original saved name locally — that's what lets a save distinguish "renamed"
+// from "deleted + added" and tell the server which via `departmentChanges`
+// (see shared/departments.ts). `key` exists purely for React reconciliation
+// across add/remove — using the array index there let inputs keep the wrong
+// value after a splice.
+interface DeptDraft {
+  key: string;
+  originalName: string | null; // null = added this editing session, not yet saved
+  name: string;
+  color: string;
+}
+
+const toDeptDrafts = (departments: DepartmentSetting[]): DeptDraft[] =>
+  departments.map((d, i) => ({ key: `${i}:${d.name}`, originalName: d.name, name: d.name, color: d.color }));
 
 // Common IANA zones covering the US + a few international spots teams travel
 // to for competitions. `Intl.supportedValuesOf('timeZone')` would give the
@@ -65,13 +82,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   const [form, setForm] = useState<TeamSettingsData>({ ...settings });
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveSuccessDetail, setSaveSuccessDetail] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [logoLoading, setLogoLoading] = useState(false);
   const [logoMsg, setLogoMsg] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoFileRef = useRef<HTMLInputElement>(null);
-  const [resetConfirm, setResetConfirm] = useState(false);
   const [apiStatus, setApiStatus] = useState<{ tba: boolean; toa: boolean; nexus: boolean } | null>(null);
+
+  // Department rename/delete tracking — see the DeptDraft comment above.
+  const [deptDrafts, setDeptDrafts] = useState<DeptDraft[]>(() => toDeptDrafts(settings.departments));
+  const [deptUsage, setDeptUsage] = useState<DepartmentUsageMap | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<
+    { kind: 'delete-department'; key: string; name: string } | { kind: 'reset' } | null
+  >(null);
 
   const [apiKeyForm, setApiKeyForm] = useState({ tba: '', toa: '', nexus: '' });
   const [apiKeySaving, setApiKeySaving] = useState<Record<string, boolean>>({});
@@ -133,54 +157,120 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
     }).catch(() => {});
   };
 
+  // Seed the form once from whatever settings this page mounted with. NOT
+  // keyed on `settings` — App.tsx polls settings every 15s (so department
+  // renames/deletions made elsewhere show up promptly across the app), and
+  // resyncing on every change would silently discard an in-progress edit
+  // here mid-save. handleSave/runReset resync explicitly once their own
+  // write is confirmed, which is the only time this form needs to catch up.
   useEffect(() => {
     setForm({ ...settings });
-  }, [settings]);
+    setDeptDrafts(toDeptDrafts(settings.departments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     api.settings.getApiStatus().then(setApiStatus).catch(() => {});
   }, []);
 
+  const refreshDeptUsage = () => {
+    if (!isCoachOrCaptain) return;
+    api.settings.departmentUsage().then(setDeptUsage).catch(() => {});
+  };
+  useEffect(refreshDeptUsage, [isCoachOrCaptain]);
+
   if (!isCoachOrCaptain) return <Navigate to="/" replace />;
 
+  // Derived from the two sources of truth (saved settings + current drafts),
+  // so it self-heals rather than needing its own state to stay in sync.
+  const deptChanges: DepartmentChangeSet = useMemo(() => {
+    const surviving = new Set(deptDrafts.map(d => d.originalName).filter((n): n is string => n !== null));
+    const removals = settings.departments.map(d => d.name).filter(n => !surviving.has(n));
+    const renames = deptDrafts
+      .filter((d): d is DeptDraft & { originalName: string } => d.originalName !== null && d.originalName !== d.name.trim())
+      .map(d => ({ from: d.originalName, to: d.name.trim() }));
+    return { renames, removals };
+  }, [deptDrafts, settings.departments]);
+
+  const deptValidationError = useMemo(() => {
+    const names = deptDrafts.map(d => d.name.trim());
+    if (names.some(n => n.length === 0)) return 'Department names cannot be empty.';
+    const seen = new Set<string>();
+    for (const n of names) {
+      const lower = n.toLowerCase();
+      if (seen.has(lower)) return `Department "${n}" is listed more than once — delete one to merge them.`;
+      seen.add(lower);
+    }
+    return null;
+  }, [deptDrafts]);
+
+  // Departments a Reset would strip — anything currently saved that isn't
+  // also one of the shipped defaults.
+  const departmentsLostOnReset = useMemo(() => {
+    const defaultNames = new Set(DEFAULT_TEAM_SETTINGS.departments.map(d => d.name));
+    return settings.departments.filter(d => !defaultNames.has(d.name));
+  }, [settings.departments]);
+
   const handleSave = async () => {
+    if (deptValidationError) { setSaveError(deptValidationError); return; }
     setSaving(true);
     setSaveSuccess(false);
+    setSaveSuccessDetail(null);
     setSaveError(null);
     try {
-      const updated = await api.settings.update({
+      const departments = deptDrafts.map(d => ({ name: d.name.trim(), color: d.color }));
+      const updated: any = await api.settings.update({
         requesterId: currentUserId ? parseInt(currentUserId) : 0,
         teamNumber: form.teamNumber,
         teamName: form.teamName,
         themeColor: form.themeColor,
         logoUrl: form.logoUrl,
-        departments: form.departments,
+        departments,
+        departmentChanges: deptChanges,
         roles: form.roles,
         teamProgram: form.teamProgram,
         timezone: form.timezone,
       });
-      setSettings(updated);
+      const { departmentPropagation, ...clean } = updated;
+      setSettings(clean);
+      setForm({ ...clean });
+      setDeptDrafts(toDeptDrafts(clean.departments));
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (err) {
+      if (departmentPropagation?.total > 0) {
+        const parts = [
+          departmentPropagation.users && `${departmentPropagation.users} member${departmentPropagation.users === 1 ? '' : 's'}`,
+          departmentPropagation.tasks && `${departmentPropagation.tasks} task${departmentPropagation.tasks === 1 ? '' : 's'}`,
+          departmentPropagation.projects && `${departmentPropagation.projects} board${departmentPropagation.projects === 1 ? '' : 's'}`,
+          departmentPropagation.announcements && `${departmentPropagation.announcements} announcement${departmentPropagation.announcements === 1 ? '' : 's'}`,
+          departmentPropagation.recurringTemplates && `${departmentPropagation.recurringTemplates} recurring template${departmentPropagation.recurringTemplates === 1 ? '' : 's'}`,
+        ].filter(Boolean);
+        setSaveSuccessDetail(`Updated ${parts.join(', ')}.`);
+      }
+      refreshDeptUsage();
+      setTimeout(() => { setSaveSuccess(false); setSaveSuccessDetail(null); }, 4000);
+    } catch (err: any) {
       console.error('Save failed:', err);
-      setSaveError('Save failed — please try again.');
-      setTimeout(() => setSaveError(null), 4000);
+      setSaveError(err?.message || 'Save failed — please try again.');
+      setTimeout(() => setSaveError(null), 5000);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReset = async () => {
-    if (!resetConfirm) { setResetConfirm(true); return; }
+  const runReset = async () => {
+    setConfirmDialog(null);
     setSaving(true);
     try {
-      const updated = await api.settings.reset(currentUserId ? parseInt(currentUserId) : 0);
-      setForm({ ...updated });
-      setSettings(updated);
-      setResetConfirm(false);
-    } catch (err) {
+      const updated: any = await api.settings.reset(currentUserId ? parseInt(currentUserId) : 0);
+      const { departmentPropagation, ...clean } = updated;
+      setForm({ ...clean });
+      setDeptDrafts(toDeptDrafts(clean.departments));
+      setSettings(clean);
+      refreshDeptUsage();
+    } catch (err: any) {
       console.error(err);
+      setSaveError(err?.message || 'Reset failed — please try again.');
+      setTimeout(() => setSaveError(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -277,19 +367,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
   };
 
   const addDept = () => {
-    setForm(f => ({ ...f, departments: [...f.departments, { name: 'New Department', color: '#6366f1' }] }));
+    setDeptDrafts(ds => [...ds, { key: crypto.randomUUID(), originalName: null, name: 'New Department', color: '#6366f1' }]);
   };
 
-  const updateDept = (idx: number, patch: Partial<DepartmentSetting>) => {
-    setForm(f => {
-      const deps = [...f.departments];
-      deps[idx] = { ...deps[idx], ...patch };
-      return { ...f, departments: deps };
-    });
+  const updateDeptDraft = (key: string, patch: Partial<Pick<DeptDraft, 'name' | 'color'>>) => {
+    setDeptDrafts(ds => ds.map(d => d.key === key ? { ...d, ...patch } : d));
   };
 
-  const removeDept = (idx: number) => {
-    setForm(f => ({ ...f, departments: f.departments.filter((_, i) => i !== idx) }));
+  const removeDept = (draft: DeptDraft) => {
+    // Never saved this session — nothing to warn about, just drop it.
+    if (draft.originalName === null) {
+      setDeptDrafts(ds => ds.filter(d => d.key !== draft.key));
+      return;
+    }
+    setConfirmDialog({ kind: 'delete-department', key: draft.key, name: draft.originalName });
+  };
+
+  const confirmRemoveDept = () => {
+    if (confirmDialog?.kind !== 'delete-department') return;
+    setDeptDrafts(ds => ds.filter(d => d.key !== confirmDialog.key));
+    setConfirmDialog(null);
   };
 
   const addRole = () => {
@@ -329,18 +426,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
             </span>
           )}
           <button
-            onClick={() => { setResetConfirm(false); handleReset(); }}
+            onClick={() => setConfirmDialog({ kind: 'reset' })}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl hover:border-slate-300 dark:hover:border-slate-500 transition-colors"
           >
-            {resetConfirm ? (
-              <><AlertTriangle size={13} className="text-amber-500" /><span className="text-amber-600">Confirm Reset?</span></>
-            ) : (
-              <><RotateCcw size={13} /><span>Reset</span></>
-            )}
+            <RotateCcw size={13} /><span>Reset</span>
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !!deptValidationError}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-black text-white rounded-xl transition-all shadow-sm disabled:opacity-60"
             style={{ backgroundColor: form.themeColor }}
           >
@@ -349,6 +442,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           </button>
         </div>
       </div>
+      {saveSuccessDetail && (
+        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 -mt-3">{saveSuccessDetail}</p>
+      )}
 
       <SectionCard title="Team Identity" subtitle="How your team appears throughout the app">
         <div className="space-y-4">
@@ -544,22 +640,33 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         <RequirementsSettings currentUserId={currentUserId} />
       </SectionCard>
 
-      <SectionCard title="Departments" subtitle="Customize department names and colors. Renaming updates throughout the app.">
+      <SectionCard title="Departments" subtitle="Customize department names and colors. Renames and deletions are applied everywhere on Save.">
         <div className="space-y-2">
-          {form.departments.map((dept, idx) => (
-            <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+          {(deptChanges.renames.length > 0 || deptChanges.removals.length > 0) && (
+            <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
+              Unsaved: {deptChanges.renames.length > 0 && `${deptChanges.renames.length} rename${deptChanges.renames.length === 1 ? '' : 's'}`}
+              {deptChanges.renames.length > 0 && deptChanges.removals.length > 0 && ', '}
+              {deptChanges.removals.length > 0 && `${deptChanges.removals.length} deletion${deptChanges.removals.length === 1 ? '' : 's'}`}
+              {' '}— Save to apply everywhere.
+            </p>
+          )}
+          {deptValidationError && (
+            <p className="text-[11px] font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={12} /> {deptValidationError}</p>
+          )}
+          {deptDrafts.map((draft) => (
+            <div key={draft.key} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
               <div className="relative group flex-shrink-0">
                 <div
                   className="w-7 h-7 rounded-lg cursor-pointer border-2 border-white dark:border-slate-700 shadow-sm"
-                  style={{ backgroundColor: dept.color }}
+                  style={{ backgroundColor: draft.color }}
                   title="Pick color"
                 />
                 <div className="absolute top-8 left-0 z-10 hidden group-hover:flex flex-wrap gap-1 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-xl w-36">
                   {DEPT_COLOR_OPTIONS.map(c => (
                     <button
                       key={c}
-                      onClick={() => updateDept(idx, { color: c })}
-                      className={`w-6 h-6 rounded-md border-2 transition-transform hover:scale-110 ${dept.color === c ? 'border-slate-800 dark:border-white' : 'border-transparent'}`}
+                      onClick={() => updateDeptDraft(draft.key, { color: c })}
+                      className={`w-6 h-6 rounded-md border-2 transition-transform hover:scale-110 ${draft.color === c ? 'border-slate-800 dark:border-white' : 'border-transparent'}`}
                       style={{ backgroundColor: c }}
                     />
                   ))}
@@ -567,13 +674,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
               </div>
               <input
                 type="text"
-                value={dept.name}
-                onChange={e => updateDept(idx, { name: e.target.value })}
+                value={draft.name}
+                onChange={e => updateDeptDraft(draft.key, { name: e.target.value })}
                 className="flex-1 px-2 py-1 text-sm font-bold bg-transparent border-b border-slate-200 dark:border-slate-600 focus:outline-none focus:border-slate-400 dark:focus:border-slate-400 text-slate-800 dark:text-slate-200"
               />
               <button
-                onClick={() => removeDept(idx)}
-                disabled={form.departments.length <= 1}
+                onClick={() => removeDept(draft)}
+                disabled={deptDrafts.length <= 1}
                 className="p-1 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <Trash2 size={14} />
@@ -814,18 +921,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
 
       <div className="flex justify-end gap-2 pb-6">
         <button
-          onClick={handleReset}
+          onClick={() => setConfirmDialog({ kind: 'reset' })}
           className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl hover:border-slate-300 dark:hover:border-slate-500 transition-colors"
         >
-          {resetConfirm ? (
-            <><AlertTriangle size={13} className="text-amber-500" /><span className="text-amber-600">Confirm Reset?</span></>
-          ) : (
-            <><RotateCcw size={13} />Reset to Defaults</>
-          )}
+          <RotateCcw size={13} />Reset to Defaults
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !!deptValidationError}
           className="flex items-center gap-2 px-5 py-2 text-sm font-black text-white rounded-xl transition-all shadow-sm hover:opacity-90 disabled:opacity-60"
           style={{ backgroundColor: form.themeColor }}
         >
@@ -833,6 +936,91 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           {saveSuccess ? 'Saved!' : 'Save Settings'}
         </button>
       </div>
+
+      {confirmDialog?.kind === 'delete-department' && (() => {
+        const usage = deptUsage?.[confirmDialog.name];
+        const parts = usage ? [
+          usage.users && `${usage.users} member${usage.users === 1 ? '' : 's'}`,
+          usage.tasks && `${usage.tasks} task${usage.tasks === 1 ? '' : 's'}`,
+          usage.projects && `${usage.projects} board${usage.projects === 1 ? '' : 's'}`,
+          usage.announcements && `${usage.announcements} announcement${usage.announcements === 1 ? '' : 's'}`,
+          usage.recurringTemplates && `${usage.recurringTemplates} recurring template${usage.recurringTemplates === 1 ? '' : 's'}`,
+        ].filter(Boolean) : [];
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl border-t-8 border-red-500">
+              <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Delete "{confirmDialog.name}"?</h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  {parts.length > 0
+                    ? <>{parts.join(' · ')} reference this department. Saving will strip it from all of them.</>
+                    : 'No records currently reference this department.'}
+                  {' '}Members left with no department show as <span className="font-bold">Unassigned</span>.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setConfirmDialog(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmRemoveDept}
+                    className="px-4 py-2 text-xs font-black text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {confirmDialog?.kind === 'reset' && (() => {
+        const totalUsage = departmentsLostOnReset.reduce((sum, d) => sum + (deptUsage?.[d.name]?.total ?? 0), 0);
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl border-t-8 border-amber-500">
+              <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-500 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Reset all settings to defaults?</h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Team name, theme, departments, and roles all revert to their factory defaults.
+                  {departmentsLostOnReset.length > 0 && (
+                    <> This removes {departmentsLostOnReset.length === 1 ? 'department' : 'departments'} {departmentsLostOnReset.map(d => `"${d.name}"`).join(', ')}
+                    {totalUsage > 0 && ` (${totalUsage} reference${totalUsage === 1 ? '' : 's'} across your data)`} from everything assigned to {departmentsLostOnReset.length === 1 ? 'it' : 'them'}.</>
+                  )}
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setConfirmDialog(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={runReset}
+                    disabled={saving}
+                    className="px-4 py-2 text-xs font-black text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-colors disabled:opacity-60"
+                  >
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : 'Reset'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
