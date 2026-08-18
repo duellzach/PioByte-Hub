@@ -5,7 +5,6 @@ packages = ["unzip"]
 
 [agent]
 expertMode = true
-integrations = ["javascript_gemini_ai_integrations:2.0.0"]
 
 [workflows]
 runButton = "Project"
