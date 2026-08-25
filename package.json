@@ -2,6 +2,7 @@
   "name": "first-robotics-project-hub-(frc-ph)",
   "private": true,
   "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"tsx server/index.ts\" \"vite\" \"tailwindcss -i ./index.css -o ./public/tailwind.css --watch\"",
