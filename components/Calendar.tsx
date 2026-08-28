@@ -25,6 +25,9 @@ interface CalendarEvent {
   instanceDate?: string | null;
   deletedDates?: string | null;
   attending: boolean;
+  signupEnabled?: boolean;
+  capacity?: number | null;
+  acceptedCount?: number;
   inviteOnly?: boolean;
 }
 
@@ -64,6 +67,7 @@ const EMPTY_FORM = {
   recurrenceType: 'none',
   recurrenceEndsOn: '',
   attending: true,
+  signupEnabled: true,
   capacity: '',
   inviteOnly: false,
   invitees: [] as (number | string)[],
@@ -268,6 +272,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       recurrenceType: ev.recurrenceType || 'none',
       recurrenceEndsOn: ev.recurrenceEndsOn || '',
       attending: ev.attending !== false,
+      signupEnabled: ev.signupEnabled === true,
       capacity: (ev as any).capacity != null ? String((ev as any).capacity) : '',
       inviteOnly: !!ev.inviteOnly,
       invitees: [],
@@ -302,7 +307,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         attending: form.attending,
         recurrenceType: form.recurrenceType !== 'none' ? form.recurrenceType : null,
         recurrenceEndsOn: form.recurrenceType !== 'none' ? form.recurrenceEndsOn : null,
-        capacity: form.capacity.trim() ? parseInt(form.capacity, 10) : null,
+        signupEnabled: form.signupEnabled,
+        capacity: form.signupEnabled && form.capacity.trim() ? parseInt(form.capacity, 10) : null,
         inviteOnly: form.inviteOnly,
         invitees: form.inviteOnly ? form.invitees : [],
       };
@@ -372,6 +378,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         type: parent.type,
         location: parent.location,
         attending: parent.attending,
+        signupEnabled: parent.signupEnabled === true,
+        capacity: parent.capacity ?? null,
         recurrenceType: null,
         recurrenceEndsOn: null,
         parentEventId: parent.id,
@@ -887,22 +895,24 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               )}
               {ev.location && <div className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">{ev.location}</div>}
               {ev.description && <div className="text-[9px] text-slate-400 dark:text-slate-500 italic leading-relaxed">{ev.description}</div>}
-              {(ev as any).signupEnabled && !isRecurring && (
+              {/* Virtual weekly occurrences have no persisted event row of their
+                  own, so keep roster actions on persisted events/overrides only. */}
+              {ev.signupEnabled && !isRecurring && (
                 <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700 space-y-2">
-                  {(ev as any).capacity != null && (
+                  {ev.capacity != null && (
                     <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
                       <span className="text-slate-400 dark:text-slate-500">Spots</span>
-                      <span className={`${(ev as any).acceptedCount >= (ev as any).capacity ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {(ev as any).acceptedCount ?? 0} / {(ev as any).capacity} filled
-                        {(ev as any).acceptedCount >= (ev as any).capacity && ' · Waitlist open'}
+                      <span className={`${(ev.acceptedCount ?? 0) >= ev.capacity ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {ev.acceptedCount ?? 0} / {ev.capacity} filled
+                        {(ev.acceptedCount ?? 0) >= ev.capacity && ' · Waitlist open'}
                       </span>
                     </div>
                   )}
                   {isCoachOrCaptain ? (
-                    <button onClick={() => { setRosterEvent({ id: (ev as CalendarEvent).id, title: ev.title, startDate: (ev as any)._instanceDate ?? (ev as CalendarEvent).startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
+                    <button onClick={() => { setRosterEvent({ id: ev.id, title: ev.title, startDate: (ev as any)._instanceDate ?? ev.startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
                   ) : (
                     <button
-                      onClick={async () => { setSignupBusy(true); try { await api.events.signup((ev as CalendarEvent).id); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
+                      onClick={async () => { setSignupBusy(true); try { await api.events.signup(ev.id); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
                       disabled={signupBusy || signupDone}
                       className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 disabled:opacity-60"
                     >
@@ -1087,7 +1097,24 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                 />
               </div>
 
-              {['outreach', 'volunteer'].includes(form.type) && (
+              <div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={form.signupEnabled}
+                    onChange={e => setForm(f => ({ ...f, signupEnabled: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-teamColor"
+                  />
+                  <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+                    <Users size={11} /> Enable Roster / Sign-ups
+                  </span>
+                </label>
+                <p className="text-[9px] font-medium normal-case text-slate-400 dark:text-slate-500 mt-1 ml-6">
+                  Let team members sign up and let leadership manage attendance for this event.
+                </p>
+              </div>
+
+              {form.signupEnabled && (
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
                     Signup Limit <span className="font-medium normal-case text-slate-400">— leave blank for unlimited</span>

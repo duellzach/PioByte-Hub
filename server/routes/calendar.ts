@@ -80,10 +80,10 @@ router.post("/calendar", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can create calendar events" });
     }
-    // Default sign-ups on for participation event types unless explicitly set.
-    if (data.signupEnabled === undefined && ["outreach", "volunteer", "competition"].includes(data.type)) {
-      data.signupEnabled = true;
-    }
+    // Roster participation is an event-level setting. Keep new events
+    // roster-enabled by default for API callers that do not send the field;
+    // the calendar form always sends the user's explicit choice.
+    if (data.signupEnabled === undefined) data.signupEnabled = true;
     const event = await storage.createCalendarEvent({ ...data, createdBy: parseInt(requesterId) });
     if (data.inviteOnly) {
       await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
@@ -204,6 +204,7 @@ router.post("/calendar/tba-import", async (req, res) => {
         type: 'competition',
         location: ev.location || '',
         attending: true,
+        signupEnabled: true,
         createdBy: parseInt(requesterId),
       });
       created.push(row);
@@ -274,6 +275,7 @@ router.post("/calendar/toa-import", async (req, res) => {
         type: 'competition',
         location: ev.location || '',
         attending: true,
+        signupEnabled: true,
         createdBy: parseInt(requesterId),
       });
       created.push(row);
