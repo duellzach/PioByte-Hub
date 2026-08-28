@@ -495,9 +495,18 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       try {
         const events = await api.scout.getEvents();
         const today = todayLocalStr();
-        const active = events.filter((e: any) =>
-          !e.archived && (!e.endDate || e.endDate >= today)
-        );
+        // A missing end date means this is a one-day event, not an event that
+        // stays live forever. Keep historical attendance data intact, but do
+        // not let old competitions appear in the live check-in selector.
+        const active = events
+          .filter((e: any) => {
+            if (e.archived) return false;
+            const effectiveEndDate = e.endDate || e.startDate;
+            return !!effectiveEndDate && effectiveEndDate >= today;
+          })
+          .sort((a: any, b: any) =>
+            String(a.startDate || '').localeCompare(String(b.startDate || '')) || a.id - b.id
+          );
         setCompEvents(active);
         if (active.length > 0 && !selectedCompEventId) {
           setSelectedCompEventId(active[0].id);
