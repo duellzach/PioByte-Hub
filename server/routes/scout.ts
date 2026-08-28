@@ -3,6 +3,8 @@ import { storage } from "../storage";
 import { tbaFetch, TBA_KEY, nexusFetch, toaFetch, TOA_KEY, hasNexusKey } from "../helpers";
 import { requireRoles } from "../middleware/auth";
 import { BUILTIN_TEMPLATES, type ScoutKind, type TemplateField } from "../../shared/scoutingTemplates";
+import { liveCompetitionEvents, localDatePT } from "../../utils/dates";
+import { getTeamTimezone } from "../services/teamTime";
 
 const router = Router();
 
@@ -24,6 +26,10 @@ async function resolveTemplateFields(event: any, kind: ScoutKind): Promise<Templ
 router.get("/scout-events", async (req, res) => {
   try {
     const events = await storage.getScoutEvents();
+    if (req.query.active === "true") {
+      const today = localDatePT(new Date(), await getTeamTimezone());
+      return res.json(liveCompetitionEvents(events, today));
+    }
     res.json(events);
   } catch (error) {
     console.error("Error fetching scout events:", error);

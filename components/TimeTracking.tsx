@@ -3,7 +3,7 @@ import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, 
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
 import { api } from '../services/api';
 import { PRIORITY_COLORS } from '../constants';
-import { todayLocalStr } from '../utils/dates';
+import { liveCompetitionEvents, todayLocalStr } from '../utils/dates';
 import { useTeamTime } from '../utils/timeFormat';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
@@ -493,23 +493,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   useEffect(() => {
     const loadEvents = async () => {
       try {
-        const events = await api.scout.getEvents();
-        const today = todayLocalStr();
-        // A missing end date means this is a one-day event, not an event that
-        // stays live forever. Keep historical attendance data intact, but do
-        // not let old competitions appear in the live check-in selector.
-        const active = events
-          .filter((e: any) => {
-            if (e.archived) return false;
-            const effectiveEndDate = e.endDate || e.startDate;
-            return !!effectiveEndDate && effectiveEndDate >= today;
-          })
-          .sort((a: any, b: any) =>
-            String(a.startDate || '').localeCompare(String(b.startDate || '')) || a.id - b.id
-          );
+        const events = await api.scout.getEvents(true);
+        const active = liveCompetitionEvents(events);
         setCompEvents(active);
-        if (active.length > 0 && !selectedCompEventId) {
-          setSelectedCompEventId(active[0].id);
+        setSelectedCompEventId(previousId => {
+          if (active.some(event => event.id === previousId)) return previousId;
+          return active[0]?.id ?? null;
+        });
+        if (active.length === 0) {
+          setCompCheckins([]);
+          setMyCompCheckin(null);
         }
       } catch {}
     };

@@ -20,6 +20,59 @@ export function todayLocalStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+interface CompetitionEventDateRange {
+  id?: number;
+  startDate?: string | null;
+  endDate?: string | null;
+  archived?: boolean | null;
+}
+
+/**
+ * Competition events shown in the live attendance panel may be current or
+ * upcoming. A missing end date means the event is a one-day event, not an
+ * event that stays active forever.
+ */
+export function isCompetitionEventLive(
+  event: CompetitionEventDateRange,
+  today: string = todayLocalStr(),
+): boolean {
+  if (event.archived || !event.startDate) return false;
+  return (event.endDate || event.startDate) >= today;
+}
+
+function isCompetitionEventCurrent(event: CompetitionEventDateRange, today: string): boolean {
+  return Boolean(
+    event.startDate &&
+    event.startDate <= today &&
+    (event.endDate || event.startDate) >= today,
+  );
+}
+
+/**
+ * Return live competition events in a stable, useful selection order: an event
+ * happening today first, followed by upcoming events in start-date order.
+ */
+export function liveCompetitionEvents<T extends CompetitionEventDateRange>(
+  events: T[],
+  today: string = todayLocalStr(),
+): T[] {
+  return events
+    .filter(event => isCompetitionEventLive(event, today))
+    .sort((a, b) => {
+      const aCurrent = isCompetitionEventCurrent(a, today);
+      const bCurrent = isCompetitionEventCurrent(b, today);
+      if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
+
+      const byStartDate = (a.startDate || '').localeCompare(b.startDate || '');
+      if (byStartDate !== 0) return byStartDate;
+
+      const byEndDate = (a.endDate || '').localeCompare(b.endDate || '');
+      if (byEndDate !== 0) return byEndDate;
+
+      return (a.id ?? 0) - (b.id ?? 0);
+    });
+}
+
 /** The team's home-base timezone before a setting exists to read it from,
  *  or as the fallback if the setting is somehow empty. Every function below
  *  defaults to this so nothing broke mid-refactor when `tz` became

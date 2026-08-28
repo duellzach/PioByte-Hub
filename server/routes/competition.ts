@@ -2,6 +2,8 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { COACH_CAPTAIN, getUserRoles, hasAnyRole } from "../helpers";
+import { liveCompetitionEvents, localDatePT } from "../../utils/dates";
+import { getTeamTimezone } from "../services/teamTime";
 
 const router = Router();
 
@@ -74,6 +76,11 @@ router.post("/competition-checkins/check-in", async (req, res) => {
   try {
     const userId = parseInt(req.body.userId);
     const eventId = parseInt(req.body.eventId);
+    const event = await storage.getScoutEvent(eventId);
+    const today = localDatePT(new Date(), await getTeamTimezone());
+    if (!event || !liveCompetitionEvents([event], today).length) {
+      return res.status(400).json({ error: "This competition is not active for attendance" });
+    }
     const open = await storage.getOpenTimeEntryForScoutEvent(userId, eventId);
     if (open) {
       return res.status(400).json({ error: "Already checked in to this event" });

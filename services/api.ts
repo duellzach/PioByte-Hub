@@ -158,7 +158,7 @@ export const api = {
       }),
   },
   scout: {
-    getEvents: () => apiRequest<any[]>('/scout-events'),
+    getEvents: (activeOnly = false) => apiRequest<any[]>(`/scout-events${activeOnly ? '?active=true' : ''}`),
     createEvent: (event: any) => apiRequest<any>('/scout-events', { method: 'POST', body: JSON.stringify(event) }),
     updateEvent: (id: number, event: any) => apiRequest<any>(`/scout-events/${id}`, { method: 'PUT', body: JSON.stringify(event) }),
     deleteEvent: (id: number) => apiRequest<void>(`/scout-events/${id}`, { method: 'DELETE' }),

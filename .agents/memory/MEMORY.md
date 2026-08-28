@@ -1,0 +1,1 @@
+- [Competition attendance dates](competition-attendance-dates.md) — missing end dates mean one-day events; live attendance must use the event's date range, while history remains unfiltered.
