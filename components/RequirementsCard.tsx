@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Target, DollarSign, Clock } from 'lucide-react';
 import { api } from '../services/api';
+import { CategoryBadge } from './hourCategoryStyles';
 
 const fmtMoney = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const fmtHours = (mins: number) => {
@@ -67,23 +68,34 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
           );
         })()}
 
-        {hourReqs.map((h: any) => (
-          <div key={h.key} className="space-y-2.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest"><Clock size={11} /> {h.label}</div>
-            {h.phases.map((ph: any, i: number) => {
-              const done = ph.requiredMinutes > 0 && ph.earnedMinutes >= ph.requiredMinutes;
-              return (
-                <Bar
-                  key={i}
-                  label={h.phases.length > 1 ? ph.label : 'Logged'}
-                  value={`${fmtHours(ph.earnedMinutes)} of ${fmtHours(ph.requiredMinutes)}`}
-                  percent={pct(ph.earnedMinutes, ph.requiredMinutes)}
-                  done={done}
-                />
-              );
-            })}
-          </div>
-        ))}
+        {hourReqs.map((h: any) => {
+          // Only show per-bar area badges when phases actually differ — a
+          // uniform requirement (the common case) doesn't need the extra noise.
+          const mixed = new Set(h.phases.map((p: any) => (p.categories || []).join(','))).size > 1;
+          return (
+            <div key={h.key} className="space-y-2.5">
+              <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest"><Clock size={11} /> {h.label}</div>
+              {h.phases.map((ph: any, i: number) => {
+                const done = ph.requiredMinutes > 0 && ph.earnedMinutes >= ph.requiredMinutes;
+                return (
+                  <div key={i} className="space-y-1">
+                    <Bar
+                      label={h.phases.length > 1 ? ph.label : 'Logged'}
+                      value={`${fmtHours(ph.earnedMinutes)} of ${fmtHours(ph.requiredMinutes)}`}
+                      percent={pct(ph.earnedMinutes, ph.requiredMinutes)}
+                      done={done}
+                    />
+                    {mixed && (ph.categories || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {ph.categories.map((c: string) => <CategoryBadge key={c} category={c} />)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

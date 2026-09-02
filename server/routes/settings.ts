@@ -5,6 +5,7 @@ import { getUserRoles, hasAnyRole, COACH_CAPTAIN, hasTbaKey, hasToaKey, hasNexus
 import { invalidateTeamTimezoneCache } from "../services/teamTime";
 import { requireRoles } from "../middleware/auth";
 import { EMPTY_DEPARTMENT_CHANGES, derivedRemovals } from "../../shared/departments";
+import { sanitizeRequirements } from "./requirements";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
@@ -94,6 +95,19 @@ router.put("/settings", async (req, res) => {
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
       return res.status(403).json({ error: "Only Coaches or Captains can modify team settings" });
+    }
+
+    // `requirements` is a JSONB blob with no other validation, and feeds a
+    // loop in computeRequirements — coerce it into shape here. Guarded by
+    // `!== undefined` because upsertTeamSettings is a blind column write: a
+    // partial save that omits `requirements` (e.g. a departments-only save)
+    // must leave the stored value untouched.
+    if (data.requirements !== undefined) {
+      try {
+        data.requirements = sanitizeRequirements(data.requirements);
+      } catch (e: any) {
+        return res.status(400).json({ error: e.message });
+      }
     }
 
     // Partial saves that don't touch departments (e.g. RequirementsSettings)

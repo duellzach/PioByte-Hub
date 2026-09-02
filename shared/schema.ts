@@ -135,7 +135,15 @@ export const timeEntries = pgTable("time_entries", {
   // for plain shop time. See server/routes/competition.ts.
   scoutEventId: integer("scout_event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (t) => ({
+  // Prevents a repeat of the competition-checkin resurrection bug — see
+  // storage.ensureCompetitionEntryUniqueIndex, which creates the same index
+  // by this same name. Declared here too so `schema:push` never proposes
+  // dropping it.
+  competitionUnique: uniqueIndex("time_entries_competition_unique_idx")
+    .on(t.userId, t.scoutEventId, t.checkInAt)
+    .where(sql`${t.scoutEventId} IS NOT NULL`),
+}));
 
 export const timeEntryAudit = pgTable("time_entry_audit", {
   id: serial("id").primaryKey(),

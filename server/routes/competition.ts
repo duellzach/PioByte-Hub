@@ -198,7 +198,10 @@ router.post("/competition-checkins/manual-add", requireRoles(...COACH_CAPTAIN), 
       newValues: { status: "completed", roundedMinutes: entry.roundedMinutes, notes: entry.notes, userId: entry.userId },
     });
     res.status(201).json(toApi(entry));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      return res.status(409).json({ error: "An entry already exists for this member at this exact time" });
+    }
     console.error("Error manually adding competition checkin:", error);
     res.status(500).json({ error: "Failed to add manual checkin" });
   }
@@ -231,13 +234,25 @@ router.put("/competition-checkins/:id", async (req, res) => {
     if (!isCoachOrCaptain && !ownsRecord) {
       return res.status(403).json({ error: "Not authorized to update this checkin" });
     }
-    const updated = await storage.updateTimeEntry(id, data as any);
+    // Only `notes` is editable through this route — every real state
+    // transition (check-out, approve, reject, correct hours) has its own
+    // dedicated, role-guarded endpoint below. Forwarding the body unfiltered
+    // used to let a record's owner (a plain student, via ownsRecord above)
+    // rewrite status/roundedMinutes/checkInAt directly, which both
+    // self-awards hours into the ledger and — via checkInAt — is what caused
+    // duplicate rows on every republish (see ensureCompetitionUnification).
+    const patch: Record<string, unknown> = {};
+    if (typeof data.notes === "string") patch.notes = data.notes;
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "Nothing to update — only `notes` is editable here" });
+    }
+    const updated = await storage.updateTimeEntry(id, patch as any);
     await storage.createTimeEntryAudit({
       entryId: id,
       actorId: parseInt(actorId),
       actionType: "update",
       previousValues: { status: existing.status, notes: existing.notes },
-      newValues: data,
+      newValues: patch,
     });
     res.json(toApi(updated!));
   } catch (error) {

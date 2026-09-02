@@ -115,6 +115,75 @@ export function normalizeCategories(h: any): string[] {
   return [];
 }
 
+// A phase may carry its own `categories` list — that's how one requirement
+// can hold e.g. a build-season shop phase and an off-season outreach phase.
+// Absence (the common case, and every blob saved before per-phase areas
+// existed) means inherit the requirement's list, which also picks up legacy
+// `source` translation for free via normalizeCategories above.
+export function phaseCategories(h: any, ph: any): string[] {
+  if (ph && Array.isArray(ph.categories)) return ph.categories.filter(isHourCategory);
+  return normalizeCategories(h);
+}
+
+const MAX_REQUIREMENTS = 50;
+const MAX_PHASES = 50;
+const isDateString = (v: any) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const clampNonNegativeInt = (v: any, max = 10_000_000) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : 0;
+};
+
+/**
+ * Coerce a coach-supplied `requirements` blob into the shape computeRequirements
+ * expects, before it's written to the team_settings.requirements JSONB column
+ * (which has no other validation — see server/routes/settings.ts). Throws on
+ * structural nonsense (not an object); silently drops/clamps junk field
+ * values, matching how the rest of these routes treat bad input.
+ *
+ * `phases[i].categories` is only ever carried through when the client sent
+ * an actual array — its ABSENCE is what phaseCategories() reads as "inherit
+ * the requirement's areas", so this must never fabricate an empty array in
+ * its place.
+ */
+export function sanitizeRequirements(input: any): { fundraising: { enabled: boolean; goalCents: number }; hours: any[] } {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("requirements must be an object");
+  }
+  const seenKeys = new Set<string>();
+  const hours = (Array.isArray(input.hours) ? input.hours : [])
+    .slice(0, MAX_REQUIREMENTS)
+    .filter((h: any) => h && typeof h.key === "string" && h.key.trim() && !seenKeys.has(h.key) && seenKeys.add(h.key))
+    .map((h: any) => {
+      const out: any = {
+        key: h.key,
+        label: typeof h.label === "string" ? h.label.slice(0, 120) : "Requirement",
+        enabled: !!h.enabled,
+        categories: (Array.isArray(h.categories) ? h.categories : []).filter(isHourCategory),
+        phases: (Array.isArray(h.phases) ? h.phases : []).slice(0, MAX_PHASES).map((ph: any) => {
+          const p: any = {
+            label: typeof ph?.label === "string" ? ph.label.slice(0, 120) : "Phase",
+            start: isDateString(ph?.start) ? ph.start : null,
+            end: isDateString(ph?.end) ? ph.end : null,
+            requiredMinutes: clampNonNegativeInt(ph?.requiredMinutes),
+          };
+          if (Array.isArray(ph?.categories)) p.categories = ph.categories.filter(isHourCategory);
+          return p;
+        }),
+      };
+      // Legacy `source` only survives when there's no explicit category list —
+      // matches how normalizeCategories() already prioritizes categories.
+      if (out.categories.length === 0 && typeof h.source === "string") out.source = h.source;
+      return out;
+    });
+  return {
+    fundraising: {
+      enabled: !!input.fundraising?.enabled,
+      goalCents: clampNonNegativeInt(input.fundraising?.goalCents),
+    },
+    hours,
+  };
+}
+
 async function computeRequirements(userId: number) {
   const settings: any = await storage.getTeamSettings();
   const req = settings.requirements || { fundraising: { enabled: false }, hours: [] };
@@ -133,12 +202,21 @@ async function computeRequirements(userId: number) {
   const hours = (req.hours || [])
     .filter((h: any) => h.enabled)
     .map((h: any) => {
-      const categories = normalizeCategories(h);
+      const categories = normalizeCategories(h); // requirement-level default areas
       const phases = (h.phases || []).map((ph: any) => {
-        const earned = sumMinutes(rows, categories, ph.start ?? null, ph.end ?? null);
+        const phaseCats = phaseCategories(h, ph); // areas AND dates, both resolved per phase
+        const earned = sumMinutes(rows, phaseCats, ph.start ?? null, ph.end ?? null);
         const overrideKey = `${h.key}:${ph.label}`;
         const requiredMinutes = overrides[overrideKey] ?? ph.requiredMinutes ?? 0;
-        return { label: ph.label, earnedMinutes: earned, requiredMinutes };
+        return {
+          label: ph.label,
+          categories: phaseCats,
+          inheritsCategories: !Array.isArray(ph.categories),
+          start: ph.start ?? null,
+          end: ph.end ?? null,
+          earnedMinutes: earned,
+          requiredMinutes,
+        };
       });
       return { key: h.key, label: h.label, categories, phases };
     });

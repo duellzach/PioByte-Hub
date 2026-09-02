@@ -516,7 +516,9 @@ export class DatabaseStorage implements IStorage {
   async getOpenTimeEntry(userId: number): Promise<TimeEntry | undefined> {
     const results = await db.select().from(timeEntries)
       .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.checkOutAt)));
-    return results.find(e => e.status !== 'completed');
+    // A rejected session shouldn't block a later clock-in — it was declined,
+    // not left open.
+    return results.find(e => e.status !== 'completed' && e.status !== 'rejected');
   }
 
   // --- Competition time (kind='competition', scoutEventId set) ---
@@ -1385,6 +1387,41 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // A tiny applied-migrations ledger. The schema itself is maintained by the
+  // idempotent ensure*/backfill* chain below (see replit.md) — those are safe
+  // to re-run every boot because they re-derive state from a source of truth.
+  // A few steps are NOT like that: they are one-shot DATA migrations, and
+  // re-running them resurrects rows a coach deliberately deleted (this is
+  // exactly what happened with competition check-ins — see
+  // ensureCompetitionUnification below). Those claim a key here instead.
+  async ensureSchemaMigrationsTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        key TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  /** Atomically claim a one-shot migration. True = you own it, run it now.
+   *  False = it has already run (possibly by another instance under
+   *  autoscale, or in a prior boot) — do not run it again. */
+  async claimMigration(key: string): Promise<boolean> {
+    const result = await db.execute(sql`
+      INSERT INTO schema_migrations (key) VALUES (${key})
+      ON CONFLICT (key) DO NOTHING
+      RETURNING key
+    `);
+    return ((result as any).rows?.length ?? 0) > 0;
+  }
+
+  /** Record a migration as already applied, without running it — used to
+   *  retire a step on databases where its effects are already present, so
+   *  the very next boot after gating it doesn't run it "one last time". */
+  async markMigrationApplied(key: string): Promise<void> {
+    await db.execute(sql`INSERT INTO schema_migrations (key) VALUES (${key}) ON CONFLICT DO NOTHING`);
+  }
+
   async migrateApiKeyColumns(): Promise<void> {
     await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS tba_api_key TEXT`);
     await db.execute(sql`ALTER TABLE team_settings ADD COLUMN IF NOT EXISTS toa_api_key TEXT`);
@@ -1434,13 +1471,38 @@ export class DatabaseStorage implements IStorage {
    * `scout_events` rather than `calendar_events`, so it never showed up in the
    * hours ledger, the Home team-hours card, or the "Who's Here" board. This
    * adds the `scout_event_id` column time_entries needs to carry competition
-   * rows, then backfills every existing competition_checkins row across
-   * (idempotent via NOT EXISTS — safe to re-run). `competition_checkins` and
-   * its audit table are left in place, untouched and unread, purely as a
-   * historical record — nothing after this reads them.
+   * rows, then backfills every existing competition_checkins row across.
+   *
+   * The backfill INSERT is a ONE-SHOT data migration, gated by
+   * schema_migrations — it must NOT re-run on every boot. It used to be
+   * guarded only by a NOT EXISTS check against the destination, which sounds
+   * idempotent but isn't: deleting or editing the derived time_entries row
+   * (the normal way a coach clears a stale check-in) makes the NOT EXISTS
+   * pass again, so the next republish resurrected it — permanently stuck
+   * "checked in" competition rows that blocked clock-in forever. See
+   * cleanupStuckCompetitionEntries for the one-time fix to existing bad data.
+   * `competition_checkins` and its audit table are left in place, untouched
+   * and unread, purely as a historical record — nothing after this reads them.
    */
   async ensureCompetitionUnification(): Promise<void> {
     await db.execute(sql`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS scout_event_id INTEGER REFERENCES scout_events(id) ON DELETE SET NULL`);
+
+    const COMPETITION_UNIFICATION_KEY = 'competition_unification_backfill';
+
+    // Any database that already holds a competition-linked time entry has had
+    // this backfill applied before (under the old ungated code path). Retire
+    // it there without running it again, so a row a coach already deleted
+    // stays deleted on the very first boot of the gated version.
+    await db.execute(sql`
+      INSERT INTO schema_migrations (key)
+      SELECT ${COMPETITION_UNIFICATION_KEY}
+      WHERE EXISTS (SELECT 1 FROM time_entries WHERE scout_event_id IS NOT NULL)
+      ON CONFLICT DO NOTHING
+    `);
+
+    if (!(await this.claimMigration(COMPETITION_UNIFICATION_KEY))) return;
+
+    console.log('ensureCompetitionUnification: running one-time competition_checkins backfill…');
     await db.execute(sql`
       INSERT INTO time_entries (user_id, scout_event_id, kind, check_in_at, check_out_at, status, rounded_minutes, notes, check_out_confirmed_by, check_out_confirmed_at, created_at)
       SELECT
@@ -1458,6 +1520,75 @@ export class DatabaseStorage implements IStorage {
         SELECT 1 FROM time_entries t
         WHERE t.scout_event_id = c.event_id AND t.user_id = c.user_id AND t.check_in_at = c.check_in_at
       )
+    `);
+  }
+
+  /**
+   * One-shot cleanup for the resurrection bug above: competition check-ins
+   * from before the team's 2026-06-01 year rollover that were never closed
+   * out (open, non-completed) had no UI path to fix — TimeTracking.tsx only
+   * lists events with endDate >= today, so a spring competition isn't even
+   * selectable — and every republish put them back regardless. Deletes them
+   * outright, plus their legacy competition_checkins source rows (so a
+   * rollback to the ungated backfill can't re-derive them). Gated by
+   * schema_migrations; the cutoff is embedded in the key so widening it later
+   * requires a new key rather than silently re-running a broader delete.
+   *
+   * The predicate is `status <> 'completed'`, not `status = 'checked_in'`,
+   * deliberately: the hours ledger counts only status='completed' rows with
+   * roundedMinutes (hoursLedger.ts), so this is the exact complement on the
+   * same column — the delete set and the ledger set are provably disjoint,
+   * so no legitimate hours can be destroyed. It's also exactly
+   * getOpenTimeEntry's blocking predicate, so it clears the whole stuck set
+   * (legacy pending_approval/rejected rows block clock-in identically and
+   * would otherwise be missed).
+   */
+  async cleanupStuckCompetitionEntries(): Promise<void> {
+    const KEY = 'competition_stuck_cleanup_before_2026_06_01';
+    if (!(await this.claimMigration(KEY))) return;
+
+    const deleted = await db.execute(sql`
+      DELETE FROM time_entries
+      WHERE kind = 'competition'
+        AND scout_event_id IS NOT NULL
+        AND check_out_at IS NULL
+        AND status <> 'completed'
+        AND check_in_at < TIMESTAMPTZ '2026-06-01 00:00:00+00'
+      RETURNING id, user_id, scout_event_id, check_in_at, status
+    `);
+    const rows = (deleted as any).rows ?? [];
+    console.log(`cleanupStuckCompetitionEntries: removed ${rows.length} stuck competition time_entries.`);
+    if (rows.length) console.log(JSON.stringify(rows));
+
+    const legacy = await db.execute(sql`
+      DELETE FROM competition_checkins
+      WHERE check_out_at IS NULL
+        AND status <> 'approved'
+        AND check_in_at < TIMESTAMPTZ '2026-06-01 00:00:00+00'
+      RETURNING id, user_id, event_id, check_in_at, status
+    `);
+    const legacyRows = (legacy as any).rows ?? [];
+    console.log(`cleanupStuckCompetitionEntries: removed ${legacyRows.length} legacy competition_checkins rows.`);
+    if (legacyRows.length) console.log(JSON.stringify(legacyRows));
+  }
+
+  /**
+   * Structurally prevents a repeat of the resurrection bug: a competition
+   * entry can't be duplicated for the same user/event/check-in instant.
+   * Partial — ordinary shop/event time is unconstrained; two shop clock-ins
+   * with an identical timestamp are legitimate. Not CONCURRENTLY: this runs
+   * through db.execute, which uses the extended query protocol (implicit
+   * transaction) and Postgres rejects CONCURRENTLY inside one; worse,
+   * CONCURRENTLY fails *soft* on a conflict, leaving a permanently-invalid
+   * index that IF NOT EXISTS would then skip forever. A plain create fails
+   * loud instead. Also declared in shared/schema.ts (same name) so
+   * `schema:push` never proposes dropping it.
+   */
+  async ensureCompetitionEntryUniqueIndex(): Promise<void> {
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS time_entries_competition_unique_idx
+      ON time_entries (user_id, scout_event_id, check_in_at)
+      WHERE scout_event_id IS NOT NULL
     `);
   }
 
@@ -1705,6 +1836,11 @@ export class DatabaseStorage implements IStorage {
     // map — unlike UpcomingCard.tsx / TeamManagement.tsx, it must NOT be
     // updated when a new category is added, or the backfill's "was this the
     // old full set" check would misfire on new data.
+    //
+    // This only widens `h.categories` — deliberately not `phases[i].categories`
+    // (see server/routes/requirements.ts: phaseCategories). A per-phase area
+    // override is always an explicit coach choice, never an implicit "all
+    // categories"; widening it here would silently change what a phase counts.
     const PRE_EXISTING_ALL: readonly string[] = ["shop", "competition", "meeting", "volunteer", "outreach", "other"];
     const settingsRows = await db.select().from(teamSettings);
     for (const row of settingsRows) {
@@ -1877,9 +2013,32 @@ export class DatabaseStorage implements IStorage {
     `);
   }
 
+  /**
+   * One-shot data migration, gated by schema_migrations — same class of bug
+   * as ensureCompetitionUnification above: its NOT EXISTS guard checks the
+   * destination only, so deleting a derived time_entries row makes a later
+   * boot recreate it. Gating (rather than "safe to re-run") is what actually
+   * lets a coach delete a bad outreach/volunteer entry and have it stay
+   * deleted.
+   */
   async backfillOutreachHours(): Promise<void> {
-    // One-time backfill: for every completed outreach/volunteer signup that has
-    // no matching time_entries row, insert one.  Safe to re-run (WHERE NOT EXISTS).
+    const KEY = 'outreach_hours_backfill';
+
+    // Retire on databases where this has already run (evidenced by any
+    // event-derived time entry existing), so gating it doesn't run it "one
+    // last time" on the first boot after this change ships.
+    await db.execute(sql`
+      INSERT INTO schema_migrations (key)
+      SELECT ${KEY}
+      WHERE EXISTS (
+        SELECT 1 FROM time_entries WHERE calendar_event_id IS NOT NULL AND kind IN ('outreach', 'volunteer')
+      )
+      ON CONFLICT DO NOTHING
+    `);
+
+    if (!(await this.claimMigration(KEY))) return;
+
+    console.log('backfillOutreachHours: running one-time event_signups backfill…');
     await db.execute(sql`
       INSERT INTO time_entries (user_id, check_in_at, check_out_at, status, rounded_minutes, kind, calendar_event_id)
       SELECT

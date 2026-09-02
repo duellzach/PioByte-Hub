@@ -177,6 +177,14 @@ initializeDatabase().then(() => {
   app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on port ${PORT}`);
     try {
+      // Must succeed before any claimMigration() call below can work — the
+      // one-shot data migrations (competition unification, outreach hours
+      // backfill, stuck check-in cleanup) all depend on this table existing.
+      await storage.ensureSchemaMigrationsTable();
+    } catch (e) {
+      console.error("schema_migrations table creation failed — one-shot migrations below cannot run safely:", e);
+    }
+    try {
       await storage.migrateApiKeyColumns();
       await storage.ensureTeamTimezoneColumn();
       await storage.migrateCalendarTypes();
@@ -198,7 +206,7 @@ initializeDatabase().then(() => {
         storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation error:", e));
       }, 60 * 60 * 1000);
     } catch (e) {
-      console.warn("Calendar type migration skipped:", e);
+      console.warn("Boot migration chain failed:", e);
     }
     try {
       await storage.ensureScoutingSeasonsTables();
@@ -214,6 +222,22 @@ initializeDatabase().then(() => {
       await storage.backfillOutreachHours();
     } catch (e) {
       console.warn("Outreach hours backfill skipped:", e);
+    }
+    // Must run after the backfills above are confirmed gated, and before the
+    // unique index below — the index would otherwise trip on the very rows
+    // this cleanup is about to remove.
+    try {
+      await storage.cleanupStuckCompetitionEntries();
+    } catch (e) {
+      console.warn("Stuck competition check-in cleanup skipped:", e);
+    }
+    try {
+      await storage.ensureCompetitionEntryUniqueIndex();
+    } catch (e) {
+      // Failure here means duplicate competition rows exist in the database —
+      // possibly double-counted completed entries inflating someone's hours.
+      // Needs investigation, not a silent skip.
+      console.error("Competition unique index NOT created — duplicate rows likely exist:", e);
     }
     try {
       const allUsers = await storage.getUsers();
