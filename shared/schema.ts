@@ -156,6 +156,18 @@ export const timeEntryAudit = pgTable("time_entry_audit", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// One-shot applied-migrations ledger (see storage.ensureSchemaMigrationsTable /
+// claimMigration). Declared here purely so drizzle-kit recognizes it as
+// intentional — without this, `schema:push` sees a table it doesn't know
+// about and proposes dropping it (exactly the class of problem this file's
+// calendarFeedTokens/etc. already had; see db/drizzle.config.ts). Nothing in
+// the app queries this table through Drizzle — storage.ts talks to it via
+// raw SQL — so no relations, no $inferSelect/$inferInsert exports needed.
+export const schemaMigrations = pgTable("schema_migrations", {
+  key: text("key").primaryKey(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const timeEntriesRelations = relations(timeEntries, ({ one, many }) => ({
   user: one(users, { fields: [timeEntries.userId], references: [users.id] }),
   checkInConfirmer: one(users, { fields: [timeEntries.checkInConfirmedBy], references: [users.id] }),
