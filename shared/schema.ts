@@ -52,7 +52,7 @@ export const tasks = pgTable("tasks", {
   deptOnly: boolean("dept_only").notNull().default(false),
   blockedReason: text("blocked_reason"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
-  requiredCertificationId: integer("required_certification_id").references(() => safetyCertifications.id, { onDelete: "set null" }),
+  requiredCertificationId: integer("required_certification_id").references(() => certifications.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -402,13 +402,31 @@ export const teamClaims = pgTable("team_claims", {
 export type TeamClaim = typeof teamClaims.$inferSelect;
 export type InsertTeamClaim = typeof teamClaims.$inferInsert;
 
-export const safetyCertifications = pgTable("safety_certifications", {
+// The TS symbol is `certifications` — the feature covers all certifications,
+// not just safety ones — but THE PHYSICAL TABLE NAME STAYS `safety_certifications`
+// on purpose. Replit's Publish step has historically run its own `drizzle-kit
+// push` against the production database (see db/drizzle.config.ts and
+// replit.md), and a table rename is exactly the diff that push turns into
+// DROP + CREATE: silent loss of every granted certification. The physical name
+// is invisible to users; the risk isn't worth the tidiness.
+export const certifications = pgTable("safety_certifications", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   equipment: text("equipment").notNull().default(""),
   description: text("description").notNull().default(""),
   safetyGuide: text("safety_guide").notNull().default(""),
-  checklistItems: jsonb("checklist_items").$type<{ id: string; text: string }[]>().notNull().default([]),
+  // Declared as string[] because that is what has always actually been written
+  // here — the previous `{id,text}[]` type never matched a single row.
+  checklistItems: jsonb("checklist_items").$type<string[]>().notNull().default([]),
+  // null = the "General" category. A free-text department name with no FK, so
+  // it must be remapped by `updateTeamSettingsWithDepartmentChanges` when a
+  // department is renamed or removed — removal degrades the cert to General,
+  // which fails safe (it stays visible, just ungrouped) rather than orphaning.
+  department: text("department"),
+  level: integer("level").notNull().default(1), // 1..MAX_LEVEL, see shared/certifications.ts
+  // Same jsonb shape as projects.links / tasks.attachments, so the existing
+  // components/ProjectLinks.tsx helpers render these unchanged.
+  links: jsonb("links").$type<{ id: string; label: string; url: string; type: string }[]>().notNull().default([]),
   createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -416,7 +434,7 @@ export const safetyCertifications = pgTable("safety_certifications", {
 export const userCertifications = pgTable("user_certifications", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  certificationId: integer("certification_id").notNull().references(() => safetyCertifications.id, { onDelete: "cascade" }),
+  certificationId: integer("certification_id").notNull().references(() => certifications.id, { onDelete: "cascade" }),
   grantedBy: integer("granted_by").notNull().references(() => users.id),
   grantedAt: timestamp("granted_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
@@ -426,10 +444,12 @@ export const userCertifications = pgTable("user_certifications", {
 export const certificationRequests = pgTable("certification_requests", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  certificationId: integer("certification_id").notNull().references(() => safetyCertifications.id, { onDelete: "cascade" }),
+  certificationId: integer("certification_id").notNull().references(() => certifications.id, { onDelete: "cascade" }),
   status: text("status").notNull().default("pending"),
   trainerId: integer("trainer_id").references(() => users.id),
-  checklistProgress: jsonb("checklist_progress").$type<{ id: string; completed: boolean }[]>().notNull().default([]),
+  // Mirrors checklistItems positionally; `item` is the checklist text. Matches
+  // what the trainer UI has always written (the old `{id,completed}[]` did not).
+  checklistProgress: jsonb("checklist_progress").$type<{ item: string; completed: boolean }[]>().notNull().default([]),
   notes: text("notes"),
   requestedAt: timestamp("requested_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -439,12 +459,77 @@ export const certificationRequests = pgTable("certification_requests", {
     .where(sql`status IN ('pending', 'in_progress')`),
 }));
 
-export type SafetyCertification = typeof safetyCertifications.$inferSelect;
-export type InsertSafetyCertification = typeof safetyCertifications.$inferInsert;
+export type Certification = typeof certifications.$inferSelect;
+export type InsertCertification = typeof certifications.$inferInsert;
 export type UserCertification = typeof userCertifications.$inferSelect;
 export type InsertUserCertification = typeof userCertifications.$inferInsert;
 export type CertificationRequest = typeof certificationRequests.$inferSelect;
 export type InsertCertificationRequest = typeof certificationRequests.$inferInsert;
+
+// Who may train what. This REPLACES the old implicit rule ("holds the cert and
+// carries the Safety Trainer role") with an explicit grant: a trainer scoped to
+// Manufacturing with maxLevel 1 may claim and sign off Manufacturing Lvl 1
+// requests, and nothing else. Coaches and Captains bypass scopes entirely.
+export const trainerScopes = pgTable("trainer_scopes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  department: text("department"), // null = the General category
+  maxLevel: integer("max_level").notNull().default(1), // trains levels 1..maxLevel
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+// Uniqueness is (user_id, coalesce(department, '')) — a plain unique index over
+// a nullable column would let duplicate General rows through, since Postgres
+// treats NULLs as distinct. Declared as a raw expression index in
+// `ensureCertificationLevelsAndBadges`, which Drizzle's uniqueIndex can't express.
+
+export type TrainerScope = typeof trainerScopes.$inferSelect;
+export type InsertTrainerScope = typeof trainerScopes.$inferInsert;
+
+// Coach-authored custom badges (e.g. a Safety Badge), awarded by hand. Level
+// badges need no definition row: their label, color and icon are derived from
+// the department and level. Archived rather than deleted so awarded badges
+// never dangle.
+export const badgeDefinitions = pgTable("badge_definitions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  icon: text("icon").notNull().default("award"),     // key into BADGE_ICONS, components/badgeStyles.tsx
+  color: text("color").notNull().default("#dc2626"), // hex; applied via inline style, never a Tailwind class
+  archived: boolean("archived").notNull().default(false),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type BadgeDefinition = typeof badgeDefinitions.$inferSelect;
+export type InsertBadgeDefinition = typeof badgeDefinitions.$inferInsert;
+
+// One award table for both kinds of badge, because every render site shows them
+// as a single chip row per member. `kind` discriminates:
+//   'level'  -> department + level are set, badgeDefinitionId is null
+//   'custom' -> badgeDefinitionId is set, department + level are null
+// `awardedBy` is null for automatic level badges and set for hand-awarded ones.
+//
+// Level badges are written ONCE, when earned, and are never recomputed away —
+// see newlyEarnedLevelBadges in shared/certifications.ts.
+export const userBadges = pgTable("user_badges", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // level | custom
+  badgeDefinitionId: integer("badge_definition_id").references(() => badgeDefinitions.id, { onDelete: "cascade" }),
+  department: text("department"), // null = General (kind = 'level')
+  level: integer("level"),
+  awardedBy: integer("awarded_by").references(() => users.id), // null = automatic
+  note: text("note"),
+  earnedAt: timestamp("earned_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+// Two PARTIAL unique indexes, one per kind, created in
+// `ensureCertificationLevelsAndBadges`:
+//   (user_id, coalesce(department,''), level) WHERE kind = 'level'
+//   (user_id, badge_definition_id)            WHERE kind = 'custom'
+
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = typeof userBadges.$inferInsert;
 
 export const calendarEvents = pgTable("calendar_events", {
   id: serial("id").primaryKey(),
@@ -511,7 +596,7 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Team Captain', tier: 'leadership' },
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },
-    { name: 'Safety Trainer', tier: 'lead' },
+    { name: 'Trainer', tier: 'lead' },
     { name: 'Team Member', tier: 'member' },
     { name: 'Class Member', tier: 'member' },
   ]),

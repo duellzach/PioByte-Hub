@@ -31,6 +31,9 @@ async function reset() {
       fullscreen_alerts,
       calendar_events,
       resources,
+      user_badges,
+      badge_definitions,
+      trainer_scopes,
       certification_requests,
       user_certifications,
       safety_certifications,
@@ -65,7 +68,7 @@ async function reset() {
           { name: 'Team Captain',    tier: 'leadership' },
           { name: 'SCRUM Master',    tier: 'leadership' },
           { name: 'Department Head', tier: 'lead'       },
-          { name: 'Safety Trainer',  tier: 'lead'       },
+          { name: 'Trainer',         tier: 'lead'       },
           { name: 'Team Member',     tier: 'member'     },
           { name: 'Class Member',    tier: 'member'     },
         ])}::jsonb,
@@ -84,7 +87,7 @@ async function reset() {
     { username: 'mech_lead',      password: 'changeme', name: 'Mechanical Lead', roles: ['Department Head'],                    departments: ['Mechanical']                  },
     { username: 'sw_lead',        password: 'changeme', name: 'Software Lead',   roles: ['Department Head'],                    departments: ['Software']                    },
     { username: 'elec_lead',      password: 'changeme', name: 'Electrical Lead', roles: ['Department Head'],                    departments: ['Electrical']                  },
-    { username: 'safety_trainer', password: 'changeme', name: 'Safety Trainer',  roles: ['Safety Trainer'],                     departments: ['Mechanical', 'Electrical']    },
+    { username: 'trainer',        password: 'changeme', name: 'Sam Trainer',     roles: ['Trainer'],                            departments: ['Mechanical', 'Electrical']    },
     { username: 'member1',        password: 'changeme', name: 'Team Member',     roles: ['Team Member'],                        departments: ['Software']                    },
   ];
 

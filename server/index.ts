@@ -19,7 +19,8 @@ import timeRouter from "./routes/time";
 import scoutRouter from "./routes/scout";
 import competitionRouter from "./routes/competition";
 import alertsRouter from "./routes/alerts";
-import safetyRouter from "./routes/safety";
+import certificationsRouter from "./routes/certifications";
+import badgesRouter from "./routes/badges";
 import calendarRouter from "./routes/calendar";
 import calendarFeedRouter from "./routes/calendarFeed";
 import resourcesRouter from "./routes/resources";
@@ -153,7 +154,8 @@ app.use("/api", timeRouter);
 app.use("/api", scoutRouter);
 app.use("/api", competitionRouter);
 app.use("/api", alertsRouter);
-app.use("/api", safetyRouter);
+app.use("/api", certificationsRouter);
+app.use("/api", badgesRouter);
 app.use("/api", calendarRouter);
 app.use("/api", calendarFeedRouter);
 app.use("/api", resourcesRouter);
@@ -198,6 +200,7 @@ initializeDatabase().then(() => {
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
       await storage.ensureProjectLinksColumn();
+      await storage.ensureCertificationLevelsAndBadges();
       await getTeamTimezone(); // warm the cache and surface any DB issue at boot
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.
@@ -207,6 +210,17 @@ initializeDatabase().then(() => {
       }, 60 * 60 * 1000);
     } catch (e) {
       console.warn("Boot migration chain failed:", e);
+    }
+    // Certifications v2 one-shots, in their own block so a failure here can't
+    // abort the chain above. Order matters: the role rename must land before
+    // scopes are seeded from it, and the columns must exist before badges are
+    // backfilled against them. Each is claimMigration-guarded and runs once.
+    try {
+      await storage.migrateTrainerRoleRename();
+      await storage.seedTrainerScopes();
+      await storage.backfillLevelBadges();
+    } catch (e) {
+      console.warn("Certifications v2 migration skipped:", e);
     }
     try {
       await storage.ensureScoutingSeasonsTables();

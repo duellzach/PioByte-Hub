@@ -6,6 +6,7 @@ import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { useTeamTime } from '../utils/timeFormat';
 import { pacificDateTime } from '../utils/dates';
 import { HOUR_CATEGORIES, styleFor } from './hourCategoryStyles';
+import { BadgeChip, resolveBadge } from './badgeStyles';
 
 interface TeamProps {
   state: AppState;
@@ -23,12 +24,61 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   // Combined hour totals per user (shop clock + competition check-ins), keyed by
   // user id as a string to match User.id.
   const [hourTotals, setHourTotals] = useState<Record<string, Record<string, number>>>({});
+  // Badges for every member, fetched once rather than per card. Visible to
+  // everyone in the Hub; only coaches/captains get the award and revoke controls.
+  const [badgesByUser, setBadgesByUser] = useState<Record<number, any[]>>({});
+  const [badgeDefinitions, setBadgeDefinitions] = useState<any[]>([]);
+  const [awardTarget, setAwardTarget] = useState<User | null>(null);
+  const [awardBadgeId, setAwardBadgeId] = useState('');
+  const [awardError, setAwardError] = useState('');
 
   useEffect(() => {
     api.hours.totalsByUser()
       .then(totals => setHourTotals(totals || {}))
       .catch(() => {});
   }, [state.timeEntries]);
+
+  const loadBadges = async () => {
+    try {
+      const [byUser, definitions] = await Promise.all([
+        api.badges.getAllByUser(),
+        api.badges.getDefinitions(true), // include archived: already-awarded ones still render
+      ]);
+      setBadgesByUser(byUser || {});
+      setBadgeDefinitions(definitions || []);
+    } catch {}
+  };
+
+  useEffect(() => { loadBadges(); }, []);
+
+  /** A member's badges, resolved for display and newest first. */
+  const badgesFor = (userId: string) =>
+    (badgesByUser[parseInt(userId)] || [])
+      .map(b => resolveBadge(b, badgeDefinitions, settings.departments))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
+
+  const handleAwardBadge = async () => {
+    if (!awardTarget || !awardBadgeId) return;
+    setAwardError('');
+    try {
+      await api.badges.award(parseInt(awardTarget.id), parseInt(awardBadgeId));
+      setAwardTarget(null);
+      setAwardBadgeId('');
+      await loadBadges();
+    } catch (e: any) {
+      setAwardError(e.message || 'Failed to award badge.');
+    }
+  };
+
+  const handleRevokeBadge = async (userId: string, badgeId: number) => {
+    if (!confirm('Revoke this badge?')) return;
+    try {
+      await api.badges.revoke(parseInt(userId), badgeId);
+      await loadBadges();
+    } catch {
+      alert('Failed to revoke badge.');
+    }
+  };
 
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState<Department | 'All'>('All');
@@ -594,6 +644,39 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                               </div>
                             )}
                             
+                            {(() => {
+                              const userBadgeList = badgesFor(user.id);
+                              if (userBadgeList.length === 0 && !canEditUsers) return null;
+                              return (
+                                <div>
+                                  <p className="text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 md:mb-3 flex items-center gap-1.5">
+                                    <Award size={10} /> Badges
+                                  </p>
+                                  <div className="flex flex-wrap gap-1 md:gap-2 items-center">
+                                    {userBadgeList.map(badge => (
+                                      <BadgeChip
+                                        key={badge.id}
+                                        badge={badge}
+                                        onRemove={canEditUsers ? () => handleRevokeBadge(user.id, badge.id) : undefined}
+                                      />
+                                    ))}
+                                    {userBadgeList.length === 0 && (
+                                      <span className="text-[9px] md:text-[10px] text-slate-300 dark:text-slate-600 font-bold uppercase">None yet</span>
+                                    )}
+                                    {canEditUsers && (
+                                      <button
+                                        onClick={() => { setAwardTarget(user); setAwardBadgeId(''); setAwardError(''); }}
+                                        title="Award a badge"
+                                        className="px-2 py-1 md:py-1.5 rounded-lg md:rounded-xl border border-dashed border-slate-200 dark:border-slate-600 text-slate-400 hover:text-teamColor hover:border-teamColor transition-all"
+                                      >
+                                        <Plus size={11} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
                             <div className="pt-4 md:pt-8 border-t-2 border-slate-50 dark:border-slate-700">
                                 {isCoach ? (
                                   <>
@@ -760,6 +843,62 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                     </div>
                   )}
               </div>
+          </div>
+        )}
+
+        {awardTarget && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setAwardTarget(null)}>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-6 md:p-8" onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Award Badge</h2>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-bold mt-1">To {awardTarget.name}</p>
+                </div>
+                <button onClick={() => setAwardTarget(null)} className="p-2 bg-slate-50 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-all dark:text-slate-300">
+                  <X size={16} />
+                </button>
+              </div>
+              {awardError && <p className="text-red-600 text-xs font-bold mb-3">{awardError}</p>}
+              {badgeDefinitions.filter(d => !d.archived).length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
+                  No custom badges defined yet. A coach can create them in the Control Panel.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+                    Choose a badge
+                  </p>
+                  <div className="space-y-2 max-h-64 overflow-auto mb-6">
+                    {badgeDefinitions.filter(d => !d.archived).map(def => (
+                      <button
+                        key={def.id}
+                        onClick={() => setAwardBadgeId(String(def.id))}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          awardBadgeId === String(def.id)
+                            ? 'border-teamColor bg-teamColor/5'
+                            : 'border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <BadgeChip badge={def} />
+                        {def.description && (
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{def.description}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleAwardBadge}
+                    disabled={!awardBadgeId}
+                    className="w-full py-3 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-widest text-xs disabled:opacity-40"
+                  >
+                    Award Badge
+                  </button>
+                </>
+              )}
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-4 leading-relaxed">
+                Level badges are earned automatically by completing every certification in a department and level — they can't be awarded by hand.
+              </p>
+            </div>
           </div>
         )}
 

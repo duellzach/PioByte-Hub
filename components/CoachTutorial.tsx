@@ -46,7 +46,7 @@ const STEPS: TutorialStep[] = [
     label: 'Team',
     title: "Build and manage your roster",
     body:
-      "Add new members, assign roles (Coach, Captain, Dept Head, Member, Safety Trainer, Class Member), set departments, mute users, and reset passwords — all from Team Management. Users are sorted by department for easy scanning.",
+      "Add new members, assign roles (Coach, Captain, Dept Head, Member, Trainer, Class Member), set departments, mute users, and reset passwords — all from Team Management. Users are sorted by department for easy scanning.",
     route: '/team',
     routeLabel: 'Open Team',
   },
@@ -70,12 +70,12 @@ const STEPS: TutorialStep[] = [
   },
   {
     icon: <ShieldCheck size={28} className="text-teal-500" />,
-    label: 'Safety',
+    label: 'Certifications',
     title: "Define and grant certifications",
     body:
-      "Create certifications (e.g. Drill Press, Lathe, Wiring), grant them to members, and require specific certs before a task can be started. Members can submit certification requests and Safety Trainers can process them step by step.",
-    route: '/safety',
-    routeLabel: 'Open Safety',
+      "Create certifications (e.g. Drill Press, Lathe, Wiring), grant them to members, and require specific certs before a task can be started. Certifications are grouped by department and level (1-3), and levels unlock in order. Members submit requests and Trainers scoped to that department and level process them step by step. Finishing every certification in a level earns that badge.",
+    route: '/certifications',
+    routeLabel: 'Open Certifications',
   },
   {
     icon: <BookOpen size={28} className="text-slate-500" />,

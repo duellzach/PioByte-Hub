@@ -4,11 +4,15 @@ import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, Aler
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 import RequirementsSettings from './RequirementsSettings';
+import BadgeSettings from './BadgeSettings';
+import TrainerScopeSettings from './TrainerScopeSettings';
 import type { DepartmentChangeSet, DepartmentUsageMap } from '../shared/departments';
+import type { User } from '../types';
 
 interface ControlPanelProps {
   currentUserRoles: string[];
   currentUserId: string | null;
+  users: User[];
 }
 
 const THEME_PRESETS = [
@@ -72,7 +76,7 @@ const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.
   </div>
 );
 
-const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUserId }) => {
+const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUserId, users }) => {
   const { settings, setSettings } = useTeamSettings();
 
   const isCoachOrCaptain = currentUserRoles.some(r =>
@@ -243,6 +247,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           departmentPropagation.projects && `${departmentPropagation.projects} board${departmentPropagation.projects === 1 ? '' : 's'}`,
           departmentPropagation.announcements && `${departmentPropagation.announcements} announcement${departmentPropagation.announcements === 1 ? '' : 's'}`,
           departmentPropagation.recurringTemplates && `${departmentPropagation.recurringTemplates} recurring template${departmentPropagation.recurringTemplates === 1 ? '' : 's'}`,
+          departmentPropagation.certifications && `${departmentPropagation.certifications} certification${departmentPropagation.certifications === 1 ? '' : 's'}`,
+          departmentPropagation.trainerScopes && `${departmentPropagation.trainerScopes} training scope${departmentPropagation.trainerScopes === 1 ? '' : 's'}`,
         ].filter(Boolean);
         setSaveSuccessDetail(`Updated ${parts.join(', ')}.`);
       }
@@ -745,6 +751,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         </div>
       </SectionCard>
 
+      <SectionCard title="Trainers" subtitle="Who can sign off certifications, by department and level. Coaches can sign off everything.">
+        <TrainerScopeSettings users={users} />
+      </SectionCard>
+
+      <SectionCard title="Badges" subtitle="Custom badges you can award by hand. Level badges are earned automatically by finishing every certification in a department and level.">
+        <BadgeSettings />
+      </SectionCard>
+
       <SectionCard title="API Integrations" subtitle="Store your API keys here so the app can pull live match data, rankings, and schedules.">
         <div className="space-y-5">
           {([
@@ -945,6 +959,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
           usage.projects && `${usage.projects} board${usage.projects === 1 ? '' : 's'}`,
           usage.announcements && `${usage.announcements} announcement${usage.announcements === 1 ? '' : 's'}`,
           usage.recurringTemplates && `${usage.recurringTemplates} recurring template${usage.recurringTemplates === 1 ? '' : 's'}`,
+          usage.certifications && `${usage.certifications} certification${usage.certifications === 1 ? '' : 's'}`,
+          usage.trainerScopes && `${usage.trainerScopes} training scope${usage.trainerScopes === 1 ? '' : 's'}`,
         ].filter(Boolean) : [];
         return (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">

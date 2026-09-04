@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShieldCheck, Plus, X, ChevronRight, Check, AlertTriangle, Clock, User, Users, Edit3, Trash2, Lock, Unlock, ClipboardList, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldCheck, Plus, X, ChevronRight, Check, AlertTriangle, Clock, User, Users, Edit3, Trash2, Lock, Unlock, ClipboardList, Search, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
 import { User as UserType, Role } from '../types';
 import { api } from '../services/api';
 import { useTeamTime } from '../utils/timeFormat';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
+import { LEVELS, levelBadgeLabel, certificationTracks } from '../shared/certifications';
+import { LINK_TYPES, linkIcon, normalizeUrl, ProjectLinkChip } from './ProjectLinks';
 
-interface SafetyCertificationsProps {
+interface CertificationsProps {
   currentUser: UserType | null;
 }
 
 type Tab = 'certs' | 'mine' | 'queue';
 
-const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser }) => {
+const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
   const { fmtDate } = useTeamTime();
+  const { settings } = useTeamSettings();
+  const [progress, setProgress] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('certs');
   const [certifications, setCertifications] = useState<any[]>([]);
   const [selectedCert, setSelectedCert] = useState<any | null>(null);
@@ -35,6 +40,12 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
     safetyGuide: '',
     checklistItems: [] as string[],
     newChecklistItem: '',
+    department: '' as string,          // '' = the General category
+    level: 1,
+    links: [] as { id: string; label: string; url: string; type: string }[],
+    newLinkLabel: '',
+    newLinkUrl: '',
+    newLinkType: 'doc',
   });
 
   const [grantUserId, setGrantUserId] = useState('');
@@ -50,7 +61,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
 
   const isCoach = currentUser?.roles.includes(Role.Coach);
   const isCaptain = currentUser?.roles.includes(Role.TeamCaptain);
-  const isTrainer = currentUser?.roles.includes(Role.SafetyTrainer);
+  const isTrainer = currentUser?.roles.includes(Role.Trainer);
   const isCoachOrCaptain = isCoach || isCaptain;
   const canManageCerts = isCoachOrCaptain;
   const canSeeQueue = isCoach || isCaptain || isTrainer;
@@ -59,12 +70,14 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
     setLoading(true);
     setError('');
     try {
-      const [certs, users] = await Promise.all([
+      const [certs, users, prog] = await Promise.all([
         api.certifications.getAll(),
         api.users.getAll(),
+        api.certifications.getProgress().catch(() => null),
       ]);
       setCertifications(certs);
       setAllUsers(users);
+      setProgress(prog);
     } catch (e: any) {
       setError('Failed to load certifications.');
     } finally {
@@ -75,12 +88,15 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
   const loadMyCerts = async () => {
     if (!currentUser) return;
     try {
-      const [myCertsData, myRequestsData] = await Promise.all([
+      const [myCertsData, myRequestsData, prog] = await Promise.all([
         api.certifications.getForUser(parseInt(currentUser.id)),
         api.certRequests.getAll({ requesterId: parseInt(currentUser.id) }),
+        api.certifications.getProgress().catch(() => null),
       ]);
       setMyCerts(myCertsData);
       setMyRequests(myRequestsData);
+      // Granting or completing may have unlocked a level or earned a badge.
+      if (prog) setProgress(prog);
     } catch {}
   };
 
@@ -128,6 +144,9 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
         equipment: certForm.equipment.trim(),
         safetyGuide: certForm.safetyGuide.trim(),
         checklistItems: certForm.checklistItems.filter(i => i.trim()),
+        department: certForm.department || null,
+        level: certForm.level,
+        links: certForm.links,
         createdBy: parseInt(currentUser!.id),
       });
       setShowCreateModal(false);
@@ -147,6 +166,9 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
         equipment: certForm.equipment.trim(),
         safetyGuide: certForm.safetyGuide.trim(),
         checklistItems: certForm.checklistItems.filter(i => i.trim()),
+        department: certForm.department || null,
+        level: certForm.level,
+        links: certForm.links,
       });
       setShowEditModal(false);
       setEditingCert(null);
@@ -180,6 +202,8 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
       await api.certifications.grantUser(parseInt(grantUserId), selectedCert.id, parseInt(currentUser!.id));
       setGrantUserId('');
       await loadCertDetail(selectedCert);
+      await loadCertifications();
+      await loadMyCerts();
     } catch (e: any) {
       setGrantError(e.message?.includes('already') ? 'User already certified.' : 'Failed to grant certification.');
     } finally {
@@ -203,7 +227,9 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
       await api.certRequests.create(parseInt(currentUser.id), certId);
       await loadMyCerts();
     } catch (e: any) {
-      alert(e.message?.includes('already') ? 'You already have a pending request for this certification.' : 'Failed to submit request.');
+      // The server returns the specific reason (already held, active request,
+      // or the level gate) — show it rather than a generic failure.
+      alert(e.message || 'Failed to submit request.');
     }
   };
 
@@ -251,6 +277,8 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
       await api.certRequests.complete(requestDetail.id, parseInt(currentUser.id));
       setRequestDetail(null);
       await loadQueue();
+      await loadCertifications();
+      await loadMyCerts();
     } catch {
       alert('Failed to complete request.');
     }
@@ -276,7 +304,11 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
   };
 
   const resetCertForm = () => {
-    setCertForm({ name: '', description: '', equipment: '', safetyGuide: '', checklistItems: [], newChecklistItem: '' });
+    setCertForm({
+      name: '', description: '', equipment: '', safetyGuide: '',
+      checklistItems: [], newChecklistItem: '',
+      department: '', level: 1, links: [], newLinkLabel: '', newLinkUrl: '', newLinkType: 'doc',
+    });
   };
 
   const openEditModal = (cert: any) => {
@@ -288,6 +320,10 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
       safetyGuide: cert.safetyGuide || '',
       checklistItems: cert.checklistItems || [],
       newChecklistItem: '',
+      department: cert.department || '',
+      level: cert.level || 1,
+      links: cert.links || [],
+      newLinkLabel: '', newLinkUrl: '', newLinkType: 'doc',
     });
     setShowEditModal(true);
   };
@@ -301,6 +337,37 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
   }, [certifications, certSearch]);
 
   const getUserName = (userId: number) => allUsers.find(u => u.id === userId)?.name || `User #${userId}`;
+
+  /** Lock state for a (department, level) set, from the server-computed progress. */
+  const levelInfo = (department: string | null, level: number) =>
+    progress?.levels?.find((l: any) => (l.department ?? null) === department && l.level === level);
+
+  const isUnlocked = (department: string | null, level: number) => {
+    const info = levelInfo(department, level);
+    return info ? info.unlocked : true; // no progress loaded yet: don't render as locked
+  };
+
+  const heldCertIds = useMemo(() => new Set<number>(progress?.held ?? []), [progress]);
+
+  const deptColor = (department: string | null) =>
+    (department ? settings.departments.find(d => d.name === department)?.color : null) || '#475569';
+
+  /** Certifications grouped into tracks, then levels — the page's main layout. */
+  const groupedCerts = useMemo(() => {
+    const tracks = certificationTracks(filteredCerts as any[]);
+    return tracks.map(department => ({
+      department,
+      color: deptColor(department),
+      levels: LEVELS.map(level => ({
+        level,
+        unlocked: isUnlocked(department, level),
+        info: levelInfo(department, level),
+        certs: filteredCerts.filter(
+          (c: any) => (c.department ?? null) === department && c.level === level,
+        ),
+      })).filter(l => l.certs.length > 0),
+    }));
+  }, [filteredCerts, progress, settings.departments]);
 
   const renderInline = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
@@ -387,6 +454,95 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
           className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-medium dark:text-white resize-none transition-all"
         />
       </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Department</label>
+          <select
+            value={certForm.department}
+            onChange={(e) => setCertForm({ ...certForm, department: e.target.value })}
+            className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-bold dark:text-white transition-all"
+          >
+            <option value="">General</option>
+            {settings.departments.map(d => (
+              <option key={d.name} value={d.name}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Level</label>
+          <select
+            value={certForm.level}
+            onChange={(e) => setCertForm({ ...certForm, level: parseInt(e.target.value) })}
+            className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-bold dark:text-white transition-all"
+          >
+            {LEVELS.map(l => <option key={l} value={l}>Level {l}</option>)}
+          </select>
+        </div>
+        <p className="col-span-2 text-[10px] text-slate-400 dark:text-slate-500 font-medium -mt-2">
+          Students must finish every certification in {certForm.department || 'General'} Level {Math.max(1, certForm.level - 1)} before they can start Level {certForm.level}.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Links</label>
+        <div className="space-y-2 mb-3">
+          {certForm.links.map((link, idx) => (
+            <div key={link.id} className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-xl">
+              <span className="text-slate-400 flex-shrink-0">{linkIcon(link.type, 13)}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{link.label || link.url}</span>
+                <span className="block text-[10px] text-slate-400 truncate">{link.url}</span>
+              </span>
+              <button
+                onClick={() => setCertForm({ ...certForm, links: certForm.links.filter((_, i) => i !== idx) })}
+                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={certForm.newLinkLabel}
+            onChange={(e) => setCertForm({ ...certForm, newLinkLabel: e.target.value })}
+            placeholder="Label"
+            className="w-32 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor text-sm font-medium dark:text-white transition-all"
+          />
+          <input
+            value={certForm.newLinkUrl}
+            onChange={(e) => setCertForm({ ...certForm, newLinkUrl: e.target.value })}
+            placeholder="https://..."
+            className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor text-sm font-medium dark:text-white transition-all"
+          />
+          <select
+            value={certForm.newLinkType}
+            onChange={(e) => setCertForm({ ...certForm, newLinkType: e.target.value })}
+            className="p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor text-sm font-bold dark:text-white transition-all"
+          >
+            {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <button
+            onClick={() => {
+              if (!certForm.newLinkUrl.trim()) return;
+              setCertForm({
+                ...certForm,
+                links: [...certForm.links, {
+                  id: `${Date.now()}-${certForm.links.length}`,
+                  label: certForm.newLinkLabel.trim(),
+                  url: normalizeUrl(certForm.newLinkUrl),
+                  type: certForm.newLinkType,
+                }],
+                newLinkLabel: '', newLinkUrl: '', newLinkType: 'doc',
+              });
+            }}
+            className="p-3 bg-slate-900 dark:bg-slate-600 text-white rounded-xl hover:bg-red-600 transition-all"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+      </div>
+
       <div>
         <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Checklist Items</label>
         <div className="space-y-2 mb-3">
@@ -524,39 +680,92 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                   {canManageCerts && <p className="text-slate-400 dark:text-slate-600 text-xs mt-1">Create one to get started</p>}
                 </div>
               ) : (
-                filteredCerts.map(cert => (
-                  <button
-                    key={cert.id}
-                    onClick={() => loadCertDetail(cert)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
-                      selectedCert?.id === cert.id
-                        ? 'bg-teamColor/5 border-teamColor/40'
-                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-teamColor/30'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedCert?.id === cert.id ? 'bg-teamColor text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
-                          <ShieldCheck size={16} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-tight truncate">{cert.name}</p>
-                          {cert.equipment && (
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">{cert.equipment}</p>
+                groupedCerts.map(track => (
+                  <div key={track.department ?? '__general'} className="mb-5">
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: track.color }} />
+                      <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: track.color }}>
+                        {track.department ?? 'General'}
+                      </h3>
+                    </div>
+                    {track.levels.map(({ level, unlocked, info, certs }) => (
+                      <div key={level} className="mb-3">
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                          {unlocked
+                            ? <Unlock size={10} className="text-slate-400 flex-shrink-0" />
+                            : <Lock size={10} className="text-amber-500 flex-shrink-0" />}
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${unlocked ? 'text-slate-400 dark:text-slate-500' : 'text-amber-600 dark:text-amber-400'}`}>
+                            Level {level}
+                          </span>
+                          {info && (
+                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
+                              {info.heldCount}/{info.total}
+                            </span>
                           )}
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1">
-                              <Users size={9} /> {cert.certifiedCount ?? 0} certified
+                          {info?.earned && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase"
+                              style={{ backgroundColor: track.color + '18', color: track.color }}>
+                              Badge earned
                             </span>
-                            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                              <User size={9} /> {cert.trainerCount ?? 0} trainers
+                          )}
+                          {!unlocked && (
+                            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                              Finish Level {level - 1} first
                             </span>
-                          </div>
+                          )}
+                          <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
+                        </div>
+                        <div className="space-y-2">
+                          {certs.map((cert: any) => {
+                            const held = heldCertIds.has(cert.id);
+                            return (
+                              <button
+                                key={cert.id}
+                                onClick={() => loadCertDetail(cert)}
+                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                                  selectedCert?.id === cert.id
+                                    ? 'bg-teamColor/5 border-teamColor/40'
+                                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-teamColor/30'
+                                } ${!unlocked && !held ? 'opacity-60' : ''}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-start gap-3 min-w-0">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                      held ? 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400'
+                                           : selectedCert?.id === cert.id ? 'bg-teamColor text-white'
+                                           : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                                    }`}>
+                                      {held ? <Check size={16} /> : !unlocked ? <Lock size={14} /> : <ShieldCheck size={16} />}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-tight truncate">{cert.name}</p>
+                                      {cert.equipment && (
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">{cert.equipment}</p>
+                                      )}
+                                      <div className="flex items-center gap-3 mt-1.5">
+                                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1">
+                                          <Users size={9} /> {cert.certifiedCount ?? 0} certified
+                                        </span>
+                                        <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                                          <User size={9} /> {cert.trainerCount ?? 0} trainers
+                                        </span>
+                                        {cert.links?.length > 0 && (
+                                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1">
+                                            <Link2 size={9} /> {cert.links.length}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 flex-shrink-0 mt-1" />
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                      <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 flex-shrink-0 mt-1" />
-                    </div>
-                  </button>
+                    ))}
+                  </div>
                 ))
               )}
             </div>
@@ -574,6 +783,24 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                     {selectedCert.equipment && (
                       <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">{selectedCert.equipment}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter border"
+                        style={{
+                          backgroundColor: deptColor(selectedCert.department ?? null) + '18',
+                          color: deptColor(selectedCert.department ?? null),
+                          borderColor: deptColor(selectedCert.department ?? null) + '50',
+                        }}>
+                        {selectedCert.department ?? 'General'}
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[9px] font-black uppercase tracking-tighter">
+                        Level {selectedCert.level ?? 1}
+                      </span>
+                      {!isUnlocked(selectedCert.department ?? null, selectedCert.level ?? 1) && (
+                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-tighter flex items-center gap-1">
+                          <Lock size={9} /> Locked
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -617,6 +844,19 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                 </div>
               )}
 
+              {selectedCert.links?.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Link2 size={10} /> Links
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCert.links.map((link: any) => (
+                      <ProjectLinkChip key={link.id} link={link} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {selectedCert.checklistItems?.length > 0 && (
                 <div>
                   <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Checklist Items</p>
@@ -649,7 +889,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                           <div key={u.id} className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl">
                             <div className="w-6 h-6 rounded-lg bg-green-600 text-white flex items-center justify-center text-[9px] font-black">{u.name?.[0]}</div>
                             <span className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase">{u.name}</span>
-                            {(isCoachOrCaptain || (isTrainer && certTrainers.some(t => t.id === currentUser?.id))) && (
+                            {(isCoachOrCaptain || (isTrainer && certTrainers.some(t => t.id === parseInt(currentUser?.id || '0')))) && (
                               <button
                                 onClick={() => handleRevokeUser(u.id)}
                                 className="p-0.5 text-green-400 hover:text-red-600 transition-colors"
@@ -685,6 +925,19 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                   {(() => {
                     const alreadyCertified = certifiedUsers.some(u => u.id === parseInt(currentUser?.id || '0'));
                     const hasActiveRequest = myRequests.some(r => r.certificationId === selectedCert.id && ['pending', 'in_progress'].includes(r.status));
+                    const levelOpen = isUnlocked(selectedCert.department ?? null, selectedCert.level ?? 1);
+                    if (!alreadyCertified && !hasActiveRequest && !levelOpen) {
+                      return (
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-2xl">
+                            <Lock size={14} className="text-amber-600 flex-shrink-0" />
+                            <span className="text-sm font-black text-slate-600 dark:text-slate-300 uppercase">
+                              Finish every {selectedCert.department ?? 'General'} Level {(selectedCert.level ?? 1) - 1} certification first
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
                     if (!alreadyCertified && !hasActiveRequest) {
                       return (
                         <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
@@ -763,7 +1016,7 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
               <div className="py-8 text-center bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700">
                 <Lock size={32} className="text-slate-200 dark:text-slate-700 mx-auto mb-3" />
                 <p className="text-slate-400 dark:text-slate-500 font-black text-sm uppercase">No certifications yet</p>
-                <p className="text-slate-400 dark:text-slate-600 text-xs mt-1">Request training from a Safety Trainer</p>
+                <p className="text-slate-400 dark:text-slate-600 text-xs mt-1">Request training from a Trainer</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -909,8 +1162,21 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
                         </div>
                         <div className="min-w-0">
                           <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{req.certification?.name}</p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border"
+                              style={{
+                                backgroundColor: deptColor(req.certification?.department ?? null) + '18',
+                                color: deptColor(req.certification?.department ?? null),
+                                borderColor: deptColor(req.certification?.department ?? null) + '50',
+                              }}>
+                              {req.certification?.department ?? 'General'}
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[8px] font-black uppercase tracking-tighter">
+                              Lvl {req.certification?.level ?? 1}
+                            </span>
+                          </div>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                            Requester: {getUserName(req.userId)} • {fmtDate(req.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            Requester: {getUserName(req.userId)} • {fmtDate(req.requestedAt, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </p>
                           {req.trainerId && (
                             <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
@@ -1113,4 +1379,4 @@ const SafetyCertifications: React.FC<SafetyCertificationsProps> = ({ currentUser
   );
 };
 
-export default SafetyCertifications;
+export default Certifications;

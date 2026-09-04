@@ -1,6 +1,7 @@
 // Departments are not a table — they're a JSONB `{name, color}[]` list on
 // `team_settings`, and every place a department is "assigned" elsewhere
-// (users, tasks, projects, announcements, recurring task templates) is a
+// (users, tasks, projects, announcements, recurring task templates,
+// certifications, trainer scopes) is a
 // free-text match on that name, with no foreign keys and no onDelete
 // behavior. Renaming or deleting a department in the Control Panel therefore
 // can't be a bare array splice — every reference has to be remapped too, or
@@ -40,6 +41,8 @@ export interface DepartmentUsage {
   tasks: number;
   announcements: number;
   recurringTemplates: number;
+  certifications: number;
+  trainerScopes: number;
   total: number;
 }
 

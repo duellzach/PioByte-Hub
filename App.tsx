@@ -19,7 +19,7 @@ const KanbanBoard = lazy(() => import('./components/KanbanBoard'));
 const TeamManagement = lazy(() => import('./components/TeamManagement'));
 const TimeTracking = lazy(() => import('./components/TimeTracking'));
 const Scout = lazy(() => import('./components/Scout'));
-const SafetyCertifications = lazy(() => import('./components/SafetyCertifications'));
+const Certifications = lazy(() => import('./components/Certifications'));
 const Calendar = lazy(() => import('./components/Calendar'));
 const Resources = lazy(() => import('./components/Resources'));
 const Fundraising = lazy(() => import('./components/Fundraising'));
@@ -640,8 +640,10 @@ const App: React.FC = () => {
               <Route path="/scout" element={
                 <Scout currentUser={state.currentUser} />
               } />
-              <Route path="/safety" element={isGuest ? <Navigate to="/scout" replace /> :
-                <SafetyCertifications currentUser={state.currentUser} />
+              {/* Old bookmarks and the coach tutorial still point at #/safety. */}
+              <Route path="/safety" element={<Navigate to="/certifications" replace />} />
+              <Route path="/certifications" element={isGuest ? <Navigate to="/scout" replace /> :
+                <Certifications currentUser={state.currentUser} />
               } />
               <Route path="/team" element={isGuest ? <Navigate to="/scout" replace /> :
                 <TeamManagement 
@@ -669,6 +671,7 @@ const App: React.FC = () => {
                 <ControlPanel
                   currentUserRoles={state.currentUser?.roles || []}
                   currentUserId={state.currentUser?.id || null}
+                  users={state.users}
                 />
               } />
               <Route path="*" element={<Navigate to={isGuest ? "/scout" : "/"} />} />

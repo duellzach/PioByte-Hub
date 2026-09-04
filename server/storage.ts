@@ -1,8 +1,9 @@
 import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, safetyCertifications, userCertifications, certificationRequests, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
+import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
 /**
  * Normalize a scout write during the seasons/templates transition. If the
@@ -31,7 +32,7 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
   if (row.data && typeof row.data === "object" && Object.keys(row.data).length > 0) return row;
   return { ...row, data: dataFromLegacyRow(kind, row) };
 }
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, SafetyCertification, InsertSafetyCertification, UserCertification, CertificationRequest, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import {
@@ -236,9 +237,9 @@ export interface IStorage {
   setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined>;
 
   getCertifications(): Promise<any[]>;
-  getCertification(id: number): Promise<SafetyCertification | undefined>;
-  createCertification(data: InsertSafetyCertification): Promise<SafetyCertification>;
-  updateCertification(id: number, data: Partial<InsertSafetyCertification>): Promise<SafetyCertification | undefined>;
+  getCertification(id: number): Promise<Certification | undefined>;
+  createCertification(data: InsertCertification): Promise<Certification>;
+  updateCertification(id: number, data: Partial<InsertCertification>): Promise<Certification | undefined>;
   deleteCertification(id: number): Promise<void>;
   getUserCertifications(userId: number): Promise<any[]>;
   grantCertification(userId: number, certId: number, grantedBy: number): Promise<UserCertification>;
@@ -246,11 +247,23 @@ export interface IStorage {
   getCertifiedUsers(certId: number): Promise<any[]>;
   getTrainersForCert(certId: number): Promise<any[]>;
   createCertRequest(userId: number, certId: number): Promise<CertificationRequest>;
-  getCertRequests(filters: { userId?: number; statuses?: string[] }): Promise<any[]>;
+  getCertRequests(filters: { userId?: number; statuses?: string[]; scope?: { bypass: boolean; scopes: { department: string | null; maxLevel: number }[] } }): Promise<any[]>;
+  getCertRequestDetail(requestId: number): Promise<any | undefined>;
   claimCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined>;
-  updateCertRequestProgress(requestId: number, checklistProgress: { id: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined>;
+  updateCertRequestProgress(requestId: number, checklistProgress: { item: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined>;
   completeCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined>;
   rejectCertRequest(requestId: number, trainerId: number, notes?: string): Promise<CertificationRequest | undefined>;
+
+  getTrainerScopes(userId?: number): Promise<TrainerScope[]>;
+  setTrainerScopes(userId: number, scopes: { department: string | null; maxLevel: number }[], createdBy: number): Promise<TrainerScope[]>;
+
+  getBadgeDefinitions(includeArchived?: boolean): Promise<BadgeDefinition[]>;
+  createBadgeDefinition(data: InsertBadgeDefinition): Promise<BadgeDefinition>;
+  updateBadgeDefinition(id: number, data: Partial<InsertBadgeDefinition>): Promise<BadgeDefinition | undefined>;
+  deleteBadgeDefinition(id: number): Promise<void>;
+  getUserBadges(userId?: number): Promise<UserBadge[]>;
+  awardCustomBadge(userId: number, badgeDefinitionId: number, awardedBy: number, note?: string): Promise<UserBadge | undefined>;
+  revokeBadge(userId: number, badgeId: number): Promise<void>;
 
   getCalendarEvents(): Promise<CalendarEvent[]>;
   getCalendarEvent(id: number): Promise<CalendarEvent | undefined>;
@@ -1011,24 +1024,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCertifications(): Promise<any[]> {
-    const certs = await db.select().from(safetyCertifications).orderBy(safetyCertifications.name);
+    const certs = await db.select().from(certifications)
+      .orderBy(certifications.department, certifications.level, certifications.name);
     if (certs.length === 0) return [];
     const allUserCerts = await db.select({
       certId: userCertifications.certificationId,
-      userId: userCertifications.userId,
     }).from(userCertifications);
-    const userIds = [...new Set(allUserCerts.map(uc => uc.userId))];
-    const trainerUsers = userIds.length > 0
-      ? await db.select({ id: users.id, roles: users.roles }).from(users).where(inArray(users.id, userIds))
-      : [];
-    const trainerSet = new Set(trainerUsers.filter(u => (u.roles as string[]).includes('Safety Trainer')).map(u => u.id));
     const certifiedCount: Record<number, number> = {};
-    const trainerCount: Record<number, number> = {};
     for (const uc of allUserCerts) {
       certifiedCount[uc.certId] = (certifiedCount[uc.certId] || 0) + 1;
-      if (trainerSet.has(uc.userId)) {
-        trainerCount[uc.certId] = (trainerCount[uc.certId] || 0) + 1;
-      }
+    }
+    // Trainer count is now driven by explicit scopes rather than "holds the
+    // cert and carries the role" — a coach-appointed trainer need not hold the
+    // certification themselves. One scope row per (user, department), so this
+    // list is small enough to match in JS.
+    const scopes = await db.select().from(trainerScopes);
+    const trainerCount: Record<number, number> = {};
+    for (const c of certs) {
+      trainerCount[c.id] = scopes.filter(
+        sc => sameDepartment(sc.department, c.department) && sc.maxLevel >= c.level,
+      ).length;
     }
     return certs.map(c => ({
       ...c,
@@ -1037,26 +1052,26 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getCertification(id: number): Promise<SafetyCertification | undefined> {
-    const [row] = await db.select().from(safetyCertifications).where(eq(safetyCertifications.id, id));
+  async getCertification(id: number): Promise<Certification | undefined> {
+    const [row] = await db.select().from(certifications).where(eq(certifications.id, id));
     return row;
   }
 
-  async createCertification(data: InsertSafetyCertification): Promise<SafetyCertification> {
-    const [row] = await db.insert(safetyCertifications).values(data).returning();
+  async createCertification(data: InsertCertification): Promise<Certification> {
+    const [row] = await db.insert(certifications).values(data).returning();
     return row;
   }
 
-  async updateCertification(id: number, data: Partial<InsertSafetyCertification>): Promise<SafetyCertification | undefined> {
+  async updateCertification(id: number, data: Partial<InsertCertification>): Promise<Certification | undefined> {
     const sanitized: any = { ...data };
     delete sanitized.id;
     delete sanitized.createdAt;
-    const [row] = await db.update(safetyCertifications).set(sanitized).where(eq(safetyCertifications.id, id)).returning();
+    const [row] = await db.update(certifications).set(sanitized).where(eq(certifications.id, id)).returning();
     return row;
   }
 
   async deleteCertification(id: number): Promise<void> {
-    await db.delete(safetyCertifications).where(eq(safetyCertifications.id, id));
+    await db.delete(certifications).where(eq(certifications.id, id));
   }
 
   async getUserCertifications(userId: number): Promise<any[]> {
@@ -1066,11 +1081,11 @@ export class DatabaseStorage implements IStorage {
       certificationId: userCertifications.certificationId,
       grantedBy: userCertifications.grantedBy,
       grantedAt: userCertifications.grantedAt,
-      certName: safetyCertifications.name,
-      certEquipment: safetyCertifications.equipment,
-      certDescription: safetyCertifications.description,
+      certName: certifications.name,
+      certEquipment: certifications.equipment,
+      certDescription: certifications.description,
     }).from(userCertifications)
-      .innerJoin(safetyCertifications, eq(userCertifications.certificationId, safetyCertifications.id))
+      .innerJoin(certifications, eq(userCertifications.certificationId, certifications.id))
       .where(eq(userCertifications.userId, userId))
       .orderBy(desc(userCertifications.grantedAt));
     const grantorIds = [...new Set(rows.map(r => r.grantedBy))];
@@ -1082,27 +1097,166 @@ export class DatabaseStorage implements IStorage {
     return rows.map(r => ({ ...r, grantedByName: grantorMap[r.grantedBy] || `User #${r.grantedBy}` }));
   }
 
+  /**
+   * Grant a certification, and record any level badge it completes.
+   *
+   * This is the single choke point for handing out a certification — request
+   * completion, a direct coach grant, and the migration backfill all land here
+   * — so the badge check lives here rather than in any one caller.
+   *
+   * The `FOR UPDATE` on the user row is load-bearing, not decorative. Under
+   * READ COMMITTED, two trainers completing the last two certifications of a
+   * level at the same moment would each fail to see the other's uncommitted
+   * insert, both conclude "not all held", and the badge would never be awarded
+   * at all. Duplicates are impossible either way (user_badges is uniquely
+   * indexed), so the silent no-award is the failure mode worth locking against.
+   * Locking the user row serializes grants for one student and contends with
+   * nothing else.
+   */
   async grantCertification(userId: number, certId: number, grantedBy: number): Promise<UserCertification> {
-    const [inserted] = await db.insert(userCertifications)
+    const { row } = await this.grantCertificationWithBadges(userId, certId, grantedBy);
+    return row;
+  }
+
+  async grantCertificationWithBadges(
+    userId: number,
+    certId: number,
+    grantedBy: number,
+  ): Promise<{ row: UserCertification; newBadges: EarnedLevelBadge[] }> {
+    return db.transaction(async (tx) => this.grantCertificationTx(tx, userId, certId, grantedBy));
+  }
+
+  /**
+   * The transaction-scoped grant. Callers that already hold a transaction
+   * (completeCertRequest) MUST use this rather than the public wrapper —
+   * `db.transaction` inside a transaction takes a second pooled connection,
+   * which both breaks atomicity and can deadlock against the `FOR UPDATE`
+   * below.
+   */
+  private async grantCertificationTx(
+    tx: any,
+    userId: number,
+    certId: number,
+    grantedBy: number,
+  ): Promise<{ row: UserCertification; newBadges: EarnedLevelBadge[] }> {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+
+    const [inserted] = await tx.insert(userCertifications)
       .values({ userId, certificationId: certId, grantedBy, grantedAt: new Date() })
       .onConflictDoNothing()
       .returning();
-    if (inserted) return inserted;
-    const [existing] = await db.select().from(userCertifications)
-      .where(and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId)));
-    return existing;
+    if (!inserted) {
+      // Already held — idempotent, and nothing can have newly completed.
+      const [existing] = await tx.select().from(userCertifications)
+        .where(and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId)));
+      return { row: existing, newBadges: [] };
+    }
+
+    const newBadges = await this.awardLevelBadgesTx(tx, userId);
+    return { row: inserted, newBadges };
   }
 
+  /**
+   * Record every level badge this user has newly completed. Returns only what
+   * was actually inserted, so callers can notify on it.
+   *
+   * `newlyEarnedLevelBadges` only ever returns additions — a badge is never
+   * recomputed away here — which is what makes this safe to run on every grant.
+   */
+  private async awardLevelBadgesTx(tx: any, userId: number): Promise<EarnedLevelBadge[]> {
+    const allCerts = await tx.select({
+      id: certifications.id,
+      department: certifications.department,
+      level: certifications.level,
+    }).from(certifications);
+    const heldRows = await tx.select({ id: userCertifications.certificationId })
+      .from(userCertifications).where(eq(userCertifications.userId, userId));
+    const earnedRows = await tx.select({
+      department: userBadges.department,
+      level: userBadges.level,
+    }).from(userBadges).where(and(eq(userBadges.userId, userId), eq(userBadges.kind, 'level')));
+
+    const held = new Set<number>(heldRows.map((r: any) => r.id));
+    const earned = earnedRows.map((r: any) => ({ department: r.department, level: r.level })) as EarnedLevelBadge[];
+    const pending = newlyEarnedLevelBadges(allCerts as any[], held, earned);
+
+    const awarded: EarnedLevelBadge[] = [];
+    for (const badge of pending) {
+      const [row] = await tx.insert(userBadges).values({
+        userId,
+        kind: 'level',
+        department: badge.department,
+        level: badge.level,
+        awardedBy: null, // automatic
+        earnedAt: new Date(),
+      }).onConflictDoNothing().returning();
+      if (row) awarded.push(badge);
+    }
+    return awarded;
+  }
+
+  /**
+   * Revoke a certification, and drop the level badge for that certification's
+   * own level if the user no longer holds every cert in it.
+   *
+   * Deliberately NOT symmetric with "adding a cert to a level later never
+   * strips a badge". Adding a cert raises the standard after the fact; a
+   * revocation is an explicit statement that this person is no longer
+   * qualified. Leaving the badge would also leave their higher levels
+   * unlocked, because the level gate reads badge rows — in a system that
+   * governs power-tool authorization that is a safety hole, not a cosmetic
+   * one. Higher badges are left alone (those levels were genuinely completed),
+   * but `isLevelUnlocked` checks every lower level, so the lock still
+   * propagates upward.
+   */
   async revokeCertification(userId: number, certId: number): Promise<void> {
-    await db.delete(userCertifications).where(
-      and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId))
-    );
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+      const [cert] = await tx.select({
+        department: certifications.department,
+        level: certifications.level,
+      }).from(certifications).where(eq(certifications.id, certId));
+
+      await tx.delete(userCertifications).where(
+        and(eq(userCertifications.userId, userId), eq(userCertifications.certificationId, certId))
+      );
+      if (!cert) return;
+
+      const remaining = await tx.select({ id: certifications.id })
+        .from(certifications)
+        .innerJoin(userCertifications, eq(userCertifications.certificationId, certifications.id))
+        .where(and(
+          eq(userCertifications.userId, userId),
+          eq(certifications.level, cert.level),
+          sql`coalesce(${certifications.department}, '') = coalesce(${cert.department}, '')`,
+        ));
+      const inLevel = await tx.select({ id: certifications.id })
+        .from(certifications)
+        .where(and(
+          eq(certifications.level, cert.level),
+          sql`coalesce(${certifications.department}, '') = coalesce(${cert.department}, '')`,
+        ));
+
+      if (remaining.length < inLevel.length) {
+        await tx.delete(userBadges).where(and(
+          eq(userBadges.userId, userId),
+          eq(userBadges.kind, 'level'),
+          eq(userBadges.level, cert.level),
+          sql`coalesce(${userBadges.department}, '') = coalesce(${cert.department}, '')`,
+        ));
+      }
+    });
   }
 
   async getCertifiedUsers(certId: number): Promise<any[]> {
     const rows = await db.select({
-      id: userCertifications.id,
+      // `id` is the USER id — the UI revokes and compares against it. The
+      // join-row id is exposed separately as `userCertificationId`.
+      id: users.id,
+      userCertificationId: userCertifications.id,
       userId: userCertifications.userId,
+      name: users.name,
+      username: users.username,
       certificationId: userCertifications.certificationId,
       grantedBy: userCertifications.grantedBy,
       grantedAt: userCertifications.grantedAt,
@@ -1122,23 +1276,53 @@ export class DatabaseStorage implements IStorage {
     return rows.map(r => ({
       ...r,
       grantedByName: grantorMap[r.grantedBy] || `User #${r.grantedBy}`,
-      isTrainer: (r.userRoles as string[]).includes('Safety Trainer'),
     }));
   }
 
+  /**
+   * Who may train this certification.
+   *
+   * No longer "holds the cert and carries the Trainer role" — authority is now
+   * an explicit `trainer_scopes` row covering the cert's department at or above
+   * its level. A coach-appointed trainer need not hold the certification.
+   * Coaches bypass scopes entirely and are unioned in.
+   */
   async getTrainersForCert(certId: number): Promise<any[]> {
-    const rows = await db.select({
-      id: userCertifications.id,
-      userId: userCertifications.userId,
-      certificationId: userCertifications.certificationId,
-      grantedAt: userCertifications.grantedAt,
-      userName: users.name,
-      userUsername: users.username,
-      userRoles: users.roles,
-    }).from(userCertifications)
-      .innerJoin(users, eq(userCertifications.userId, users.id))
-      .where(eq(userCertifications.certificationId, certId));
-    return rows.filter(r => (r.userRoles as string[]).includes('Safety Trainer'));
+    const [cert] = await db.select({
+      department: certifications.department,
+      level: certifications.level,
+    }).from(certifications).where(eq(certifications.id, certId));
+    if (!cert) return [];
+
+    const scoped = await db.select({
+      id: users.id,
+      name: users.name,
+      username: users.username,
+      roles: users.roles,
+      department: trainerScopes.department,
+      maxLevel: trainerScopes.maxLevel,
+    }).from(trainerScopes)
+      .innerJoin(users, eq(trainerScopes.userId, users.id))
+      .where(and(
+        sql`coalesce(${trainerScopes.department}, '') = coalesce(${cert.department}, '')`,
+        sql`${trainerScopes.maxLevel} >= ${cert.level}`,
+      ));
+
+    const coaches = await db.select({
+      id: users.id,
+      name: users.name,
+      username: users.username,
+      roles: users.roles,
+    }).from(users).where(sql`${users.roles} @> '["Coach"]'::jsonb`);
+
+    const seen = new Set<number>();
+    const out: any[] = [];
+    for (const row of [...scoped, ...coaches]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      out.push({ ...row, userId: row.id, userName: row.name, userUsername: row.username });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async createCertRequest(userId: number, certId: number): Promise<CertificationRequest> {
@@ -1168,7 +1352,24 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getCertRequests(filters: { userId?: number; statuses?: string[] }): Promise<any[]> {
+  /**
+   * Certification requests, filtered in SQL rather than in JS. `scope` narrows
+   * a trainer's queue to the (department, level) sets they're authorized for;
+   * omit it (or pass `bypass`) for coaches and for a student's own rows.
+   */
+  async getCertRequests(filters: {
+    userId?: number;
+    statuses?: string[];
+    scope?: { bypass: boolean; scopes: { department: string | null; maxLevel: number }[] };
+  }): Promise<any[]> {
+    const conditions: any[] = [];
+    if (filters.userId !== undefined) {
+      conditions.push(eq(certificationRequests.userId, filters.userId));
+    }
+    if (filters.statuses && filters.statuses.length > 0) {
+      conditions.push(inArray(certificationRequests.status, filters.statuses));
+    }
+
     let rows = await db.select({
       id: certificationRequests.id,
       userId: certificationRequests.userId,
@@ -1181,20 +1382,28 @@ export class DatabaseStorage implements IStorage {
       updatedAt: certificationRequests.updatedAt,
       userName: users.name,
       userUsername: users.username,
-      certName: safetyCertifications.name,
-      certEquipment: safetyCertifications.equipment,
-      certChecklistItems: safetyCertifications.checklistItems,
-      certSafetyGuide: safetyCertifications.safetyGuide,
+      certName: certifications.name,
+      certEquipment: certifications.equipment,
+      certChecklistItems: certifications.checklistItems,
+      certSafetyGuide: certifications.safetyGuide,
+      certDepartment: certifications.department,
+      certLevel: certifications.level,
+      certLinks: certifications.links,
     }).from(certificationRequests)
       .innerJoin(users, eq(certificationRequests.userId, users.id))
-      .innerJoin(safetyCertifications, eq(certificationRequests.certificationId, safetyCertifications.id))
+      .innerJoin(certifications, eq(certificationRequests.certificationId, certifications.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(certificationRequests.requestedAt));
-    if (filters.userId !== undefined) {
-      rows = rows.filter(r => r.userId === filters.userId);
+
+    // Scope matching stays in JS: a scope list is at most one row per
+    // department, so this is a handful of comparisons per request.
+    if (filters.scope && !filters.scope.bypass) {
+      const scopes = filters.scope.scopes;
+      rows = rows.filter(r => scopes.some(
+        sc => sameDepartment(sc.department, r.certDepartment) && sc.maxLevel >= r.certLevel,
+      ));
     }
-    if (filters.statuses && filters.statuses.length > 0) {
-      rows = rows.filter(r => filters.statuses!.includes(r.status));
-    }
+
     const trainerIds = [...new Set(rows.map(r => r.trainerId).filter((id): id is number => id !== null))];
     const trainerUsers = trainerIds.length > 0
       ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, trainerIds))
@@ -1210,8 +1419,28 @@ export class DatabaseStorage implements IStorage {
         equipment: r.certEquipment,
         checklistItems: r.certChecklistItems || [],
         safetyGuide: r.certSafetyGuide || '',
+        department: r.certDepartment,
+        level: r.certLevel,
+        links: r.certLinks || [],
       },
     }));
+  }
+
+  /** One request with its certification's department/level, for scope checks. */
+  async getCertRequestDetail(requestId: number): Promise<any | undefined> {
+    const [row] = await db.select({
+      id: certificationRequests.id,
+      userId: certificationRequests.userId,
+      certificationId: certificationRequests.certificationId,
+      status: certificationRequests.status,
+      trainerId: certificationRequests.trainerId,
+      certName: certifications.name,
+      certDepartment: certifications.department,
+      certLevel: certifications.level,
+    }).from(certificationRequests)
+      .innerJoin(certifications, eq(certificationRequests.certificationId, certifications.id))
+      .where(eq(certificationRequests.id, requestId));
+    return row;
   }
 
   async claimCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined> {
@@ -1222,7 +1451,7 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateCertRequestProgress(requestId: number, checklistProgress: { id: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined> {
+  async updateCertRequestProgress(requestId: number, checklistProgress: { item: string; completed: boolean }[], notes?: string): Promise<CertificationRequest | undefined> {
     const updateData: any = { checklistProgress, updatedAt: new Date() };
     if (notes !== undefined) updateData.notes = notes;
     const [row] = await db.update(certificationRequests)
@@ -1232,17 +1461,27 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async completeCertRequest(requestId: number, trainerId: number): Promise<CertificationRequest | undefined> {
-    const [req] = await db.select().from(certificationRequests).where(eq(certificationRequests.id, requestId));
-    if (!req) return undefined;
-    const [row] = await db.update(certificationRequests)
-      .set({ status: 'completed', trainerId, updatedAt: new Date() })
-      .where(eq(certificationRequests.id, requestId))
-      .returning();
-    if (row) {
-      await this.grantCertification(req.userId, req.certificationId, trainerId);
-    }
-    return row;
+  /**
+   * Complete a request: flip it to `completed` and grant the certification, in
+   * ONE transaction. Previously these were two statements, so a failing grant
+   * left a `completed` request with no certification and no retry path — and
+   * badge awards widen that window further.
+   */
+  async completeCertRequest(
+    requestId: number,
+    trainerId: number,
+  ): Promise<(CertificationRequest & { newBadges?: EarnedLevelBadge[] }) | undefined> {
+    return db.transaction(async (tx) => {
+      const [req] = await tx.select().from(certificationRequests).where(eq(certificationRequests.id, requestId));
+      if (!req) return undefined;
+      const [row] = await tx.update(certificationRequests)
+        .set({ status: 'completed', trainerId, updatedAt: new Date() })
+        .where(eq(certificationRequests.id, requestId))
+        .returning();
+      if (!row) return undefined;
+      const { newBadges } = await this.grantCertificationTx(tx, req.userId, req.certificationId, trainerId);
+      return { ...row, newBadges };
+    });
   }
 
   async rejectCertRequest(requestId: number, trainerId: number, notes?: string): Promise<CertificationRequest | undefined> {
@@ -1253,6 +1492,118 @@ export class DatabaseStorage implements IStorage {
       .where(eq(certificationRequests.id, requestId))
       .returning();
     return row;
+  }
+
+  // --- Trainer scopes -------------------------------------------------------
+
+  async getTrainerScopes(userId?: number): Promise<TrainerScope[]> {
+    if (userId !== undefined) {
+      return db.select().from(trainerScopes).where(eq(trainerScopes.userId, userId));
+    }
+    return db.select().from(trainerScopes).orderBy(trainerScopes.userId, trainerScopes.department);
+  }
+
+  /** All scopes joined to the holder's name, for the Control Panel list. */
+  async getTrainerScopesWithUsers(): Promise<any[]> {
+    return db.select({
+      id: trainerScopes.id,
+      userId: trainerScopes.userId,
+      department: trainerScopes.department,
+      maxLevel: trainerScopes.maxLevel,
+      createdAt: trainerScopes.createdAt,
+      userName: users.name,
+      userUsername: users.username,
+    }).from(trainerScopes)
+      .innerJoin(users, eq(trainerScopes.userId, users.id))
+      .orderBy(users.name, trainerScopes.department);
+  }
+
+  /**
+   * Replace a user's entire scope set in one transaction. Whole-set replace
+   * rather than per-row add/remove mirrors how the Control Panel edits roles
+   * and departments, and avoids the client juggling row ids.
+   */
+  async setTrainerScopes(
+    userId: number,
+    scopes: { department: string | null; maxLevel: number }[],
+    createdBy: number,
+  ): Promise<TrainerScope[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(trainerScopes).where(eq(trainerScopes.userId, userId));
+      if (scopes.length === 0) return [];
+      const rows = await tx.insert(trainerScopes).values(
+        scopes.map(sc => ({
+          userId,
+          department: sc.department,
+          maxLevel: normalizeLevel(sc.maxLevel),
+          createdBy,
+        })),
+      ).returning();
+      return rows;
+    });
+  }
+
+  // --- Badges ---------------------------------------------------------------
+
+  async getBadgeDefinitions(includeArchived = false): Promise<BadgeDefinition[]> {
+    if (includeArchived) {
+      return db.select().from(badgeDefinitions).orderBy(badgeDefinitions.name);
+    }
+    return db.select().from(badgeDefinitions)
+      .where(eq(badgeDefinitions.archived, false))
+      .orderBy(badgeDefinitions.name);
+  }
+
+  async createBadgeDefinition(data: InsertBadgeDefinition): Promise<BadgeDefinition> {
+    const [row] = await db.insert(badgeDefinitions).values(data).returning();
+    return row;
+  }
+
+  async updateBadgeDefinition(id: number, data: Partial<InsertBadgeDefinition>): Promise<BadgeDefinition | undefined> {
+    const { id: _ignored, createdAt: _ignoredAt, ...sanitized } = data as any;
+    const [row] = await db.update(badgeDefinitions).set(sanitized)
+      .where(eq(badgeDefinitions.id, id)).returning();
+    return row;
+  }
+
+  /** Archive rather than delete, so already-awarded badges never dangle. */
+  async deleteBadgeDefinition(id: number): Promise<void> {
+    await db.update(badgeDefinitions).set({ archived: true }).where(eq(badgeDefinitions.id, id));
+  }
+
+  async getUserBadges(userId?: number): Promise<UserBadge[]> {
+    if (userId !== undefined) {
+      return db.select().from(userBadges).where(eq(userBadges.userId, userId))
+        .orderBy(desc(userBadges.earnedAt));
+    }
+    return db.select().from(userBadges).orderBy(desc(userBadges.earnedAt));
+  }
+
+  async awardCustomBadge(
+    userId: number,
+    badgeDefinitionId: number,
+    awardedBy: number,
+    note?: string,
+  ): Promise<UserBadge | undefined> {
+    const [row] = await db.insert(userBadges).values({
+      userId,
+      kind: 'custom',
+      badgeDefinitionId,
+      awardedBy,
+      note: note ?? null,
+      earnedAt: new Date(),
+    }).onConflictDoNothing().returning();
+    if (row) return row;
+    const [existing] = await db.select().from(userBadges).where(and(
+      eq(userBadges.userId, userId),
+      eq(userBadges.kind, 'custom'),
+      eq(userBadges.badgeDefinitionId, badgeDefinitionId),
+    ));
+    return existing;
+  }
+
+  async revokeBadge(userId: number, badgeId: number): Promise<void> {
+    await db.delete(userBadges).where(and(eq(userBadges.id, badgeId), eq(userBadges.userId, userId)));
   }
 
   async getCalendarEvents(includeArchived = false): Promise<CalendarEvent[]> {
@@ -1296,6 +1647,225 @@ export class DatabaseStorage implements IStorage {
 
   async ensureProjectLinksColumn(): Promise<void> {
     await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'`);
+  }
+
+  /**
+   * Certifications v2 — department + level + links on certifications, explicit
+   * trainer scopes, and the badge tables. Idempotent; runs on every boot.
+   *
+   * The certifications table is NOT renamed. The Drizzle symbol is
+   * `certifications` but the physical table stays `safety_certifications` —
+   * see the comment in shared/schema.ts. Every statement here is additive.
+   */
+  async ensureCertificationLevelsAndBadges(): Promise<void> {
+    await db.execute(sql`ALTER TABLE safety_certifications ADD COLUMN IF NOT EXISTS department TEXT`);
+    await db.execute(sql`ALTER TABLE safety_certifications ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1`);
+    await db.execute(sql`ALTER TABLE safety_certifications ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS safety_certifications_dept_level_idx
+        ON safety_certifications (coalesce(department, ''), level)
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trainer_scopes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        department TEXT,
+        max_level INTEGER NOT NULL DEFAULT 1,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // One scope per (user, department). `department IS NULL` means General, and
+    // a plain UNIQUE treats every NULL as distinct, so key on the coalesced
+    // expression instead. (UNIQUE NULLS NOT DISTINCT is PG15+; this works
+    // everywhere.) Not expressible via Drizzle's uniqueIndex().
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS trainer_scopes_user_dept_uniq
+        ON trainer_scopes (user_id, coalesce(department, ''))
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS badge_definitions (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        icon TEXT NOT NULL DEFAULT 'award',
+        color TEXT NOT NULL DEFAULT '#dc2626',
+        archived BOOLEAN NOT NULL DEFAULT false,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_badges (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        badge_definition_id INTEGER REFERENCES badge_definitions(id) ON DELETE CASCADE,
+        department TEXT,
+        level INTEGER,
+        awarded_by INTEGER REFERENCES users(id),
+        note TEXT,
+        earned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Partial unique indexes, one per kind — the two kinds key on different
+    // columns, so a single constraint can't express both.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS user_badges_level_uniq
+        ON user_badges (user_id, coalesce(department, ''), level) WHERE kind = 'level'
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS user_badges_custom_uniq
+        ON user_badges (user_id, badge_definition_id) WHERE kind = 'custom'
+    `);
+  }
+
+  /**
+   * Transaction-scoped variant of `claimMigration`.
+   *
+   * `claimMigration` inserts the ledger row on the pooled `db`, OUTSIDE any
+   * transaction — so if the migration body then throws, the key stays claimed
+   * and the work is skipped forever. Claiming inside the same transaction as
+   * the work makes the claim roll back with it.
+   */
+  async claimMigrationTx(tx: any, key: string): Promise<boolean> {
+    const result = await tx.execute(sql`
+      INSERT INTO schema_migrations (key) VALUES (${key})
+      ON CONFLICT (key) DO NOTHING
+      RETURNING key
+    `);
+    return ((result as any).rows?.length ?? 0) > 0;
+  }
+
+  /**
+   * Rename the 'Safety Trainer' role to 'Trainer', in team_settings.roles AND
+   * in every users.roles array.
+   *
+   * Unlike departments, role renames have no propagation path — the Control
+   * Panel just overwrites team_settings.roles and leaves users.roles stale —
+   * so this has to do both halves itself. 'Safety Trainer' is not in
+   * PROTECTED_ROLES, so a team may already have renamed or deleted it: both
+   * statements are no-ops when the role is absent, and the users update dedupes
+   * so a user who somehow holds both names ends up with one 'Trainer'.
+   */
+  async migrateTrainerRoleRename(): Promise<void> {
+    await db.transaction(async (tx) => {
+      if (!(await this.claimMigrationTx(tx, 'role-safety-trainer-to-trainer'))) return;
+
+      // team_settings.roles :: [{name,tier}] — order preserved via ORDINALITY.
+      await tx.execute(sql`
+        UPDATE team_settings SET roles = (
+          SELECT coalesce(jsonb_agg(
+            CASE WHEN elem->>'name' = 'Safety Trainer'
+                 THEN jsonb_set(elem, '{name}', '"Trainer"')
+                 ELSE elem END
+            ORDER BY ord), '[]'::jsonb)
+          FROM jsonb_array_elements(team_settings.roles) WITH ORDINALITY AS t(elem, ord)
+        )
+        WHERE roles @> '[{"name":"Safety Trainer"}]'::jsonb
+      `);
+
+      // users.roles :: string[]. DISTINCT guards against a user holding both
+      // names; Postgres requires ORDER BY to match the DISTINCT expression, so
+      // the result sorts alphabetically. Harmless — roles render as an
+      // unordered chip row.
+      const res = await tx.execute(sql`
+        UPDATE users SET roles = (
+          SELECT coalesce(jsonb_agg(DISTINCT val ORDER BY val), '[]'::jsonb)
+          FROM (
+            SELECT CASE WHEN r = 'Safety Trainer' THEN 'Trainer' ELSE r END AS val
+            FROM jsonb_array_elements_text(users.roles) AS r
+          ) mapped
+        )
+        WHERE roles @> '["Safety Trainer"]'::jsonb
+        RETURNING id
+      `);
+      console.log(`migrateTrainerRoleRename: updated ${(res as any).rows?.length ?? 0} users.`);
+    });
+  }
+
+  /**
+   * Seed explicit trainer scopes from the old implicit model.
+   *
+   * Removing the implicit rule would otherwise strand every current trainer
+   * with no authority at all, so this is deliberately generous: one scope per
+   * department in team_settings plus a General scope, all at the maximum level.
+   * Coaches narrow them afterwards in the Control Panel.
+   *
+   * Must run AFTER migrateTrainerRoleRename. Matches both role names anyway,
+   * in case the rename was already done by hand.
+   */
+  async seedTrainerScopes(): Promise<void> {
+    await db.transaction(async (tx) => {
+      if (!(await this.claimMigrationTx(tx, 'seed-trainer-scopes-from-roles'))) return;
+
+      const [settings] = await tx.select().from(teamSettings);
+      const departments = ((settings?.departments as { name: string }[] | undefined) ?? []).map(d => d.name);
+      const trainers = await tx.select({ id: users.id }).from(users).where(
+        sql`${users.roles} @> '["Trainer"]'::jsonb OR ${users.roles} @> '["Safety Trainer"]'::jsonb`,
+      );
+      if (trainers.length === 0) return;
+
+      // Attribute the seeded rows to a Coach so created_by stays a real FK.
+      const [coach] = await tx.select({ id: users.id }).from(users)
+        .where(sql`${users.roles} @> '["Coach"]'::jsonb`).limit(1);
+      const createdBy = coach?.id ?? trainers[0].id;
+
+      const values: any[] = [];
+      for (const t of trainers) {
+        values.push({ userId: t.id, department: null, maxLevel: MAX_LEVEL, createdBy });
+        for (const dept of departments) {
+          values.push({ userId: t.id, department: dept, maxLevel: MAX_LEVEL, createdBy });
+        }
+      }
+      const res = await tx.insert(trainerScopes).values(values).onConflictDoNothing().returning();
+      console.log(`seedTrainerScopes: created ${res.length} scopes for ${trainers.length} trainers.`);
+    });
+  }
+
+  /**
+   * Award level badges to users who already held every certification in a
+   * level before badges existed.
+   *
+   * `earned_at` is the date of the LAST certification in that set, so the
+   * historical record reads truthfully instead of "migration day".
+   *
+   * On a pre-existing database every certification defaults to
+   * (General, Lvl 1), so this awards a single General Lvl 1 badge to anyone
+   * holding every cert — correct, and it re-sorts itself as coaches classify
+   * the certs. Must run AFTER ensureCertificationLevelsAndBadges.
+   */
+  async backfillLevelBadges(): Promise<void> {
+    await db.transaction(async (tx) => {
+      if (!(await this.claimMigrationTx(tx, 'backfill-level-badges'))) return;
+      const res = await tx.execute(sql`
+        INSERT INTO user_badges (user_id, kind, department, level, awarded_by, earned_at)
+        SELECT u.id, 'level', lv.department, lv.level, NULL,
+               (SELECT MAX(uc2.granted_at)
+                  FROM user_certifications uc2
+                  JOIN safety_certifications c2 ON c2.id = uc2.certification_id
+                 WHERE uc2.user_id = u.id
+                   AND coalesce(c2.department, '') = coalesce(lv.department, '')
+                   AND c2.level = lv.level)
+        FROM users u
+        CROSS JOIN (SELECT DISTINCT department, level FROM safety_certifications) lv
+        WHERE EXISTS (
+                SELECT 1 FROM safety_certifications c
+                 WHERE coalesce(c.department, '') = coalesce(lv.department, '') AND c.level = lv.level)
+          AND NOT EXISTS (
+                SELECT 1 FROM safety_certifications c
+                 WHERE coalesce(c.department, '') = coalesce(lv.department, '') AND c.level = lv.level
+                   AND NOT EXISTS (
+                         SELECT 1 FROM user_certifications uc
+                          WHERE uc.user_id = u.id AND uc.certification_id = c.id))
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+      console.log(`backfillLevelBadges: awarded ${(res as any).rows?.length ?? 0} badges.`);
+    });
   }
 
   /**
@@ -2184,7 +2754,7 @@ export class DatabaseStorage implements IStorage {
         { name: 'Team Captain', tier: 'leadership' },
         { name: 'SCRUM Master', tier: 'leadership' },
         { name: 'Department Head', tier: 'lead' },
-        { name: 'Safety Trainer', tier: 'lead' },
+        { name: 'Trainer', tier: 'lead' },
         { name: 'Team Member', tier: 'member' },
         { name: 'Class Member', tier: 'member' },
       ],
@@ -2237,7 +2807,7 @@ export class DatabaseStorage implements IStorage {
 
       const norm = normalizeDepartmentChanges(verdict.changes);
       const affected = [...norm.renameMap.keys(), ...norm.removed];
-      const counts: DepartmentPropagationCounts = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0 };
+      const counts: DepartmentPropagationCounts = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, certifications: 0, trainerScopes: 0 };
 
       if (affected.length > 0) {
         const containsAny = (col: any) => or(...affected.map(n => sql`${col} @> ${JSON.stringify([n])}::jsonb`))!;
@@ -2286,6 +2856,35 @@ export class DatabaseStorage implements IStorage {
           counts.projects++;
         }
 
+        // certifications.department (text, nullable) — removal sets it to null,
+        // which IS the General category, so a deleted department's certs stay
+        // visible and simply move into the General ladder rather than vanishing.
+        const certRows = await tx.select({ id: certifications.id, department: certifications.department })
+          .from(certifications).where(inArray(certifications.department, affected));
+        for (const row of certRows) {
+          const next = remapDepartmentName(row.department, norm);
+          if (next === row.department) continue;
+          await tx.update(certifications).set({ department: next }).where(eq(certifications.id, row.id));
+          counts.certifications++;
+        }
+
+        // trainer_scopes.department — renames follow, but a REMOVED department's
+        // scopes are DELETED rather than remapped to null. Remapping would
+        // silently promote a Manufacturing-only trainer into a General trainer,
+        // widening their sign-off authority as a side effect of a settings edit.
+        const scopeRows = await tx.select({ id: trainerScopes.id, department: trainerScopes.department })
+          .from(trainerScopes).where(inArray(trainerScopes.department, affected));
+        for (const row of scopeRows) {
+          const next = remapDepartmentName(row.department, norm);
+          if (next === row.department) continue;
+          if (next === null) {
+            await tx.delete(trainerScopes).where(eq(trainerScopes.id, row.id));
+          } else {
+            await tx.update(trainerScopes).set({ department: next }).where(eq(trainerScopes.id, row.id));
+          }
+          counts.trainerScopes++;
+        }
+
         // announcements.targetDepartment (text, nullable) — removal sets it to
         // null and leaves `scope` alone (fail closed, never broadcast wider).
         const annRows = await tx.select({ id: announcements.id, targetDepartment: announcements.targetDepartment }).from(announcements).where(inArray(announcements.targetDepartment, affected));
@@ -2310,10 +2909,10 @@ export class DatabaseStorage implements IStorage {
     const settings = await this.getTeamSettings();
     const map: DepartmentUsageMap = {};
     for (const dept of settings.departments as { name: string }[]) {
-      map[dept.name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, total: 0 };
+      map[dept.name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, certifications: 0, trainerScopes: 0, total: 0 };
     }
     const ensure = (name: string) => {
-      if (!map[name]) map[name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, total: 0 };
+      if (!map[name]) map[name] = { users: 0, projects: 0, tasks: 0, announcements: 0, recurringTemplates: 0, certifications: 0, trainerScopes: 0, total: 0 };
       return map[name];
     };
 
@@ -2340,13 +2939,15 @@ export class DatabaseStorage implements IStorage {
     await Promise.all([
       textCount(projects, projects.department, 'projects'),
       textCount(announcements, announcements.targetDepartment, 'announcements'),
+      textCount(certifications, certifications.department, 'certifications'),
+      textCount(trainerScopes, trainerScopes.department, 'trainerScopes'),
       jsonbListCount(users, users.id, users.departments, 'users'),
       jsonbListCount(tasks, tasks.id, tasks.departments, 'tasks'),
       jsonbListCount(recurringTaskTemplates, recurringTaskTemplates.id, recurringTaskTemplates.departments, 'recurringTemplates'),
     ]);
 
     for (const usage of Object.values(map)) {
-      usage.total = usage.users + usage.projects + usage.tasks + usage.announcements + usage.recurringTemplates;
+      usage.total = usage.users + usage.projects + usage.tasks + usage.announcements + usage.recurringTemplates + usage.certifications + usage.trainerScopes;
     }
     return map;
   }
@@ -2394,8 +2995,8 @@ export class DatabaseStorage implements IStorage {
       {
         username: 'safety_trainer',
         password: 'changeme',
-        name: 'Safety Trainer',
-        roles: ['Safety Trainer'],
+        name: 'Sam Trainer',
+        roles: ['Trainer'],
         departments: ['Mechanical', 'Electrical'],
       },
       {

@@ -62,5 +62,9 @@ export const ROLE_COLORS: Record<string, string> = {
   'Media': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   'Free Time': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   'Driver/Coach Support': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'Trainer': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  // Kept alongside 'Trainer': session JWTs carry a 30-day roles snapshot, so a
+  // user logged in before the rename still renders the old string until their
+  // session expires. Remove after 2026-10-05.
   'Safety Trainer': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
 };

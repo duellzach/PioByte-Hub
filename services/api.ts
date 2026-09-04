@@ -280,11 +280,38 @@ export const api = {
       apiRequest<void>(`/certifications/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
     getCertifiedUsers: (id: number) => apiRequest<any[]>(`/certifications/${id}/certified-users`),
     getTrainers: (id: number) => apiRequest<any[]>(`/certifications/${id}/trainers`),
+    // Server-computed lock state + badges. The gate is enforced server-side, so
+    // the client reads it rather than re-deriving it.
+    getProgress: (userId?: number) =>
+      apiRequest<any>(`/certifications/progress${userId !== undefined ? `?userId=${userId}` : ''}`),
     getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/certifications`),
     grantUser: (userId: number, certId: number, grantedBy: number) =>
       apiRequest<any>(`/users/${userId}/certifications`, { method: 'POST', body: JSON.stringify({ certId, grantedBy }) }),
     revokeUser: (userId: number, certId: number, requesterId: number) =>
       apiRequest<void>(`/users/${userId}/certifications/${certId}?requesterId=${requesterId}`, { method: 'DELETE' }),
+  },
+  trainerScopes: {
+    getAll: () => apiRequest<any[]>('/trainer-scopes'),
+    getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/trainer-scopes`),
+    setForUser: (userId: number, scopes: { department: string | null; maxLevel: number }[]) =>
+      apiRequest<any[]>(`/users/${userId}/trainer-scopes`, { method: 'PUT', body: JSON.stringify({ scopes }) }),
+  },
+  badges: {
+    getDefinitions: (includeArchived = false) =>
+      apiRequest<any[]>(`/badge-definitions${includeArchived ? '?includeArchived=true' : ''}`),
+    createDefinition: (data: { name: string; description?: string; icon?: string; color?: string }) =>
+      apiRequest<any>('/badge-definitions', { method: 'POST', body: JSON.stringify(data) }),
+    updateDefinition: (id: number, data: any) =>
+      apiRequest<any>(`/badge-definitions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteDefinition: (id: number) =>
+      apiRequest<void>(`/badge-definitions/${id}`, { method: 'DELETE' }),
+    // Keyed by user id, so the team page fetches once rather than per card.
+    getAllByUser: () => apiRequest<Record<number, any[]>>('/badges'),
+    getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/badges`),
+    award: (userId: number, badgeDefinitionId: number, note?: string) =>
+      apiRequest<any>(`/users/${userId}/badges`, { method: 'POST', body: JSON.stringify({ badgeDefinitionId, note }) }),
+    revoke: (userId: number, badgeId: number) =>
+      apiRequest<void>(`/users/${userId}/badges/${badgeId}`, { method: 'DELETE' }),
   },
   certRequests: {
     getAll: (filters?: { requesterId?: number; targetUserId?: number; statuses?: string[] }) => {

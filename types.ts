@@ -18,7 +18,7 @@ export enum Role {
   TeamMember = 'Team Member',
   ClassMember = 'Class Member',
   Coach = 'Coach',
-  SafetyTrainer = 'Safety Trainer'
+  Trainer = 'Trainer'
 }
 
 export enum TaskStatus {
@@ -46,6 +46,37 @@ export interface User {
   muted?: boolean;
   archived?: boolean;
   guestEventId?: number;
+}
+
+export type BadgeKind = 'level' | 'custom';
+
+export interface BadgeDefinition {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;   // key into BADGE_ICONS, components/badgeStyles.tsx
+  color: string;  // hex
+  archived: boolean;
+  createdBy: number;
+}
+
+export interface Badge {
+  id: number;
+  userId: number;
+  kind: BadgeKind;
+  badgeDefinitionId?: number | null;
+  department?: string | null; // null = General (kind = 'level')
+  level?: number | null;
+  awardedBy?: number | null;  // null = automatically earned
+  note?: string | null;
+  earnedAt: string;
+}
+
+export interface TrainerScope {
+  id: number;
+  userId: number;
+  department: string | null; // null = General
+  maxLevel: number;
 }
 
 export interface Attachment {

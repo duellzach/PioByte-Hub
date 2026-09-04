@@ -2,8 +2,14 @@ import { storage } from "./storage";
 
 export const COACH_CAPTAIN = ['Coach', 'Team Captain'];
 export const COACH_CAPTAIN_DEPT_HEAD = ['Coach', 'Team Captain', 'Department Head'];
-export const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', 'Safety Trainer'];
-export const TRAINER_COACH = ['Safety Trainer', 'Coach'];
+// 'Safety Trainer' was renamed to 'Trainer' (migration `role-safety-trainer-to-trainer`),
+// but session JWTs carry a 30-day snapshot of the user's roles (see MemberToken
+// in server/security.ts), so anyone already logged in at upgrade time still
+// presents the old string. Both names are accepted until every pre-rename
+// session has expired — remove 'Safety Trainer' after 2026-10-05.
+export const TRAINER_ROLES = ['Trainer', 'Safety Trainer'];
+export const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', ...TRAINER_ROLES];
+export const TRAINER_COACH = [...TRAINER_ROLES, 'Coach'];
 // The union of every role that acts as "leadership" somewhere in the app.
 // `eventSignups.ts`'s LEADERSHIP (Coach/Captain/SCRUM Master) and this file's
 // COACH_CAPTAIN_DEPT_HEAD (Coach/Captain/Dept Head) disagreed on who counts —

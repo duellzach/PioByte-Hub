@@ -66,7 +66,7 @@ const DEFAULT_ROLES = [
   { name: 'Team Captain', tier: 'leadership' },
   { name: 'SCRUM Master', tier: 'leadership' },
   { name: 'Department Head', tier: 'lead' },
-  { name: 'Safety Trainer', tier: 'lead' },
+  { name: 'Trainer', tier: 'lead' },
   { name: 'Team Member', tier: 'member' },
   { name: 'Class Member', tier: 'member' },
 ];
