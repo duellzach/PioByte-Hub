@@ -359,13 +359,37 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-start">
-        <RequirementsCard />
-        <UpcomingCard />
-        <TeamHoursCard />
+      {/*
+        Column strategy, in two halves:
+
+        Up to `xl` the count is fixed (1 then 2) because it has to divide the
+        four cards evenly — an auto-fit that happened to land on 3 tracks left
+        the fourth card orphaned beside two empty cells.
+
+        From `xl` it switches to auto-fit. RequirementsCard, UpcomingCard and
+        TeamHoursCard each render null when they have nothing to show, so the
+        old hard `xl:grid-cols-4` left literal empty columns whenever fewer than
+        four were visible; auto-fit collapses the unused tracks so the survivors
+        widen to fill the row instead. At these widths there is always room for
+        all four, so it never orphans.
+
+        No `items-start` — stretching the cells to a common height means a short
+        card (Team Hours runs ~120px against a ~350px row) fills its cell rather
+        than leaving a hole of page background beneath it.
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-4 mb-6">
+        <RequirementsCard className="h-full sm:max-h-[22rem]" />
+        <UpcomingCard className="h-full sm:max-h-[22rem]" />
+        <TeamHoursCard className="h-full sm:max-h-[22rem]" />
 
         {/* Announcements Preview in a compact column */}
-        <section className="bg-slate-950 rounded-2xl md:rounded-[28px] p-6 flex flex-col h-[300px]">
+        {/* Bounded rather than fixed at 300px, so it stretches to match its row
+            instead of dictating the height. The cap is unconditional: a long
+            briefing list runs ~940px, which on a shared row squeezed every other
+            card and on single-column mobile buried the rest of the page behind a
+            wall of scrolling (the old fixed h-[300px] capped it there too). The
+            inner list scrolls past the cap. */}
+        <section className="bg-slate-950 rounded-2xl md:rounded-[28px] p-6 flex flex-col h-full min-h-[15rem] max-h-[22rem]">
           <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
              <Megaphone size={16} /> Team Briefings
           </h2>
@@ -410,7 +434,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
           <h2 className="text-xs font-black text-teamColor uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
             <Calendar size={14} /> Upcoming Events
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4">
             {scoutEvents.slice(0, 3).map(evt => {
               const countdownText = countdown[evt.id] || '';
               const isNow = countdownText === 'HAPPENING NOW';
@@ -490,7 +514,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase flex items-center gap-2">

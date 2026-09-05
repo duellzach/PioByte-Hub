@@ -38,7 +38,7 @@ const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => 
     .sort((a, b) => b.minutes - a.minutes);
 
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 space-y-3.5 ${className}`}>
+    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3.5 ${className}`}>
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Clock size={18} /></div>
         <div className="flex-1 min-w-0">
@@ -55,7 +55,7 @@ const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => 
       ) : rows.length === 0 ? (
         <p className="text-xs text-slate-400 dark:text-slate-500 font-bold italic">No confirmed hours logged yet.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="flex-1 flex flex-col justify-evenly gap-2">
           {rows.map(({ cat, minutes }) => {
             const style = styleFor(cat);
             const percent = totalMinutes > 0 ? Math.round((minutes / totalMinutes) * 100) : 0;

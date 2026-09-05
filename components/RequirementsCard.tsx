@@ -38,7 +38,7 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
   if (!fundraisingOn && hourReqs.length === 0) return null; // nothing configured → hide
 
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 space-y-4 ${className}`}>
+    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-4 ${className}`}>
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Target size={18} /></div>
         <div>
@@ -47,7 +47,7 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
         </div>
       </div>
 
-      <div className="space-y-3.5">
+      <div className="flex-1 min-h-0 overflow-auto kanban-scroll space-y-3.5 -mr-1 pr-1">
         {fundraisingOn && (() => {
           const f = data.fundraising;
           const p = pct(f.raisedCents, f.goalCents);
