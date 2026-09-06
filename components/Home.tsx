@@ -6,6 +6,7 @@ import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { PRIORITY_COLORS, ROLE_COLORS } from '../constants';
 import { parseLocalDate } from '../utils/dates';
+import { onLiveBoard } from '../utils/tasks';
 import { useTeamTime } from '../utils/timeFormat';
 import RequirementsCard from './RequirementsCard';
 import UpcomingCard from './UpcomingCard';
@@ -71,9 +72,14 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
     [user, isMuted]
   );
 
+  // Everything on this page counts live work only — tasks on an archived board
+  // are retired, and used to keep showing up in My Tasks and the velocity chart
+  // long after the board was put away.
+  const liveTasks = useMemo(() => onLiveBoard(state.tasks, state.projects), [state.tasks, state.projects]);
+
   const myTasks = useMemo(() => {
-    return state.tasks.filter(t => t.assignees.includes(user?.id || '') && t.status !== TaskStatus.Complete);
-  }, [state.tasks, user]);
+    return liveTasks.filter(t => t.assignees.includes(user?.id || '') && t.status !== TaskStatus.Complete);
+  }, [liveTasks, user]);
 
   const visibleAnnouncements = useMemo(() => {
     return state.announcements.filter(ann => {
@@ -119,7 +125,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
         weeks[weekKey] = 0;
     }
 
-    state.tasks.forEach(task => {
+    liveTasks.forEach(task => {
         if (task.status === TaskStatus.Complete && task.completedAt) {
             const compDate = new Date(task.completedAt);
             const startOfCompWeek = new Date(compDate);
@@ -132,7 +138,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
     });
 
     return Object.entries(weeks).map(([name, points]) => ({ name, points }));
-  }, [state.tasks]);
+  }, [liveTasks]);
 
   const currentWeekEffort = useMemo(() => {
     const now = new Date();
@@ -140,13 +146,13 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
-    return state.tasks.reduce((acc, t) => {
+    return liveTasks.reduce((acc, t) => {
         if (t.status === TaskStatus.Complete && t.completedAt && t.completedAt >= startOfWeek.getTime()) {
             return acc + (t.effort || 0);
         }
         return acc;
     }, 0);
-  }, [state.tasks]);
+  }, [liveTasks]);
 
   const [scoutEvents, setScoutEvents] = useState<any[]>([]);
   const [countdown, setCountdown] = useState<Record<number, string>>({});
@@ -541,9 +547,11 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                       {task.effort} PTS
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 group-hover:text-teamColor transition-colors">
-                    DUE {parseLocalDate(task.dueDate).toLocaleDateString([])}
-                  </span>
+                  {task.dueDate && (
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 group-hover:text-teamColor transition-colors">
+                      DUE {parseLocalDate(task.dueDate).toLocaleDateString([])}
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white mb-1 group-hover:text-teamColor transition-colors">
                   {task.title.toUpperCase()}

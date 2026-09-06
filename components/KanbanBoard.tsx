@@ -755,9 +755,14 @@ const TaskCard: React.FC<{
                             </div>
                         )}
                     </div>
-                    <span className="text-[6px] md:text-[7px] font-bold text-slate-400 dark:text-slate-500">
-                        {parseLocalDate(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                    </span>
+                    {/* A due date is optional — the modal writes null when it's
+                        cleared, and imports/recurring tasks can omit it. Render
+                        nothing rather than feeding null to parseLocalDate. */}
+                    {task.dueDate && (
+                        <span className="text-[6px] md:text-[7px] font-bold text-slate-400 dark:text-slate-500">
+                            {parseLocalDate(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
+                    )}
                 </div>
                 <button 
                     onClick={onToggleHelp}

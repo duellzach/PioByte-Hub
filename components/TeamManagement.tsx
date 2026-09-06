@@ -1,12 +1,31 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore } from 'lucide-react';
+import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit, MemberProductivity } from '../types';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { useTeamTime } from '../utils/timeFormat';
 import { pacificDateTime } from '../utils/dates';
 import { HOUR_CATEGORIES, styleFor } from './hourCategoryStyles';
 import { BadgeChip, resolveBadge } from './badgeStyles';
+import { onLiveBoard } from '../utils/tasks';
+import DateWindowPicker, { defaultWindow, describeWindow, type DateWindow } from './DateWindowPicker';
+import MemberProductivityModal from './MemberProductivityModal';
+
+/** Sortable columns of the Team summary table, in render order. */
+type SummarySortKey = 'name' | 'department' | 'roles' | 'hours' | 'sessions' | 'completed' | 'effort' | 'worked' | 'active' | 'status';
+
+const SUMMARY_COLUMNS: { key: SummarySortKey; label: string; align?: 'center'; hint?: string }[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'department', label: 'Department' },
+  { key: 'roles', label: 'Roles' },
+  { key: 'hours', label: 'Hours', align: 'center', hint: 'Hours earned in the selected window, across every category' },
+  { key: 'sessions', label: 'Sessions', align: 'center', hint: 'Completed clock sessions in the window' },
+  { key: 'completed', label: 'Done', align: 'center', hint: 'Assigned tasks completed in the window' },
+  { key: 'effort', label: 'Effort', align: 'center', hint: 'Effort points from those completed tasks' },
+  { key: 'worked', label: 'Worked', align: 'center', hint: 'Distinct tasks they logged time against — including ones they only helped on' },
+  { key: 'active', label: 'Active', align: 'center', hint: 'Assigned tasks still open right now (not windowed)' },
+  { key: 'status', label: 'Status', align: 'center' },
+];
 
 interface TeamProps {
   state: AppState;
@@ -101,6 +120,15 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [perfHeldCerts, setPerfHeldCerts] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  // The summary table answers "what has the team done LATELY", so it defaults
+  // to the current season rather than all of history. Every number in the table
+  // — hours, sessions, tasks completed, effort, tasks worked — is scoped to it.
+  const [summaryWindow, setSummaryWindow] = useState<DateWindow>(() => defaultWindow(settings.timezone));
+  const [summaryRows, setSummaryRows] = useState<MemberProductivity[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const [summarySort, setSummarySort] = useState<{ key: SummarySortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  const [deepDiveUser, setDeepDiveUser] = useState<{ id: string; name: string } | null>(null);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCaptain = useMemo(() => state.currentUser?.roles.includes(Role.TeamCaptain), [state.currentUser]);
@@ -163,8 +191,12 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
       .map(dept => ({ dept, users: groups[dept] }));
   }, [filteredUsers]);
 
+  // Member cards count live work only — an archived board's tasks are retired
+  // and were inflating every member's completed/active counts.
+  const liveTasks = useMemo(() => onLiveBoard(state.tasks, state.projects), [state.tasks, state.projects]);
+
   const getUserStats = (userId: string) => {
-    const userTasks = state.tasks.filter(t => t.assignees.includes(userId));
+    const userTasks = liveTasks.filter(t => t.assignees.includes(userId));
     const completedTasks = userTasks.filter(t => t.status === TaskStatus.Complete);
     const totalEffort = completedTasks.reduce((acc, t) => acc + (t.effort || 0), 0);
     const activeTasks = userTasks.filter(t => t.status !== TaskStatus.Complete);
@@ -266,47 +298,68 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     return state.users.find(u => u.id === userId)?.name || 'Unknown';
   };
 
-  const summaryRows = useMemo(() => {
-    return state.users
-      .slice()
-      .sort((a, b) => {
-        const dA = a.departments[0] || 'zzz';
-        const dB = b.departments[0] || 'zzz';
-        if (dA !== dB) return dA.localeCompare(dB);
-        return a.name.localeCompare(b.name);
-      })
-      .map(user => {
-        const stats = getUserStats(user.id);
-        const minutes = getUserTotalMinutes(user.id);
-        return {
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          departments: user.departments.join(', ') || '—',
-          roles: user.roles.join(', ') || '—',
-          completed: stats.completed,
-          effort: stats.effort,
-          active: stats.active,
-          hoursLogged: (minutes / 60).toFixed(1),
-          muted: !!user.muted,
-        };
-      });
-  }, [state.users, state.tasks, state.timeEntries, hourTotals]);
+  // Server-computed, so hours (ledger) and task counts (boards) agree with the
+  // rest of the app and both honor the same window. Archived members are
+  // filtered out server-side — they've left the team, and leaving them in
+  // padded every roster count a coach read off this table.
+  useEffect(() => {
+    if (!isCoach || !showSummary) return;
+    let cancelled = false;
+    setSummaryLoading(true);
+    setSummaryError('');
+    api.productivity.team(summaryWindow)
+      .then(rows => { if (!cancelled) setSummaryRows(rows); })
+      .catch(e => { if (!cancelled) setSummaryError(e?.message || 'Could not load the team summary.'); })
+      .finally(() => { if (!cancelled) setSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, [isCoach, showSummary, summaryWindow.start, summaryWindow.end, state.timeEntries.length]);
+
+  const sortedSummaryRows = useMemo(() => {
+    const dir = summarySort.dir === 'asc' ? 1 : -1;
+    const value = (r: MemberProductivity): string | number => {
+      switch (summarySort.key) {
+        case 'department': return r.departments[0] || 'zzz';
+        case 'hours': return r.hours.total;
+        case 'sessions': return r.sessions;
+        case 'completed': return r.tasksCompleted;
+        case 'effort': return r.effort;
+        case 'active': return r.activeTasks;
+        case 'worked': return r.tasksWorked;
+        default: return r.name.toLowerCase();
+      }
+    };
+    return [...summaryRows].sort((a, b) => {
+      const av = value(a);
+      const bv = value(b);
+      if (av === bv) return a.name.localeCompare(b.name);
+      return (typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))) * dir;
+    });
+  }, [summaryRows, summarySort]);
+
+  const toggleSummarySort = (key: SummarySortKey) =>
+    setSummarySort(prev => (prev.key === key
+      // Names read best A-Z first; every metric reads best highest-first.
+      ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'name' || key === 'department' ? 'asc' : 'desc' }));
 
   const exportTeamCSV = () => {
-    const headers = ['Name', 'Username', 'Departments', 'Roles', 'Tasks Completed', 'Effort Points', 'Active Tasks', 'Hours Logged', 'Status'];
-    const rows = summaryRows.map(r => [
+    const headers = ['Name', 'Username', 'Departments', 'Roles', 'Hours', 'Sessions', 'Tasks Completed', 'Effort Points', 'Tasks Worked', 'Active Tasks', 'Status'];
+    const rows = sortedSummaryRows.map(r => [
       r.name,
       r.username,
-      r.departments,
-      r.roles,
-      r.completed,
+      r.departments.join(', ') || '—',
+      r.roles.join(', ') || '—',
+      (r.hours.total / 60).toFixed(1),
+      r.sessions,
+      r.tasksCompleted,
       r.effort,
-      r.active,
-      r.hoursLogged,
+      r.tasksWorked,
+      r.activeTasks,
       r.muted ? 'Muted' : 'Active',
     ]);
-    const csv = [headers, ...rows]
+    // The window is stamped into the file — a bare export of a filtered table
+    // is impossible to interpret a week later.
+    const csv = [[`Team summary — ${describeWindow(summaryWindow)}`], [], headers, ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -456,76 +509,115 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
 
         {isCoach && showSummary && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in duration-300">
-            <div className="flex items-center justify-between px-5 py-4 border-b-2 border-slate-100 dark:border-slate-700">
-              <div className="flex items-center gap-3">
-                <LayoutList size={16} className="text-teamColor" />
-                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Team Summary</span>
-                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">{summaryRows.length} members</span>
+            <div className="flex flex-col gap-3 px-5 py-4 border-b-2 border-slate-100 dark:border-slate-700">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <LayoutList size={16} className="text-teamColor flex-shrink-0" />
+                  <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Team Summary</span>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase truncate">
+                    {summaryRows.length} active member{summaryRows.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {summaryLoading && <Loader2 size={14} className="animate-spin text-teamColor flex-shrink-0" />}
               </div>
-              <button
-                onClick={exportTeamCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-700 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-[10px]"
-              >
-                <Download size={13} />
-                Export CSV
-              </button>
+              <DateWindowPicker value={summaryWindow} onChange={setSummaryWindow}>
+                <button
+                  onClick={exportTeamCSV}
+                  disabled={summaryRows.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-700 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-[10px] disabled:opacity-40 flex-shrink-0"
+                >
+                  <Download size={13} />
+                  Export CSV
+                </button>
+              </DateWindowPicker>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Name</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Department</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">Roles</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Done</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Effort</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Active</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Hrs Logged</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summaryRows.map((row, idx) => (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40 dark:bg-slate-800/20'}`}
-                    >
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-teamColor text-white flex items-center justify-center font-black text-[10px] flex-shrink-0">
-                            {row.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-black text-slate-900 dark:text-white text-[11px]">{row.name}</div>
-                            <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">@{row.username}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.departments}</td>
-                      <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[150px] truncate" title={row.roles}>{row.roles}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[11px]">{row.completed}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-black text-[11px]">{row.effort}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-[11px] ${row.active > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>{row.active}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-black text-[11px] px-2 py-1">{row.hoursLogged}h</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {row.muted
-                          ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-black text-[9px] uppercase tracking-wider"><VolumeX size={10} />Muted</span>
-                          : <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[9px] uppercase tracking-wider"><Check size={10} />Active</span>
-                        }
-                      </td>
+
+            {summaryError ? (
+              <p className="px-5 py-10 text-center text-xs font-bold text-red-500">{summaryError}</p>
+            ) : summaryRows.length === 0 && !summaryLoading ? (
+              <p className="px-5 py-10 text-center text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Nothing logged in this window
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                      {SUMMARY_COLUMNS.map(col => (
+                        <th
+                          key={col.key}
+                          onClick={() => toggleSummarySort(col.key)}
+                          title={col.hint}
+                          className={`px-4 py-3 font-black text-[10px] uppercase tracking-widest whitespace-nowrap cursor-pointer select-none transition-colors hover:text-teamColor ${
+                            col.align === 'center' ? 'text-center' : ''
+                          } ${summarySort.key === col.key ? 'text-teamColor' : 'text-slate-400 dark:text-slate-500'}`}
+                        >
+                          {col.label}
+                          {summarySort.key === col.key && (
+                            <span className="ml-1">{summarySort.dir === 'asc' ? '▲' : '▼'}</span>
+                          )}
+                        </th>
+                      ))}
+                      <th className="px-4 py-3" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sortedSummaryRows.map((row, idx) => (
+                      <tr
+                        key={row.userId}
+                        className={`border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40 dark:bg-slate-800/20'}`}
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-lg bg-teamColor text-white flex items-center justify-center font-black text-[10px] flex-shrink-0">
+                              {row.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="font-black text-slate-900 dark:text-white text-[11px]">{row.name}</div>
+                              <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">@{row.username}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.departments.join(', ') || '—'}</td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[150px] truncate" title={row.roles.join(', ')}>{row.roles.join(', ') || '—'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-black text-[11px] px-2 py-1">{(row.hours.total / 60).toFixed(1)}h</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-black text-[11px]">{row.sessions}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[11px]">{row.tasksCompleted}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-black text-[11px]">{row.effort}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-[11px] ${row.tasksWorked > 0 ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>{row.tasksWorked}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-[11px] ${row.activeTasks > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>{row.activeTasks}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {row.muted
+                            ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-black text-[9px] uppercase tracking-wider"><VolumeX size={10} />Muted</span>
+                            : <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-black text-[9px] uppercase tracking-wider"><Check size={10} />Active</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => setDeepDiveUser({ id: String(row.userId), name: row.name })}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teamColor/10 text-teamColor rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-teamColor hover:text-white transition-all"
+                          >
+                            <BarChart2 size={11} /> Deep Dive
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -1060,6 +1152,15 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
             </div>
         )}
 
+        {deepDiveUser && (
+          <MemberProductivityModal
+            userId={deepDiveUser.id}
+            userName={deepDiveUser.name}
+            window={summaryWindow}
+            onClose={() => setDeepDiveUser(null)}
+          />
+        )}
+
         {selectedUserForStats && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[70] p-4 md:p-6 animate-in fade-in duration-300">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[48px] w-full max-w-4xl p-6 md:p-16 max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in duration-300">
@@ -1073,9 +1174,20 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                               <h2 className="text-xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{selectedUserForStats.name}</h2>
                             </div>
                         </div>
-                        <button onClick={() => setSelectedUserForStats(null)} className="p-3 md:p-4 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-600 rounded-xl md:rounded-2xl transition-all shadow-sm">
-                            <X size={20} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {isCoach && (
+                            <button
+                              onClick={() => setDeepDiveUser({ id: selectedUserForStats.id, name: selectedUserForStats.name })}
+                              title="Hours and task contributions over a date window"
+                              className="flex items-center gap-2 px-4 py-3 md:py-4 bg-teamColor/10 text-teamColor font-black rounded-xl md:rounded-2xl text-[10px] uppercase tracking-widest hover:bg-teamColor hover:text-white transition-all"
+                            >
+                              <BarChart2 size={16} /> <span className="hidden sm:inline">Productivity</span>
+                            </button>
+                          )}
+                          <button onClick={() => setSelectedUserForStats(null)} className="p-3 md:p-4 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-600 rounded-xl md:rounded-2xl transition-all shadow-sm">
+                              <X size={20} />
+                          </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-auto space-y-6 md:space-y-12 pr-2 md:pr-6 kanban-scroll">
@@ -1084,7 +1196,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                               <Trophy className="text-teamColor" size={14} /> Completed Tasks
                             </h3>
                             <div className="grid grid-cols-1 gap-3 md:gap-4">
-                                {state.tasks.filter(t => t.assignees.includes(selectedUserForStats.id) && t.status === TaskStatus.Complete).map(t => (
+                                {liveTasks.filter(t => t.assignees.includes(selectedUserForStats.id) && t.status === TaskStatus.Complete).map(t => (
                                     <div key={t.id} className="flex items-center justify-between p-4 md:p-8 bg-slate-50 dark:bg-slate-700/50 rounded-xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 group hover:border-teamColor/20 transition-all">
                                         <div className="flex items-center gap-3 md:gap-6 min-w-0 flex-1">
                                             <div className="p-2 md:p-3 bg-teamColor text-white rounded-lg md:rounded-xl shadow-lg flex-shrink-0">
@@ -1098,7 +1210,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                                         </div>
                                     </div>
                                 ))}
-                                {state.tasks.filter(t => t.assignees.includes(selectedUserForStats.id) && t.status === TaskStatus.Complete).length === 0 && (
+                                {liveTasks.filter(t => t.assignees.includes(selectedUserForStats.id) && t.status === TaskStatus.Complete).length === 0 && (
                                   <div className="py-8 md:py-12 text-center text-slate-400 dark:text-slate-500 font-bold uppercase">No completed tasks yet</div>
                                 )}
                             </div>

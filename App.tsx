@@ -7,6 +7,7 @@ import Confetti from './components/Confetti';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoachTutorial from './components/CoachTutorial';
 import { api } from './services/api';
+import { onLiveBoard } from './utils/tasks';
 import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle, KeyRound, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import TeamLogo from './components/TeamLogo';
 import { TeamSettingsContext, TeamSettingsData, DEFAULT_TEAM_SETTINGS } from './contexts/TeamSettingsContext';
@@ -550,7 +551,10 @@ const App: React.FC = () => {
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
-  const weeklyEffort = state.tasks.reduce((acc, t) => {
+  // Header counters describe live work only — an archived board's tasks are
+  // retired and must not pad the week's effort or the in-progress count.
+  const liveTasks = onLiveBoard(state.tasks, state.projects);
+  const weeklyEffort = liveTasks.reduce((acc, t) => {
     if (t.status === TaskStatus.Complete && t.completedAt && t.completedAt >= startOfWeek.getTime()) {
       return acc + (t.effort || 0);
     }
@@ -559,8 +563,8 @@ const App: React.FC = () => {
   
   const layoutStats = {
     weeklyEffort,
-    activeCount: state.tasks.filter(t => t.status === TaskStatus.InProgress).length,
-    blockedCount: state.tasks.filter(t => t.status === TaskStatus.Blocked).length,
+    activeCount: liveTasks.filter(t => t.status === TaskStatus.InProgress).length,
+    blockedCount: liveTasks.filter(t => t.status === TaskStatus.Blocked).length,
     projectCount: activeProjects.length
   };
 

@@ -596,7 +596,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   </label>
                   <input 
                     type="date"
-                    value={editedTask.startDate}
+                    value={editedTask.startDate ?? ''}
                     onChange={(e) => setEditedTask({...editedTask, startDate: e.target.value})}
                     className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-teamColor transition-all dark:text-white"
                   />
@@ -607,7 +607,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                   </label>
                   <input
                     type="date"
-                    value={editedTask.dueDate}
+                    value={editedTask.dueDate ?? ''}
                     onChange={(e) => setEditedTask({...editedTask, dueDate: e.target.value})}
                     className="w-full p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-[20px] text-xs font-black uppercase tracking-widest outline-none focus:border-teamColor transition-all dark:text-white"
                   />

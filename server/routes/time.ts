@@ -1,12 +1,25 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN } from "../helpers";
+import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN, LEADERSHIP_ALL } from "../helpers";
 import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
 import { localDatePT, pacificDateTime } from "../../utils/dates";
 import { getTeamTimezone } from "../services/teamTime";
 
 const router = Router();
+
+/**
+ * Record that a member worked on a task. Contributors are additive and never
+ * removed here — the list is a record of who touched the task, separate from
+ * `assignees` (who owns it).
+ */
+async function creditContributor(taskId: number, userId: number): Promise<void> {
+  const task = await storage.getTask(taskId);
+  if (!task) return;
+  const current: number[] = Array.isArray(task.contributors) ? (task.contributors as number[]) : [];
+  if (current.includes(userId)) return;
+  await storage.updateTask(taskId, { contributors: [...current, userId] });
+}
 
 router.get("/time-entries", async (req, res) => {
   try {
@@ -27,12 +40,17 @@ router.get("/time-entries", async (req, res) => {
   }
 });
 
+// The task menu for a check-in or a mid-session switch. `userId` only decides
+// whose assignments float to the top, so a non-leadership caller asking about
+// someone else is quietly answered for themselves rather than refused.
 router.get("/time-entries/available-tasks", async (req, res) => {
   try {
-    const userId = parseInt(req.query.userId as string);
-    if (!userId) return res.status(400).json({ error: "userId required" });
-    const assignedTasks = await storage.getAvailableTasksForUser(userId);
-    res.json(assignedTasks);
+    const requested = parseInt(req.query.userId as string);
+    const isLeadership = hasAnyRole(req.userRoles || [], LEADERSHIP_ALL);
+    const userId = Number.isFinite(requested) && (isLeadership || requested === req.userId)
+      ? requested
+      : req.userId!;
+    res.json(await storage.getAvailableTasksForUser(userId));
   } catch (error) {
     console.error("Error fetching available tasks:", error);
     res.status(500).json({ error: "Failed to fetch available tasks" });
@@ -133,20 +151,16 @@ router.post("/time-entries/:id/check-out", async (req, res) => {
         .catch((e) => console.error("selfCheckOutSignup:", e));
     }
 
+    // Close the open task stretch so the session's last task keeps its minutes.
+    await storage.closeOpenTaskSegments(id, checkOutAt);
+
     if (entry.workingOnTaskId) {
-      const task = await storage.getTask(entry.workingOnTaskId);
-      if (task) {
-        const currentContributors: number[] = Array.isArray(task.contributors) ? task.contributors : [];
-        if (!currentContributors.includes(entry.userId)) {
-          const updatedContributors: number[] = [...currentContributors, entry.userId];
-          await storage.updateTask(entry.workingOnTaskId, { contributors: updatedContributors });
-        }
-        if (markTaskComplete) {
-          await storage.updateTask(entry.workingOnTaskId, {
-            status: 'Complete',
-            completedAt: new Date(),
-          });
-        }
+      await creditContributor(entry.workingOnTaskId, entry.userId);
+      if (markTaskComplete) {
+        await storage.updateTask(entry.workingOnTaskId, {
+          status: 'Complete',
+          completedAt: new Date(),
+        });
       }
     }
 
@@ -301,6 +315,17 @@ router.delete("/time-entries/:id", requireRoles(...COACH_CAPTAIN), async (req, r
   }
 });
 
+/**
+ * Point a session at a task — at check-in, or any time during it.
+ *
+ * Two callers, one route:
+ *  - the member themselves, switching to whatever they've moved onto (they do
+ *    NOT have to be an assignee — helping on someone else's task is the norm);
+ *  - leadership, moving a member onto different work mid-class.
+ *
+ * Switching credits the task being left as a contribution, since the member
+ * demonstrably worked on it — check-out credits only the task still open.
+ */
 router.patch("/time-entries/:id/set-working-on", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -311,10 +336,48 @@ router.patch("/time-entries/:id/set-working-on", async (req, res) => {
     }
     const entry = await storage.getTimeEntry(id);
     if (!entry) return res.status(404).json({ error: "Time entry not found" });
-    if (entry.userId !== parseInt(userId)) {
-      return res.status(403).json({ error: "Cannot modify another user's time entry" });
+
+    const actorId = req.userId!;
+    const isSelf = entry.userId === actorId;
+    if (!isSelf && !hasAnyRole(req.userRoles || [], LEADERSHIP_ALL)) {
+      return res.status(403).json({ error: "Only leadership can change what someone else is working on" });
     }
-    const updated = await storage.setWorkingOn(id, taskId ?? null, generalTaskId ?? null);
+    if (entry.checkOutAt || entry.status === "completed") {
+      return res.status(400).json({ error: "That session is already closed" });
+    }
+    // A retired board's work is not something to put anyone on.
+    if (taskId != null) {
+      const task = await storage.getTask(parseInt(taskId));
+      if (!task) return res.status(404).json({ error: "Task not found" });
+      const project = await storage.getProject(task.projectId);
+      if (!project || project.archived) {
+        return res.status(400).json({ error: "That task is on an archived board" });
+      }
+    }
+
+    const { entry: updated, closed } = await storage.setWorkingOn(
+      id,
+      taskId ?? null,
+      generalTaskId ?? null,
+      actorId,
+    );
+
+    // Credit the task they're stepping off of, if any.
+    if (closed?.taskId && closed.taskId !== (taskId ?? null)) {
+      await creditContributor(closed.taskId, entry.userId);
+    }
+
+    await storage.createTimeEntryAudit({
+      entryId: id,
+      actorId,
+      actionType: isSelf ? "switch_task" : "reassign_task",
+      previousValues: {
+        workingOnTaskId: entry.workingOnTaskId ?? null,
+        workingOnGeneralTaskId: entry.workingOnGeneralTaskId ?? null,
+      },
+      newValues: { workingOnTaskId: taskId ?? null, workingOnGeneralTaskId: generalTaskId ?? null },
+    });
+
     res.json(updated);
   } catch (error) {
     console.error("Error setting working-on:", error);

@@ -1,9 +1,13 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, TaskStatus, Task, Project, Department, User } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause } from 'lucide-react';
+import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause, Users } from 'lucide-react';
 import TaskModal from './TaskModal';
 import { ProjectLinkChip } from './ProjectLinks';
+import { onLiveBoard } from '../utils/tasks';
+import { presentEntries, workersByTaskId, workingOnLabel, hasNoTask, presenceDisplayNames } from '../utils/presence';
+import { styleFor } from './hourCategoryStyles';
+import type { TimeEntryWithTaskInfo } from '../types';
 
 interface DashboardProps {
   state: AppState;
@@ -82,8 +86,56 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     return matrix;
   }, [state.tasks, activeProjects]);
 
+  // --- Live presence -------------------------------------------------------
+  // The War Room is the screen that's open during class, so it answers "who is
+  // on what" in place: a name chip on the task card itself, and a pinned strip
+  // for everyone the boards can't show. The invariant worth protecting is that
+  // each person on the clock appears EXACTLY ONCE across the two.
+  const present = useMemo(() => presentEntries(state.timeEntries), [state.timeEntries]);
+
+  /** Sessions bucketed by board task, keyed by task id as a string — see utils/presence.ts. */
+  const workersByTask = useMemo(() => workersByTaskId(present), [present]);
+
+  /**
+   * How each present member is labelled on screen — first name, widened to a
+   * last initial only when someone else here shares it. Derived once for the
+   * whole room so a person reads the same on a card and in the strip.
+   */
+  const displayNames = useMemo(() => presenceDisplayNames(present, state.users), [present, state.users]);
+
+  /**
+   * Task ids with a card actually on screen. Built from the four statuses that
+   * render columns — `tasksByMatrix` also carries `Complete` tasks that nothing
+   * draws, and counting those would strand a person whose task was just
+   * finished: absent from the boards AND filtered out of the strip below.
+   */
+  const visibleTaskIds = useMemo(() => {
+    const rendered = [TaskStatus.Backlog, TaskStatus.NotStarted, TaskStatus.InProgress, TaskStatus.Blocked];
+    const ids = new Set<string>();
+    for (const project of activeProjects) {
+      const columns = tasksByMatrix[project.id];
+      if (!columns) continue;
+      for (const status of rendered) {
+        for (const task of columns[status]) ids.add(String(task.id));
+      }
+    }
+    return ids;
+  }, [activeProjects, tasksByMatrix]);
+
+  /**
+   * Everyone on the clock whose card isn't on screen — no task picked, on a
+   * general task, on a dept-only task, on a hidden or archived board, or on a
+   * task that just went Complete. Without this they'd simply be invisible.
+   */
+  const alsoHere = useMemo(
+    () => present.filter(e => e.workingOnTaskId == null || !visibleTaskIds.has(String(e.workingOnTaskId))),
+    [present, visibleTaskIds],
+  );
+
   const livePulse = useMemo(() => {
-    const activities = state.tasks.flatMap(t => t.history.map(h => {
+    // Retired boards stop generating news — their history stays on the board,
+    // not in the War Room feed.
+    const activities = onLiveBoard(state.tasks, state.projects).flatMap(t => t.history.map(h => {
       const user = state.users.find(u => u.id === h.userId);
       const project = state.projects.find(p => p.id === t.projectId);
       return { 
@@ -164,9 +216,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
                 tasks={tasksByMatrix[project.id]}
                 onTaskClick={setSelectedTask}
                 users={state.users}
+                workersByTask={workersByTask}
+                displayNames={displayNames}
               />
             ))}
           </div>
+
+          {/* Pinned outside the scroller on purpose: the people with no task are
+              the ones a coach needs to catch, and they must not scroll out of
+              view while the boards cycle above. */}
+          <AlsoHere entries={alsoHere} users={state.users} displayNames={displayNames} anyonePresent={present.length > 0} />
         </div>
 
         <div className="hidden lg:flex w-64 xl:w-72 flex-col bg-slate-950 rounded-2xl border border-white/5 shadow-2xl p-4 overflow-hidden flex-shrink-0">
@@ -235,7 +294,11 @@ const ProjectRow: React.FC<{
   tasks: Record<TaskStatus, Task[]>; 
   onTaskClick: (t: Task) => void;
   users: User[];
-}> = ({ project, tasks, onTaskClick, users }) => {
+  /** Who is clocked onto each task right now, keyed by task id as a string. */
+  workersByTask: Map<string, TimeEntryWithTaskInfo[]>;
+  /** Collision-safe short label per present member — see presenceDisplayNames. */
+  displayNames: Map<string, string>;
+}> = ({ project, tasks, onTaskClick, users, workersByTask, displayNames }) => {
   const [expanded, setExpanded] = useState(true);
   
   const scrumMasterDisplay = useMemo(() => {
@@ -284,11 +347,11 @@ const ProjectRow: React.FC<{
             </div>
           )}
           <div className={`grid grid-cols-1 gap-2 md:gap-3 ${tasks[TaskStatus.Blocked].length > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
-            <StatusColumn status={TaskStatus.Backlog} tasks={tasks[TaskStatus.Backlog]} onTaskClick={onTaskClick} label="Backlog" />
-            <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" />
-            <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" />
+            <StatusColumn status={TaskStatus.Backlog} tasks={tasks[TaskStatus.Backlog]} onTaskClick={onTaskClick} label="Backlog" users={users} workersByTask={workersByTask} displayNames={displayNames} />
+            <StatusColumn status={TaskStatus.NotStarted} tasks={tasks[TaskStatus.NotStarted]} onTaskClick={onTaskClick} label="Not Started" users={users} workersByTask={workersByTask} displayNames={displayNames} />
+            <StatusColumn status={TaskStatus.InProgress} tasks={tasks[TaskStatus.InProgress]} onTaskClick={onTaskClick} label="In Progress" users={users} workersByTask={workersByTask} displayNames={displayNames} />
             {tasks[TaskStatus.Blocked].length > 0 && (
-              <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" />
+              <StatusColumn status={TaskStatus.Blocked} tasks={tasks[TaskStatus.Blocked]} onTaskClick={onTaskClick} label="Blocked" users={users} workersByTask={workersByTask} displayNames={displayNames} />
             )}
           </div>
         </div>
@@ -302,7 +365,11 @@ const StatusColumn: React.FC<{
   tasks: Task[]; 
   onTaskClick: (t: Task) => void;
   label: string;
-}> = ({ status, tasks, onTaskClick, label }) => {
+  /** Full names, for the hover tooltip; `displayNames` supplies the short label. */
+  users: User[];
+  workersByTask: Map<string, TimeEntryWithTaskInfo[]>;
+  displayNames: Map<string, string>;
+}> = ({ status, tasks, onTaskClick, label, users, workersByTask, displayNames }) => {
   const isBlocked = status === TaskStatus.Blocked;
   return (
     <div className={`rounded-lg md:rounded-xl 2xl:rounded-2xl p-2 md:p-3 min-h-[80px] md:min-h-[100px] max-h-[300px] 2xl:max-h-[400px] overflow-auto kanban-scroll ${
@@ -348,6 +415,7 @@ const StatusColumn: React.FC<{
             {isBlocked && task.blockedReason && (
               <p className="text-[7px] md:text-[8px] font-medium text-red-500 dark:text-red-400 italic mt-0.5">"{task.blockedReason}"</p>
             )}
+            <LiveWorkers workers={workersByTask.get(String(task.id))} displayNames={displayNames} users={users} />
           </button>
         ))}
         {tasks.length === 0 && (
@@ -356,6 +424,120 @@ const StatusColumn: React.FC<{
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * Everyone on the clock whose task has no card on screen, pinned under the
+ * boards. Together with the card chips this guarantees each person who is here
+ * shows up exactly once — with no task, on a general task, on a dept-only task,
+ * or on a board the War Room doesn't display.
+ */
+const AlsoHere: React.FC<{
+  entries: TimeEntryWithTaskInfo[];
+  users: User[];
+  displayNames: Map<string, string>;
+  anyonePresent: boolean;
+}> = ({ entries, users, displayNames, anyonePresent }) => {
+  // Nothing to say when the room is empty — don't spend vertical space on it.
+  if (!anyonePresent) return null;
+  const nameFor = (userId: string) => users.find(u => u.id === userId)?.name || 'Unknown';
+  const labelFor = (userId: string) => displayNames.get(userId) || firstNameOf(nameFor(userId));
+  const idle = entries.filter(hasNoTask).length;
+
+  return (
+    <div className="mt-2 flex-shrink-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl md:rounded-2xl px-3 py-2">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Users size={12} className="text-slate-400 flex-shrink-0" />
+        <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+          Also Here — {entries.length}
+        </span>
+        {idle > 0 && (
+          <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+            {idle} with no task
+          </span>
+        )}
+      </div>
+
+      {entries.length === 0 ? (
+        <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 py-0.5">
+          Everyone here is on a task
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 max-h-16 md:max-h-20 overflow-auto kanban-scroll">
+          {entries.map(entry => {
+            const fullName = nameFor(entry.userId);
+            const label = workingOnLabel(entry);
+            const idleRow = hasNoTask(entry);
+            return (
+              <span
+                key={entry.id}
+                title={label ? `${fullName} — ${label}` : `${fullName} — no task picked`}
+                className={`inline-flex items-center gap-1.5 max-w-[220px] px-2 py-1 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-wide ${
+                  idleRow
+                    ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                    : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${styleFor(entry.kind).dot}`} />
+                <span className="flex-shrink-0">{labelFor(entry.userId)}</span>
+                <span className={`truncate font-bold normal-case ${idleRow ? '' : 'text-slate-400 dark:text-slate-500'}`}>
+                  {label || 'No task'}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** A member's first name — what reads on a projector; the full name rides on `title`. */
+const firstNameOf = (fullName: string) => fullName.trim().split(/\s+/)[0] || fullName;
+
+/**
+ * Who is clocked onto this task RIGHT NOW, as green name chips under the title.
+ *
+ * A chip means "this person is here and on this task this second" — assignees
+ * are deliberately not shown, because mixing them in would cost the chip that
+ * meaning. Renders nothing when nobody is on the task, so outside of class the
+ * board looks exactly as it always has.
+ */
+const LiveWorkers: React.FC<{
+  workers?: TimeEntryWithTaskInfo[];
+  displayNames: Map<string, string>;
+  users: User[];
+}> = ({ workers, displayNames, users }) => {
+  if (!workers || workers.length === 0) return null;
+  // Cards are 9-10px text in a narrow column; more than three names reflows the
+  // whole board, so the rest collapse into a +N.
+  const MAX_CHIPS = 3;
+  const shown = workers.slice(0, MAX_CHIPS);
+  const overflow = workers.length - shown.length;
+  const nameFor = (userId: string) => users.find(u => u.id === userId)?.name || 'Unknown';
+  const labelFor = (userId: string) => displayNames.get(userId) || firstNameOf(nameFor(userId));
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1">
+      {shown.map(entry => (
+        <span
+          key={entry.id}
+          title={`${nameFor(entry.userId)} — on the clock`}
+          className="inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-[7px] md:text-[8px] font-black uppercase tracking-wide"
+        >
+          <span className="w-1 h-1 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
+          <span className="truncate">{labelFor(entry.userId)}</span>
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span
+          title={workers.slice(MAX_CHIPS).map(e => nameFor(e.userId)).join(', ')}
+          className="px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[7px] md:text-[8px] font-black"
+        >
+          +{overflow}
+        </span>
+      )}
     </div>
   );
 };

@@ -141,8 +141,13 @@ export interface Task {
   attachments: Attachment[];
   comments: Comment[];
   history: Activity[];
-  startDate: string;
-  dueDate: string;
+  // Nullable in the database (`text("start_date")` / `text("due_date")` in
+  // shared/schema.ts) and TaskModal normalizes a cleared field back to null, so
+  // these must be declared honestly — typing them as plain `string` hid a crash
+  // where a task with no due date took the Boards page down inside
+  // `parseLocalDate(task.dueDate)`.
+  startDate: string | null;
+  dueDate: string | null;
   dependencies: string[];
   helpRequested?: boolean;
   deptOnly?: boolean;
@@ -198,7 +203,56 @@ export interface AvailableTask {
   status: TaskStatus;
   priority: Priority;
   effort: number;
+  /** Whether the viewer is an assignee — sorts their own work to the top.
+   *  Not a permission: anyone may clock onto any live task they're helping with. */
   isAssigned: boolean;
+  projectName: string;
+  departments: string[];
+}
+
+/** Minutes by hour category for one member/window, plus the summed `total`. */
+export type CategoryTotals = Record<string, number> & { total: number };
+
+/** One row of the Team summary table, already scoped to the chosen window. */
+export interface MemberProductivity {
+  userId: number;
+  name: string;
+  username: string;
+  departments: string[];
+  roles: string[];
+  muted: boolean;
+  hours: CategoryTotals;
+  sessions: number;
+  tasksCompleted: number;
+  effort: number;
+  /** Live assigned tasks — a standing count, deliberately not windowed. */
+  activeTasks: number;
+  tasksWorked: number;
+}
+
+/** A task the member logged time against, with minutes attributed to it. */
+export interface TaskContribution {
+  taskId: number | null;
+  generalTaskId: number | null;
+  title: string;
+  projectName: string | null;
+  status: string | null;
+  effort: number | null;
+  minutes: number;
+  sessions: number;
+  lastWorkedAt: string | null;
+  isAssignee: boolean;
+}
+
+export interface ProductivityDeepDive {
+  user: { id: number; name: string; username: string; departments: string[]; roles: string[] };
+  window: { start: string | null; end: string | null };
+  hours: CategoryTotals;
+  sessions: { id: number; date: string; kind: string; minutes: number; status: string; taskTitle: string | null; notes: string | null }[];
+  byDay: { date: string; minutes: number }[];
+  contributions: TaskContribution[];
+  tasksCompleted: { id: number; title: string; projectName: string; effort: number | null; completedAt: string }[];
+  tasksActive: { id: number; title: string; projectName: string; status: string; effort: number | null; dueDate: string | null }[];
 }
 
 export interface GeneralTask {

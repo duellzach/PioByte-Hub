@@ -1,12 +1,25 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive, Repeat, Shuffle } from 'lucide-react';
 import { api } from '../services/api';
-import { PRIORITY_COLORS } from '../constants';
 import { liveCompetitionEvents, todayLocalStr } from '../utils/dates';
 import { useTeamTime } from '../utils/timeFormat';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
+import { LEADERSHIP_ALL, hasAnyRole } from '../shared/roles';
+import { presentEntries as selectPresent, groupByCategory, untaskedCount as countUntasked, workingOnLabel } from '../utils/presence';
+import TaskPickerModal from './TaskPickerModal';
+
+/** An in-flight "what are you working on?" prompt — see `taskPicker` below. */
+interface TaskPickerSession {
+  mode: 'checkin' | 'switch' | 'reassign';
+  entryId: number;
+  /** Whose session is being changed — not necessarily the person clicking. */
+  subjectUserId: number;
+  subjectName: string;
+  currentTaskId: number | null;
+  currentGeneralTaskId: number | null;
+}
 
 interface TimeTrackingProps {
   state: AppState;
@@ -61,14 +74,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [compAuditLogs, setCompAuditLogs] = useState<any[]>([]);
   const [compAuditLoading, setCompAuditLoading] = useState(false);
 
-  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  // One picker serves three flows, distinguished by `mode`:
+  //   checkin  — the prompt right after clocking in (dismissible: task is optional)
+  //   switch   — the member moving themselves onto different work mid-session
+  //   reassign — leadership moving someone else onto different work
+  const [taskPicker, setTaskPicker] = useState<TaskPickerSession | null>(null);
   const [taskPickerLoading, setTaskPickerLoading] = useState(false);
   const [availableAssignedTasks, setAvailableAssignedTasks] = useState<AvailableTask[]>([]);
   const [availableOpenTasks, setAvailableOpenTasks] = useState<AvailableTask[]>([]);
   const [availableGeneralTasks, setAvailableGeneralTasks] = useState<GeneralTask[]>([]);
-  const [pickerSelectedTaskId, setPickerSelectedTaskId] = useState<number | null>(null);
-  const [pickerSelectedGeneralTaskId, setPickerSelectedGeneralTaskId] = useState<number | null>(null);
-  const [pendingEntryId, setPendingEntryId] = useState<number | null>(null);
+  const [taskPickerError, setTaskPickerError] = useState('');
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [showKindPicker, setShowKindPicker] = useState(false);
   const [clockableEvents, setClockableEvents] = useState<any[]>([]);
@@ -100,13 +115,30 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     filterRole: '',
   });
 
+  /**
+   * Everyone still on the roster. Every coach-facing member list on this page
+   * draws from this rather than `state.users` — an archived member has left the
+   * team and shouldn't be offered for bulk time, manual entry, or a check-in.
+   * `getUserName` deliberately still resolves archived members, because their
+   * historical entries remain and need a name.
+   */
+  const activeUsers = useMemo(() => state.users.filter(u => !u.archived), [state.users]);
+
   const filteredUsersForBulk = useMemo(() => {
-    if (!bulkForm.filterRole) return state.users;
-    return state.users.filter(u => u.roles.includes(bulkForm.filterRole as Role));
-  }, [state.users, bulkForm.filterRole]);
+    if (!bulkForm.filterRole) return activeUsers;
+    return activeUsers.filter(u => u.roles.includes(bulkForm.filterRole as Role));
+  }, [activeUsers, bulkForm.filterRole]);
 
   const isCoach = useMemo(() => state.currentUser?.roles.includes(Role.Coach), [state.currentUser]);
   const isCoachOrCaptain = useMemo(() => state.currentUser?.roles.some(r => [Role.Coach, Role.TeamCaptain].includes(r as Role)), [state.currentUser]);
+  // Everyone the SERVER lets move another member onto a task (Coach, Captain,
+  // Department Head, SCRUM Master). Read from the shared list rather than a
+  // local role array — this gate previously said Coach/Captain only, so dept
+  // heads held the permission with no button to reach it.
+  const isLeadership = useMemo(
+    () => hasAnyRole(state.currentUser?.roles ?? [], LEADERSHIP_ALL),
+    [state.currentUser],
+  );
   const currentUserId = parseInt(state.currentUser?.id || '0');
 
   const myOpenEntry = useMemo(() => {
@@ -123,32 +155,24 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     );
   }, [state.timeEntries]);
 
-  // Everyone currently on the clock, including those still awaiting a coach's
-  // confirmation — they are physically here either way.
-  const presentEntries = useMemo(() => {
-    return state.timeEntries.filter(e => e.status === 'checked_in' || e.status === 'pending_check_in');
-  }, [state.timeEntries]);
+  // Presence is derived in utils/presence.ts so this card and the War Room's
+  // live worker chips can never disagree about who is in the room.
+  const presentEntries = useMemo(() => selectPresent(state.timeEntries), [state.timeEntries]);
 
-  // Grouped for the shared "Who's Here" board: one group per category, and
-  // within a category one line per person.
-  const presenceGroups = useMemo(() => {
-    const groups = new Map<string, TimeEntryWithTaskInfo[]>();
-    for (const entry of presentEntries) {
-      const category = entry.kind || 'shop';
-      if (!groups.has(category)) groups.set(category, []);
-      groups.get(category)!.push(entry);
-    }
-    return HOUR_CATEGORIES
-      .filter(c => groups.has(c))
-      .map(c => ({ category: c as string, entries: groups.get(c)! }));
-  }, [presentEntries]);
+  // Grouped for the "Who's Here" board: one group per category, and within a
+  // category one line per person.
+  const presenceGroups = useMemo(() => groupByCategory(presentEntries), [presentEntries]);
+
+  const untaskedCount = useMemo(() => countUntasked(presentEntries), [presentEntries]);
 
   const notCheckedInUsers = useMemo(() => {
     const activeUserIds = state.timeEntries
       .filter(e => e.status === 'checked_in' || e.status === 'pending_check_in' || e.status === 'pending_check_out')
       .map(e => e.userId);
-    return state.users.filter(u => !activeUserIds.includes(u.id) && !u.roles.includes(Role.Coach));
+    // Archived members have left the team — they are not "not checked in".
+    return state.users.filter(u => !u.archived && !activeUserIds.includes(u.id) && !u.roles.includes(Role.Coach));
   }, [state.timeEntries, state.users]);
+
 
   const myEntries = useMemo(() => {
     return state.timeEntries
@@ -195,6 +219,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   useEffect(() => { loadMyTotals(); }, [state.timeEntries, currentUserId]);
 
+  // Live "you've been here N minutes" readout. Ticks every 30s — a session is
+  // measured in quarter hours, so a per-second clock would be false precision.
+  const [myElapsed, setMyElapsed] = useState('');
+  useEffect(() => {
+    if (!myOpenEntry) { setMyElapsed(''); return; }
+    const tick = () => setMyElapsed(formatDuration(Math.max(0, Math.floor((Date.now() - new Date(myOpenEntry.checkInAt).getTime()) / 60000))));
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [myOpenEntry?.id, myOpenEntry?.checkInAt]);
+
   useEffect(() => {
     api.calendar.getAll().then((events: any[]) => {
       const map: Record<number, { title: string; type: string }> = {};
@@ -223,34 +258,78 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }
   };
 
-  // Opens the "what are you working on?" task picker for a freshly-created
-  // entry. Shared by shop check-ins and any event category that should behave
-  // like shop time (currently Class — see TASK_LINKED_CATEGORIES).
-  const openTaskPicker = async (entryId: number) => {
-    setPendingEntryId(entryId);
-    setShowTaskPicker(true);
+  /**
+   * Open the task picker for a session. `session.subjectUserId` decides whose
+   * assignments float to the top, so a coach reassigning a student sees that
+   * student's own work first rather than their own.
+   *
+   * The server already excludes tasks on archived boards
+   * (`storage.getAvailableTasksForUser`) — retired work must never come back as
+   * something to clock onto.
+   */
+  const openTaskPicker = async (session: TaskPickerSession) => {
+    setTaskPicker(session);
+    setTaskPickerError('');
     setTaskPickerLoading(true);
     try {
       const [allAvailableTasks, generalTaskList] = await Promise.all([
-        api.timeEntries.availableTasks(currentUserId),
+        api.timeEntries.availableTasks(session.subjectUserId),
         api.generalTasks.getAll(false),
       ]);
       setAvailableAssignedTasks(allAvailableTasks.filter((t: AvailableTask) => t.isAssigned));
       setAvailableOpenTasks(allAvailableTasks.filter((t: AvailableTask) => !t.isAssigned));
       setAvailableGeneralTasks(generalTaskList);
+    } catch (error: any) {
+      setAvailableAssignedTasks([]);
+      setAvailableOpenTasks([]);
+      setAvailableGeneralTasks([]);
+      setTaskPickerError(error?.message || 'Could not load the task list.');
     } finally {
       setTaskPickerLoading(false);
     }
   };
 
+  /** The picker for one's own freshly-created entry, right after clocking in. */
+  const openCheckInPicker = (entryId: number) =>
+    openTaskPicker({
+      mode: 'checkin',
+      entryId,
+      subjectUserId: currentUserId,
+      subjectName: state.currentUser?.name || 'You',
+      currentTaskId: null,
+      currentGeneralTaskId: null,
+    });
+
+  /** "I've moved onto something else" — valid any time during an open session. */
+  const openSwitchPicker = () => {
+    if (!myOpenEntry) return;
+    openTaskPicker({
+      mode: 'switch',
+      entryId: parseInt(myOpenEntry.id),
+      subjectUserId: currentUserId,
+      subjectName: state.currentUser?.name || 'You',
+      currentTaskId: myOpenEntry.workingOnTaskId ?? null,
+      currentGeneralTaskId: myOpenEntry.workingOnGeneralTaskId ?? null,
+    });
+  };
+
+  /** Leadership moving someone else onto different work mid-class. */
+  const openReassignPicker = (entry: TimeEntryWithTaskInfo) =>
+    openTaskPicker({
+      mode: 'reassign',
+      entryId: parseInt(entry.id),
+      subjectUserId: parseInt(entry.userId),
+      subjectName: getUserName(entry.userId),
+      currentTaskId: entry.workingOnTaskId ?? null,
+      currentGeneralTaskId: entry.workingOnGeneralTaskId ?? null,
+    });
+
   const doShopCheckIn = async () => {
     setShowKindPicker(false);
     setCheckInLoading(true);
-    setPickerSelectedTaskId(null);
-    setPickerSelectedGeneralTaskId(null);
     try {
       const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'shop' });
-      await openTaskPicker(parseInt(entry.id));
+      await openCheckInPicker(parseInt(entry.id));
     } catch (error) {
       console.error('Check-in failed:', error);
       onRefresh();
@@ -265,9 +344,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     try {
       const entry = await api.timeEntries.checkIn(currentUserId, { kind: event.type, calendarEventId: event.id });
       if ((TASK_LINKED_CATEGORIES as readonly string[]).includes(event.type)) {
-        setPickerSelectedTaskId(null);
-        setPickerSelectedGeneralTaskId(null);
-        await openTaskPicker(parseInt(entry.id));
+        await openCheckInPicker(parseInt(entry.id));
       }
     } catch (error: any) {
       alert(error?.message || 'Could not clock in to that event.');
@@ -277,16 +354,27 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }
   };
 
+  /**
+   * Commit the picker's choice. `subjectUserId` — not the clicker — is sent as
+   * the subject, so a coach's reassignment lands on the student's session; the
+   * server checks that the clicker is either that student or leadership.
+   */
   const handlePickTask = async (taskId: number | null, generalTaskId: number | null) => {
-    if (pendingEntryId !== null && (taskId !== null || generalTaskId !== null)) {
-      try {
-        await api.timeEntries.setWorkingOn(pendingEntryId, currentUserId, taskId, generalTaskId);
-      } catch (error) {
-        console.error('Set working on failed:', error);
-      }
+    const session = taskPicker;
+    if (!session) return;
+    // At check-in "no task" means skip, not an edit — nothing to save.
+    if (session.mode === 'checkin' && taskId === null && generalTaskId === null) {
+      setTaskPicker(null);
+      onRefresh();
+      return;
     }
-    setShowTaskPicker(false);
-    setPendingEntryId(null);
+    try {
+      await api.timeEntries.setWorkingOn(session.entryId, session.subjectUserId, taskId, generalTaskId);
+      setTaskPicker(null);
+    } catch (error: any) {
+      setTaskPickerError(error?.message || 'Could not update the task.');
+      return;
+    }
     onRefresh();
   };
 
@@ -372,6 +460,36 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     } catch (error) {
       console.error('Confirm failed:', error);
     }
+  };
+
+  const [approveAllLoading, setApproveAllLoading] = useState(false);
+
+  /**
+   * Clear the whole approval queue in one go. A coach at the end of class has
+   * twenty of these to confirm and no reason to look at them one at a time.
+   * Sequential rather than parallel: each confirm writes an audit row, and the
+   * queue is small enough that ordering beats a burst of concurrent writes.
+   */
+  const handleApproveAll = async () => {
+    const queue = pendingApprovals;
+    if (queue.length === 0) return;
+    if (!confirm(`Approve all ${queue.length} pending entr${queue.length === 1 ? 'y' : 'ies'}?`)) return;
+    setApproveAllLoading(true);
+    let failed = 0;
+    for (const entry of queue) {
+      try {
+        await api.timeEntries.confirm(
+          parseInt(entry.id),
+          currentUserId,
+          entry.status === 'pending_check_in' ? 'check_in' : 'check_out',
+        );
+      } catch {
+        failed += 1;
+      }
+    }
+    setApproveAllLoading(false);
+    onRefresh();
+    if (failed > 0) alert(`${failed} of ${queue.length} could not be approved. The rest went through.`);
   };
 
   const handleCoachCheckOut = async (entryId: string, userId: string) => {
@@ -480,7 +598,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const selectByRole = (role: string) => {
-    const usersWithRole = state.users.filter(u => u.roles.includes(role as Role));
+    const usersWithRole = activeUsers.filter(u => u.roles.includes(role as Role));
     const allSelected = usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
     setBulkForm(prev => ({
       ...prev,
@@ -653,15 +771,15 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         )}
 
         {myOpenEntry ? (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center animate-pulse shrink-0">
-                  <Clock size={15} />
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 bg-green-500 text-white rounded-xl flex items-center justify-center animate-pulse shrink-0">
+                  <Clock size={16} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-xs font-black text-green-800 dark:text-green-100 uppercase">Clocked In</p>
+                    <p className="text-xs font-black text-green-800 dark:text-green-100 uppercase">On the Clock</p>
                     <CategoryBadge category={myOpenEntry.kind} />
                     {myOpenEntry.calendarEventId && eventTitles[myOpenEntry.calendarEventId] && (
                       <span className="text-[10px] font-bold text-green-700 dark:text-green-300 truncate">
@@ -672,33 +790,52 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <p className="text-[10px] text-green-600 dark:text-green-400 font-bold">
                     Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
                   </p>
-                  {myOpenEntry.workingOnTaskTitle && (
-                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                      <Briefcase size={9} /> {myOpenEntry.workingOnTaskTitle}
-                    </p>
-                  )}
-                  {myOpenEntry.workingOnGeneralTaskName && (
-                    <p className="text-[9px] text-violet-600 dark:text-violet-400 font-bold mt-0.5 flex items-center gap-1 truncate">
-                      <ListChecks size={9} /> {myOpenEntry.workingOnGeneralTaskName}
-                    </p>
-                  )}
                   {myOpenEntry.status === 'pending_check_in' && (
                     <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation</p>
                   )}
                 </div>
               </div>
+              <div className="text-right shrink-0">
+                <p className="text-[8px] font-black text-green-600/70 dark:text-green-400/70 uppercase tracking-widest">Elapsed</p>
+                <p className="text-lg font-black text-green-700 dark:text-green-300 tabular-nums leading-none">{myElapsed}</p>
+              </div>
+            </div>
+
+            {/* Working-on row. A member may change this at any point in the
+                session — they routinely finish one thing and pick up another
+                without clocking out, and the record should follow them. */}
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-white/70 dark:bg-slate-800/50 rounded-xl border border-green-200/70 dark:border-green-800/50">
+              <div className="flex items-center gap-2 min-w-0">
+                {myOpenEntry.workingOnGeneralTaskName
+                  ? <ListChecks size={13} className="text-violet-500 shrink-0" />
+                  : <Briefcase size={13} className={myOpenEntry.workingOnTaskTitle ? 'text-blue-500 shrink-0' : 'text-slate-400 shrink-0'} />}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Working On</p>
+                  <p className={`text-xs font-black truncate ${myOpenEntry.workingOnTaskTitle || myOpenEntry.workingOnGeneralTaskName ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
+                    {myOpenEntry.workingOnTaskTitle || myOpenEntry.workingOnGeneralTaskName || 'Nothing picked yet'}
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={openCheckoutModal}
-                disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                  myOpenEntry.status === 'pending_check_in' 
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
-                    : 'bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20'
-                }`}
+                onClick={openSwitchPicker}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-slate-700 dark:hover:bg-slate-600 transition-all"
               >
-                <LogOut size={14} /> Check Out
+                <Repeat size={11} />
+                {myOpenEntry.workingOnTaskTitle || myOpenEntry.workingOnGeneralTaskName ? 'Switch' : 'Pick Task'}
               </button>
             </div>
+
+            <button
+              onClick={openCheckoutModal}
+              disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${
+                myOpenEntry.status === 'pending_check_in'
+                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                  : 'bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20'
+              }`}
+            >
+              <LogOut size={14} /> Check Out
+            </button>
           </div>
         ) : (
           <button
@@ -874,7 +1011,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
           )}
 
           {isCoach && (() => {
-            const memberRows = state.users.map(user => {
+            const memberRows = activeUsers.map(user => {
               const uid = parseInt(user.id);
               const sessions = compCheckins.filter((c: any) => c.userId === uid);
               const openSession = sessions.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
@@ -1064,7 +1201,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
                 >
                   <option value="">Select member...</option>
-                  {state.users.filter(u => u.id !== String(currentUserId)).map(u => (
+                  {activeUsers.filter(u => u.id !== String(currentUserId)).map(u => (
                     <option key={u.id} value={u.id}>{u.name || u.username}</option>
                   ))}
                 </select>
@@ -1151,141 +1288,19 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {isCoachOrCaptain && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-0">
-            <div className="flex items-center gap-2">
-              <Users size={15} className="text-slate-400" />
-              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Coach Tools</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => { setShowGenTaskSettings(true); loadGenTasks(); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs uppercase hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:text-violet-700 dark:hover:text-violet-300 transition-all"
-              >
-                <ListChecks size={13} /> Manage Tasks
-              </button>
-              {isCoach && (
-                <button
-                  onClick={() => setShowBulkAdd(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all"
-                >
-                  <Plus size={13} /> Bulk Add Time
-                </button>
-              )}
-            </div>
-          </div>
-
-          {isCoach && showBulkAdd && (
-            <div className="space-y-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Quick Select by Role</label>
-                <button onClick={() => setShowBulkAdd(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Close"><X size={14} /></button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                  {[Role.ClassMember, Role.TeamMember, Role.DepartmentHead, Role.TeamCaptain, Role.ScrumMaster].map(role => {
-                    const usersWithRole = state.users.filter(u => u.roles.includes(role));
-                    const allSelected = usersWithRole.length > 0 && usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
-                    return (
-                      <button
-                        key={role}
-                        onClick={() => selectByRole(role)}
-                        disabled={usersWithRole.length === 0}
-                        className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${
-                          usersWithRole.length === 0
-                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'
-                            : allSelected
-                              ? 'bg-green-600 text-white'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-700 dark:hover:text-blue-300'
-                        }`}
-                      >
-                        {role} ({usersWithRole.length})
-                      </button>
-                    );
-                  })}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <button
-                  onClick={selectAllUsers}
-                  className={`p-3 rounded-xl border-2 text-xs font-black uppercase transition-all ${
-                    bulkForm.selectedUsers.length === state.users.length
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-blue-400'
-                  }`}
-                >
-                  {bulkForm.selectedUsers.length === state.users.length ? 'Deselect All' : 'Select All'}
-                </button>
-                {state.users.map(user => (
-                  <button
-                    key={user.id}
-                    onClick={() => toggleUserSelection(user.id)}
-                    className={`p-3 rounded-xl border-2 text-xs font-bold transition-all truncate ${
-                      bulkForm.selectedUsers.includes(user.id)
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300'
-                        : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-200'
-                    }`}
-                  >
-                    {user.name.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Minutes</label>
-                  <input
-                    type="number"
-                    value={bulkForm.minutes}
-                    onChange={(e) => setBulkForm({ ...bulkForm, minutes: parseInt(e.target.value) || 0 })}
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
-                    min="1"
-                    step="15"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={bulkForm.date}
-                    onChange={(e) => setBulkForm({ ...bulkForm, date: e.target.value })}
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes</label>
-                  <input
-                    type="text"
-                    value={bulkForm.notes}
-                    onChange={(e) => setBulkForm({ ...bulkForm, notes: e.target.value })}
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
-                    placeholder="Class time"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handleBulkAdd}
-                disabled={bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0}
-                className={`w-full py-4 font-black rounded-xl uppercase tracking-widest text-sm transition-all ${
-                  bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20'
-                }`}
-              >
-                Add {bulkForm.minutes} Minutes to {bulkForm.selectedUsers.length} Members
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {isCoach && pendingApprovals.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle size={15} className="text-orange-500" />
             <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pending Approvals</h3>
             <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded-md uppercase">{pendingApprovals.length} pending</span>
+            <button
+              onClick={handleApproveAll}
+              disabled={approveAllLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 disabled:opacity-60"
+            >
+              {approveAllLoading ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Approve All
+            </button>
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1345,13 +1360,23 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {/* Who's Here — visible to everyone, grouped by what people are clocked into.
-          Coaches get the check-out and edit controls inline. */}
+      {/* Who's Here — the live floor. Everyone sees who is on the clock and
+          what they're on; leadership additionally gets the controls to move
+          someone onto different work, check them out, or fix their entry. */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <Users size={15} className="text-green-500" />
           <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Who's Here</h3>
           <span className="ml-auto text-[9px] font-black px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-md uppercase">{presentEntries.length} on the clock</span>
+          {presentEntries.length > 0 && (
+            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase ${
+              untaskedCount > 0
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
+            }`}>
+              {untaskedCount} without a task
+            </span>
+          )}
         </div>
 
         {presenceGroups.length === 0 ? (
@@ -1370,6 +1395,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   <div className="divide-y divide-slate-100 dark:divide-slate-700">
                     {entries.map(entry => {
                       const event = entry.calendarEventId ? eventTitles[entry.calendarEventId] : null;
+                      const workingOn = workingOnLabel(entry);
+                      const isMe = entry.userId === state.currentUser?.id;
+                      // Leadership can move anyone; a member can move themselves
+                      // straight from this board rather than scrolling back up.
+                      const canRetask = isLeadership || isMe;
                       return (
                         <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
                           <div className="flex items-center gap-2.5 min-w-0">
@@ -1377,15 +1407,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                               {getUserName(entry.userId)[0]}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{getUserName(entry.userId)}</p>
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                                {getUserName(entry.userId)}
+                                {isMe && <span className="ml-1.5 text-[8px] font-black text-teamColor uppercase tracking-widest">You</span>}
+                              </p>
                               <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate">
                                 Since {formatTime(entry.checkInAt)}
                                 {event ? ` • ${event.title}` : ''}
-                                {entry.workingOnTaskTitle ? ` • ${entry.workingOnTaskTitle}` : ''}
+                              </p>
+                              <p className={`text-[9px] font-bold mt-0.5 flex items-center gap-1 truncate ${
+                                workingOn
+                                  ? (entry.workingOnGeneralTaskName ? 'text-violet-600 dark:text-violet-400' : 'text-blue-600 dark:text-blue-400')
+                                  : 'text-amber-600 dark:text-amber-400'
+                              }`}>
+                                {entry.workingOnGeneralTaskName ? <ListChecks size={9} className="shrink-0" /> : <Briefcase size={9} className="shrink-0" />}
+                                <span className="truncate">{workingOn || 'No task picked'}</span>
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
                             <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
                               entry.status === 'pending_check_in'
                                 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
@@ -1393,6 +1433,15 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                             }`}>
                               {entry.status === 'pending_check_in' ? 'Unconfirmed' : 'Active'}
                             </span>
+                            {canRetask && (
+                              <button
+                                onClick={() => (isMe ? openSwitchPicker() : openReassignPicker(entry))}
+                                title={isMe ? 'Switch your task' : `Move ${getUserName(entry.userId)} onto another task`}
+                                className="flex items-center gap-1 px-2.5 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-slate-900 hover:text-white dark:hover:bg-slate-600 transition-all"
+                              >
+                                <Shuffle size={11} /> {workingOn ? 'Retask' : 'Assign'}
+                              </button>
+                            )}
                             {isCoach && entry.status === 'checked_in' && (
                               <button
                                 onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
@@ -1404,6 +1453,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                             {isCoach && (
                               <button
                                 onClick={() => openEditModal(entry)}
+                                title="Edit this entry"
                                 className="p-2 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-all"
                               >
                                 <Edit3 size={14} />
@@ -1454,6 +1504,135 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isCoachOrCaptain && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-0">
+            <div className="flex items-center gap-2">
+              <Users size={15} className="text-slate-400" />
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Coach Tools</h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { setShowGenTaskSettings(true); loadGenTasks(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs uppercase hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:text-violet-700 dark:hover:text-violet-300 transition-all"
+              >
+                <ListChecks size={13} /> Manage Tasks
+              </button>
+              {isCoach && (
+                <button
+                  onClick={() => setShowBulkAdd(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={13} /> Bulk Add Time
+                </button>
+              )}
+            </div>
+          </div>
+
+          {isCoach && showBulkAdd && (
+            <div className="space-y-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Quick Select by Role</label>
+                <button onClick={() => setShowBulkAdd(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Close"><X size={14} /></button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                  {[Role.ClassMember, Role.TeamMember, Role.DepartmentHead, Role.TeamCaptain, Role.ScrumMaster].map(role => {
+                    const usersWithRole = activeUsers.filter(u => u.roles.includes(role));
+                    const allSelected = usersWithRole.length > 0 && usersWithRole.every(u => bulkForm.selectedUsers.includes(u.id));
+                    return (
+                      <button
+                        key={role}
+                        onClick={() => selectByRole(role)}
+                        disabled={usersWithRole.length === 0}
+                        className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${
+                          usersWithRole.length === 0
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'
+                            : allSelected
+                              ? 'bg-green-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-700 dark:hover:text-blue-300'
+                        }`}
+                      >
+                        {role} ({usersWithRole.length})
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  onClick={selectAllUsers}
+                  className={`p-3 rounded-xl border-2 text-xs font-black uppercase transition-all ${
+                    bulkForm.selectedUsers.length === activeUsers.length
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-blue-400'
+                  }`}
+                >
+                  {bulkForm.selectedUsers.length === activeUsers.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {activeUsers.map(user => (
+                  <button
+                    key={user.id}
+                    onClick={() => toggleUserSelection(user.id)}
+                    className={`p-3 rounded-xl border-2 text-xs font-bold transition-all truncate ${
+                      bulkForm.selectedUsers.includes(user.id)
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+                        : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-200'
+                    }`}
+                  >
+                    {user.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Minutes</label>
+                  <input
+                    type="number"
+                    value={bulkForm.minutes}
+                    onChange={(e) => setBulkForm({ ...bulkForm, minutes: parseInt(e.target.value) || 0 })}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
+                    min="1"
+                    step="15"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={bulkForm.date}
+                    onChange={(e) => setBulkForm({ ...bulkForm, date: e.target.value })}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes</label>
+                  <input
+                    type="text"
+                    value={bulkForm.notes}
+                    onChange={(e) => setBulkForm({ ...bulkForm, notes: e.target.value })}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:text-white font-bold"
+                    placeholder="Class time"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleBulkAdd}
+                disabled={bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0}
+                className={`w-full py-4 font-black rounded-xl uppercase tracking-widest text-sm transition-all ${
+                  bulkForm.selectedUsers.length === 0 || bulkForm.minutes <= 0
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20'
+                }`}
+              >
+                Add {bulkForm.minutes} Minutes to {bulkForm.selectedUsers.length} Members
+              </button>
             </div>
           )}
         </div>
@@ -1605,154 +1784,35 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {showTaskPicker && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex justify-between items-start mb-5">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">What are you working on?</h2>
-                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase mt-0.5">Optional — skip to just check in</p>
-              </div>
-              <button onClick={() => handlePickTask(null, null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors">
-                <X size={18} />
-              </button>
+      {taskPicker && (
+        <>
+          <TaskPickerModal
+            title={taskPicker.mode === 'reassign' ? 'Move Them Onto' : taskPicker.mode === 'switch' ? 'Switch Task' : 'What are you working on?'}
+            subtitle={
+              taskPicker.mode === 'reassign'
+                ? taskPicker.subjectName
+                : taskPicker.mode === 'switch'
+                  ? 'Your clock keeps running — only the task changes'
+                  : 'Optional — skip to just check in'
+            }
+            loading={taskPickerLoading}
+            assignedTasks={availableAssignedTasks}
+            openTasks={availableOpenTasks}
+            generalTasks={availableGeneralTasks}
+            selectedTaskId={taskPicker.currentTaskId}
+            selectedGeneralTaskId={taskPicker.currentGeneralTaskId}
+            confirmLabel={taskPicker.mode === 'reassign' ? 'Move Them' : taskPicker.mode === 'switch' ? 'Switch' : 'Start Working'}
+            dismissLabel={taskPicker.mode === 'checkin' ? 'Skip' : 'Cancel'}
+            allowClear={taskPicker.mode !== 'checkin'}
+            onDismiss={() => { setTaskPicker(null); if (taskPicker.mode === 'checkin') onRefresh(); }}
+            onConfirm={handlePickTask}
+          />
+          {taskPickerError && (
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110] px-4 py-2.5 bg-red-600 text-white rounded-xl shadow-2xl text-xs font-bold max-w-[90vw] text-center">
+              {taskPickerError}
             </div>
-
-            {taskPickerLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 size={28} className="animate-spin text-teamColor" />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-auto space-y-4">
-                {availableAssignedTasks.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                      <Briefcase size={10} /> Assigned to You
-                    </p>
-                    <div className="space-y-2">
-                      {availableAssignedTasks.map(task => (
-                        <button
-                          key={task.id}
-                          onClick={() => {
-                            setPickerSelectedTaskId(pickerSelectedTaskId === task.id ? null : task.id);
-                            setPickerSelectedGeneralTaskId(null);
-                          }}
-                          className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
-                            pickerSelectedTaskId === task.id
-                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {task.priority}
-                            </span>
-                            <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
-                          </div>
-                          <p className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase leading-tight">{task.title}</p>
-                          {pickerSelectedTaskId === task.id && (
-                            <div className="mt-1.5 flex items-center gap-1 text-blue-600">
-                              <CheckSquare size={11} />
-                              <span className="text-[9px] font-black uppercase">Selected</span>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {availableOpenTasks.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                      <Users size={10} /> Open to Contribute
-                    </p>
-                    <div className="space-y-2">
-                      {availableOpenTasks.map(task => (
-                        <button
-                          key={task.id}
-                          onClick={() => {
-                            setPickerSelectedTaskId(pickerSelectedTaskId === task.id ? null : task.id);
-                            setPickerSelectedGeneralTaskId(null);
-                          }}
-                          className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
-                            pickerSelectedTaskId === task.id
-                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30'
-                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 hover:border-orange-300 dark:hover:border-orange-700 hover:shadow-sm'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {task.priority}
-                            </span>
-                            <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span>
-                          </div>
-                          <p className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase leading-tight">{task.title}</p>
-                          {pickerSelectedTaskId === task.id && (
-                            <div className="mt-1.5 flex items-center gap-1 text-orange-600">
-                              <CheckSquare size={11} />
-                              <span className="text-[9px] font-black uppercase">Selected</span>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {availableGeneralTasks.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                      <ListChecks size={10} /> General Tasks
-                    </p>
-                    <div className="space-y-2">
-                      {availableGeneralTasks.map(gt => (
-                        <button
-                          key={gt.id}
-                          onClick={() => {
-                            setPickerSelectedGeneralTaskId(pickerSelectedGeneralTaskId === gt.id ? null : gt.id);
-                            setPickerSelectedTaskId(null);
-                          }}
-                          className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-start gap-3 ${
-                            pickerSelectedGeneralTaskId === gt.id
-                              ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/30'
-                              : 'border-slate-100 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700'
-                          }`}
-                        >
-                          {pickerSelectedGeneralTaskId === gt.id ? <CheckSquare size={16} className="text-violet-600 shrink-0 mt-0.5" /> : <Square size={16} className="text-slate-400 shrink-0 mt-0.5" />}
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-slate-900 dark:text-white">{gt.name}</p>
-                            {gt.description && <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">{gt.description}</p>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {availableAssignedTasks.length === 0 && availableOpenTasks.length === 0 && availableGeneralTasks.length === 0 && (
-                  <p className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm font-bold">No tasks available</p>
-                )}
-              </div>
-            )}
-
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => handlePickTask(null, null)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs uppercase tracking-widest"
-              >
-                Skip
-              </button>
-              <button
-                onClick={() => handlePickTask(pickerSelectedTaskId, pickerSelectedGeneralTaskId)}
-                className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-              >
-                <Check size={14} />
-                {pickerSelectedTaskId || pickerSelectedGeneralTaskId ? 'Confirm Selection' : 'Done'}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {showCheckoutModal && myOpenEntry && (

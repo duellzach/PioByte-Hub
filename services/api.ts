@@ -1,4 +1,4 @@
-import type { AvailableTask, GeneralTask } from '../types';
+import type { AvailableTask, GeneralTask, MemberProductivity, ProductivityDeepDive } from '../types';
 import type { DepartmentUsageMap } from '../shared/departments';
 
 const API_BASE = '/api';
@@ -32,6 +32,15 @@ export async function apiRequest<T>(
   }
 
   return response.json();
+}
+
+/** `?start=&end=`, omitting either bound when it isn't set. */
+function rangeQuery(range?: { start?: string | null; end?: string | null }): string {
+  const params = new URLSearchParams();
+  if (range?.start) params.set('start', range.start);
+  if (range?.end) params.set('end', range.end);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
 }
 
 export const api = {
@@ -397,6 +406,15 @@ export const api = {
         `/hours/team-totals${range?.start || range?.end ? `?${new URLSearchParams(range as Record<string, string>).toString()}` : ''}`
       ),
   },
+  // Contribution/hours rollups scoped to a date window (team-local YYYY-MM-DD,
+  // both bounds inclusive and optional). Backs the Team summary table and the
+  // per-student deep dive.
+  productivity: {
+    team: (range?: { start?: string | null; end?: string | null }) =>
+      apiRequest<MemberProductivity[]>(`/productivity/team${rangeQuery(range)}`),
+    user: (userId: number, range?: { start?: string | null; end?: string | null }) =>
+      apiRequest<ProductivityDeepDive>(`/productivity/users/${userId}${rangeQuery(range)}`),
+  },
   timeEntries: {
     getAll: () => apiRequest<any[]>('/time-entries'),
     get: (id: number) => apiRequest<any>(`/time-entries/${id}`),
@@ -418,6 +436,9 @@ export const api = {
       }),
     availableTasks: (userId: number) =>
       apiRequest<AvailableTask[]>(`/time-entries/available-tasks?userId=${userId}`),
+    // `userId` is the SUBJECT of the change: pass the member whose session it
+    // is. Leadership may pass someone else's; everyone else may only pass their
+    // own. Valid at check-in and at any point during an open session.
     setWorkingOn: (id: number, userId: number, taskId?: number | null, generalTaskId?: number | null) =>
       apiRequest<Record<string, unknown>>(`/time-entries/${id}/set-working-on`, { method: 'PATCH', body: JSON.stringify({ userId, taskId, generalTaskId }) }),
   },

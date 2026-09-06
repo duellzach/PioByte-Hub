@@ -29,6 +29,7 @@ import pushRouter from "./routes/push";
 import recurringRouter from "./routes/recurring";
 import eventSignupsRouter from "./routes/eventSignups";
 import requirementsRouter from "./routes/requirements";
+import productivityRouter from "./routes/productivity";
 import seasonsRouter from "./routes/seasons";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -164,6 +165,7 @@ app.use("/api", pushRouter);
 app.use("/api", recurringRouter);
 app.use("/api", eventSignupsRouter);
 app.use("/api", requirementsRouter);
+app.use("/api", productivityRouter);
 app.use("/api", seasonsRouter);
 
 if (isProduction) {
@@ -200,6 +202,7 @@ initializeDatabase().then(() => {
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
       await storage.ensureProjectLinksColumn();
+      await storage.ensureTaskSegments();
       await storage.ensureCertificationLevelsAndBadges();
       await getTeamTimezone(); // warm the cache and surface any DB issue at boot
       // Generate any due recurring tasks now, then re-check hourly. The guarded

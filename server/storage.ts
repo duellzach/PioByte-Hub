@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
 import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
@@ -32,7 +32,7 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
   if (row.data && typeof row.data === "object" && Object.keys(row.data).length > 0) return row;
   return { ...row, data: dataFromLegacyRow(kind, row) };
 }
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import {
@@ -233,8 +233,11 @@ export interface IStorage {
   updateGeneralTask(id: number, data: Partial<InsertGeneralTask>): Promise<GeneralTask | undefined>;
   deleteGeneralTask(id: number): Promise<void>;
 
-  getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean })[]>;
-  setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined>;
+  getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean; projectName: string })[]>;
+  setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null, assignedBy?: number | null): Promise<{ entry: TimeEntry | undefined; closed: TimeEntryTaskSegment | undefined }>;
+  closeOpenTaskSegments(entryId: number, at?: Date): Promise<TimeEntryTaskSegment[]>;
+  getTaskSegmentsForUser(userId: number): Promise<TimeEntryTaskSegment[]>;
+  getTaskSegments(): Promise<TimeEntryTaskSegment[]>;
 
   getCertifications(): Promise<any[]>;
   getCertification(id: number): Promise<Certification | undefined>;
@@ -598,22 +601,34 @@ export class DatabaseStorage implements IStorage {
     await db.delete(generalTasks).where(eq(generalTasks.id, id));
   }
 
-  async getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean })[]> {
-    const allTasks = await db.select().from(tasks);
+  /**
+   * The "what are you working on?" menu. Tasks on an ARCHIVED board are
+   * excluded: archiving a board retires its work, and a retired task must not
+   * come back as something a student can clock onto. Anyone may pick any live
+   * task — being an assignee only sorts it to the top (`isAssigned`), because
+   * students routinely help on work they don't lead.
+   */
+  async getAvailableTasksForUser(userId: number): Promise<(Task & { isAssigned: boolean; projectName: string })[]> {
+    const rows = await db
+      .select({ task: tasks, projectName: projects.name })
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(eq(projects.archived, false));
     const statusOrder: Record<string, number> = {
       'In Progress': 0,
       'Not Started': 1,
       'Backlog': 2,
       'Blocked': 3,
     };
-    return allTasks
-      .filter(t => t.status !== 'Complete' && t.status !== 'Blocked')
-      .map(t => {
+    return rows
+      .filter(({ task: t }) => t.status !== 'Complete' && t.status !== 'Blocked')
+      .map(({ task: t, projectName }) => {
         const assignees = (t.assignees as number[]) || [];
         return {
           ...t,
           successCriteria: migrateSuccessCriteria(t.successCriteria as any),
           isAssigned: assignees.includes(userId),
+          projectName,
         };
       })
       .sort((a, b) => {
@@ -622,13 +637,69 @@ export class DatabaseStorage implements IStorage {
       });
   }
 
-  async setWorkingOn(entryId: number, taskId?: number | null, generalTaskId?: number | null): Promise<TimeEntry | undefined> {
+  /**
+   * Point a live session at a task, closing whatever it was on before.
+   *
+   * `time_entries.working_on_task_id` holds only the CURRENT task, so a switch
+   * would erase the previous one. The segment ledger keeps both: close the open
+   * segment (stamping its wall-clock minutes) and open a new one. Returns the
+   * closed segment so the caller can credit that task's contributors.
+   */
+  async setWorkingOn(
+    entryId: number,
+    taskId?: number | null,
+    generalTaskId?: number | null,
+    assignedBy?: number | null,
+  ): Promise<{ entry: TimeEntry | undefined; closed: TimeEntryTaskSegment | undefined }> {
     const updates: any = {
       workingOnTaskId: taskId ?? null,
       workingOnGeneralTaskId: generalTaskId ?? null,
     };
     const [updated] = await db.update(timeEntries).set(updates).where(eq(timeEntries.id, entryId)).returning();
-    return updated;
+    const [closed] = await this.closeOpenTaskSegments(entryId);
+    if (updated && (taskId != null || generalTaskId != null)) {
+      await db.insert(timeEntryTaskSegments).values({
+        entryId,
+        userId: updated.userId,
+        taskId: taskId ?? null,
+        generalTaskId: generalTaskId ?? null,
+        startedAt: new Date(),
+        assignedBy: assignedBy ?? null,
+      });
+    }
+    return { entry: updated, closed };
+  }
+
+  /**
+   * Close every still-open segment on an entry, stamping elapsed minutes.
+   * Called on a task switch and again at check-out. Idempotent — an entry with
+   * nothing open is a no-op, so a double check-out can't double-count.
+   */
+  async closeOpenTaskSegments(entryId: number, at: Date = new Date()): Promise<TimeEntryTaskSegment[]> {
+    const open = await db.select().from(timeEntryTaskSegments)
+      .where(and(eq(timeEntryTaskSegments.entryId, entryId), isNull(timeEntryTaskSegments.endedAt)));
+    const closed: TimeEntryTaskSegment[] = [];
+    for (const seg of open) {
+      const minutes = Math.max(0, Math.round((at.getTime() - new Date(seg.startedAt).getTime()) / 60000));
+      const [row] = await db.update(timeEntryTaskSegments)
+        .set({ endedAt: at, minutes })
+        .where(eq(timeEntryTaskSegments.id, seg.id))
+        .returning();
+      if (row) closed.push(row);
+    }
+    return closed;
+  }
+
+  /** Every task stretch for a member, newest first. Powers the productivity deep dive. */
+  async getTaskSegmentsForUser(userId: number): Promise<TimeEntryTaskSegment[]> {
+    return db.select().from(timeEntryTaskSegments)
+      .where(eq(timeEntryTaskSegments.userId, userId))
+      .orderBy(desc(timeEntryTaskSegments.startedAt));
+  }
+
+  /** Every task stretch on the team, newest first. */
+  async getTaskSegments(): Promise<TimeEntryTaskSegment[]> {
+    return db.select().from(timeEntryTaskSegments).orderBy(desc(timeEntryTaskSegments.startedAt));
   }
 
   async getTimeEntryAudit(entryId: number): Promise<TimeEntryAudit[]> {
@@ -1647,6 +1718,45 @@ export class DatabaseStorage implements IStorage {
 
   async ensureProjectLinksColumn(): Promise<void> {
     await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'`);
+  }
+
+  /**
+   * Per-task stretches inside a clocked session (see the table's comment in
+   * shared/schema.ts). Additive and idempotent — existing sessions simply have
+   * no segments until their next task pick.
+   */
+  async ensureTaskSegments(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS time_entry_task_segments (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER NOT NULL REFERENCES time_entries(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        general_task_id INTEGER REFERENCES general_tasks(id) ON DELETE CASCADE,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMPTZ,
+        minutes INTEGER,
+        assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS time_entry_task_segments_user_idx ON time_entry_task_segments (user_id, started_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS time_entry_task_segments_entry_idx ON time_entry_task_segments (entry_id)`);
+    // Backfill: every session that already recorded a task gets one segment
+    // spanning the session, so history predating this table still shows up in
+    // the productivity deep dive. Guarded on emptiness so it runs exactly once.
+    const existing = await db.execute(sql`SELECT COUNT(*)::int AS count FROM time_entry_task_segments`);
+    const alreadyBackfilled = Number(((existing as any).rows?.[0]?.count) ?? 1) > 0;
+    if (!alreadyBackfilled) {
+      await db.execute(sql`
+        INSERT INTO time_entry_task_segments (entry_id, user_id, task_id, general_task_id, started_at, ended_at, minutes)
+        SELECT e.id, e.user_id, e.working_on_task_id, e.working_on_general_task_id, e.check_in_at, e.check_out_at,
+               CASE WHEN e.check_out_at IS NULL THEN NULL
+                    ELSE GREATEST(0, (EXTRACT(EPOCH FROM (e.check_out_at - e.check_in_at)) / 60)::int) END
+        FROM time_entries e
+        WHERE e.working_on_task_id IS NOT NULL OR e.working_on_general_task_id IS NOT NULL
+      `);
+    }
   }
 
   /**

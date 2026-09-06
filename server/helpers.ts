@@ -10,12 +10,10 @@ export const COACH_CAPTAIN_DEPT_HEAD = ['Coach', 'Team Captain', 'Department Hea
 export const TRAINER_ROLES = ['Trainer', 'Safety Trainer'];
 export const COACH_CAPTAIN_TRAINER = ['Coach', 'Team Captain', ...TRAINER_ROLES];
 export const TRAINER_COACH = [...TRAINER_ROLES, 'Coach'];
-// The union of every role that acts as "leadership" somewhere in the app.
-// `eventSignups.ts`'s LEADERSHIP (Coach/Captain/SCRUM Master) and this file's
-// COACH_CAPTAIN_DEPT_HEAD (Coach/Captain/Dept Head) disagreed on who counts —
-// this is the combined set, used where the distinction matters (e.g. who can
-// see an invite-only event).
-export const LEADERSHIP_ALL = ['Coach', 'Team Captain', 'Department Head', 'SCRUM Master'];
+// Lives in shared/ so the client's role gates are the SAME list the routes
+// enforce — see the header there. Re-exported rather than moved outright so the
+// server keeps importing every role group from one place.
+export { LEADERSHIP_ALL } from "../shared/roles";
 
 export async function getUserRoles(userId: number): Promise<string[]> {
   const user = await storage.getUser(userId);

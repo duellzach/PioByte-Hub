@@ -145,6 +145,31 @@ export const timeEntries = pgTable("time_entries", {
     .where(sql`${t.scoutEventId} IS NOT NULL`),
 }));
 
+// One row per stretch of a clocked session spent on a single task. A member
+// picks a task at check-in and may switch during the session (Time page ->
+// "Switch task"); leadership may reassign them. Each switch closes the open
+// segment and opens a new one, so per-task minutes survive the switch instead
+// of being overwritten on `time_entries.working_on_task_id` (which still holds
+// the CURRENT task and is what the live "Who's Here" board reads).
+export const timeEntryTaskSegments = pgTable("time_entry_task_segments", {
+  id: serial("id").primaryKey(),
+  entryId: integer("entry_id").notNull().references(() => timeEntries.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Exactly one of these is set — a board task or an always-available general task.
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  generalTaskId: integer("general_task_id").references(() => generalTasks.id, { onDelete: "cascade" }),
+  startedAt: timestamp("started_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  // null while the segment is still open (member is on this task right now).
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  // Wall-clock minutes, stamped when the segment closes. Deliberately NOT
+  // rounded to the quarter hour: these are for attribution ("where did the
+  // session go"), never for the hours ledger, which stays entry-level.
+  minutes: integer("minutes"),
+  // Who put the member on this task — themselves, or a coach/captain.
+  assignedBy: integer("assigned_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const timeEntryAudit = pgTable("time_entry_audit", {
   id: serial("id").primaryKey(),
   entryId: integer("entry_id").notNull().references(() => timeEntries.id, { onDelete: "cascade" }),
@@ -303,6 +328,8 @@ export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 export type TimeEntryAudit = typeof timeEntryAudit.$inferSelect;
 export type InsertTimeEntryAudit = typeof timeEntryAudit.$inferInsert;
+export type TimeEntryTaskSegment = typeof timeEntryTaskSegments.$inferSelect;
+export type InsertTimeEntryTaskSegment = typeof timeEntryTaskSegments.$inferInsert;
 export type ScoutEvent = typeof scoutEvents.$inferSelect;
 export type InsertScoutEvent = typeof scoutEvents.$inferInsert;
 export type PitScout = typeof pitScouts.$inferSelect;
