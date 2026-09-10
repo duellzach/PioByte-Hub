@@ -168,7 +168,26 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
                     )}
                   </div>
 
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phases</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phases</p>
+                    {(h.phases || []).length > 1 && (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!h.combinePhases}
+                          onChange={(e) => patch((r) => { r.hours[hi].combinePhases = e.target.checked; })}
+                          className="w-3.5 h-3.5"
+                          style={{ accentColor: 'var(--team-color)' }}
+                        />
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Combine into one goal</span>
+                      </label>
+                    )}
+                  </div>
+                  {h.combinePhases && (h.phases || []).length > 1 && (
+                    <p className="text-[10px] font-bold text-slate-400 -mt-1">
+                      Students only need to meet the combined total ({(h.phases || []).reduce((s: number, p: any) => s + minToHours(p.requiredMinutes), 0)}h) across all phases below — each phase's own goal is no longer checked separately.
+                    </p>
+                  )}
                   {(h.phases || []).map((ph: any, pi: number) => {
                     const overridden = Array.isArray(ph.categories);
                     const resolved = phaseCategoriesOf(h, ph);

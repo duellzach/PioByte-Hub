@@ -75,24 +75,33 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
           return (
             <div key={h.key} className="space-y-2.5">
               <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest"><Clock size={11} /> {h.label}</div>
-              {h.phases.map((ph: any, i: number) => {
-                const done = ph.requiredMinutes > 0 && ph.earnedMinutes >= ph.requiredMinutes;
-                return (
-                  <div key={i} className="space-y-1">
-                    <Bar
-                      label={h.phases.length > 1 ? ph.label : 'Logged'}
-                      value={`${fmtHours(ph.earnedMinutes)} of ${fmtHours(ph.requiredMinutes)}`}
-                      percent={pct(ph.earnedMinutes, ph.requiredMinutes)}
-                      done={done}
-                    />
-                    {mixed && (ph.categories || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {ph.categories.map((c: string) => <CategoryBadge key={c} category={c} />)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {h.combinePhases && h.combined ? (
+                <Bar
+                  label="Logged"
+                  value={`${fmtHours(h.combined.earnedMinutes)} of ${fmtHours(h.combined.requiredMinutes)}`}
+                  percent={pct(h.combined.earnedMinutes, h.combined.requiredMinutes)}
+                  done={h.combined.requiredMinutes > 0 && h.combined.earnedMinutes >= h.combined.requiredMinutes}
+                />
+              ) : (
+                h.phases.map((ph: any, i: number) => {
+                  const done = ph.requiredMinutes > 0 && ph.earnedMinutes >= ph.requiredMinutes;
+                  return (
+                    <div key={i} className="space-y-1">
+                      <Bar
+                        label={h.phases.length > 1 ? ph.label : 'Logged'}
+                        value={`${fmtHours(ph.earnedMinutes)} of ${fmtHours(ph.requiredMinutes)}`}
+                        percent={pct(ph.earnedMinutes, ph.requiredMinutes)}
+                        done={done}
+                      />
+                      {mixed && (ph.categories || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {ph.categories.map((c: string) => <CategoryBadge key={c} category={c} />)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           );
         })}

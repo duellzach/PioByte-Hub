@@ -158,6 +158,11 @@ export function sanitizeRequirements(input: any): { fundraising: { enabled: bool
         key: h.key,
         label: typeof h.label === "string" ? h.label.slice(0, 120) : "Requirement",
         enabled: !!h.enabled,
+        // When true, this requirement's phases are graded as one combined
+        // goal (sum of earned vs. sum of required) instead of each phase
+        // needing its own goal met independently. Phases still keep their
+        // own categories/date ranges — only the pass/fail check changes.
+        combinePhases: !!h.combinePhases,
         categories: (Array.isArray(h.categories) ? h.categories : []).filter(isHourCategory),
         phases: (Array.isArray(h.phases) ? h.phases : []).slice(0, MAX_PHASES).map((ph: any) => {
           const p: any = {
@@ -218,7 +223,22 @@ async function computeRequirements(userId: number) {
           requiredMinutes,
         };
       });
-      return { key: h.key, label: h.label, categories, phases };
+      const combinePhases = !!h.combinePhases && phases.length > 1;
+      // Combined mode: one goal (sum of the phases' goals) met by the total
+      // hours earned across those phases. Earned minutes must come from the
+      // UNION of matching ledger rows, not a sum of each phase's own total —
+      // phases commonly share categories or date ranges (or have no dates at
+      // all), and summing per-phase totals would double-count any row that
+      // matches more than one phase.
+      const combined = combinePhases
+        ? {
+            earnedMinutes: rows
+              .filter((r) => phases.some((p: any) => p.categories.includes(r.category) && (!p.start || r.date >= p.start) && (!p.end || r.date <= p.end)))
+              .reduce((s: number, r: any) => s + r.minutes, 0),
+            requiredMinutes: phases.reduce((s: number, p: any) => s + p.requiredMinutes, 0),
+          }
+        : null;
+      return { key: h.key, label: h.label, categories, combinePhases, combined, phases };
     });
 
   return {
