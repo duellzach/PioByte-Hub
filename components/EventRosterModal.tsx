@@ -212,6 +212,14 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                           </p>
                         )}
                       </div>
+                      {s.capExempt && (
+                        <span
+                          title="This role doesn't count toward the event's capacity"
+                          className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300"
+                        >
+                          No cap
+                        </span>
+                      )}
                       <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>
                       {isCoach && s.status !== 'accepted' && (
                         <button onClick={() => setStatus(s.id, 'accepted')} title="Accept"

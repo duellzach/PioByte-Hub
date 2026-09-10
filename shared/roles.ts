@@ -26,3 +26,15 @@ export const LEADERSHIP_ALL = ['Coach', 'Team Captain', 'Department Head', 'SCRU
 /** Whether any of a user's roles falls in `allowed`. Mirrors server helpers' `hasAnyRole`. */
 export const hasAnyRole = (userRoles: readonly string[] = [], allowed: readonly string[]): boolean =>
   userRoles.some((r) => allowed.includes(r));
+
+/**
+ * Whether a user should be excluded from an event's capacity math — e.g. a
+ * coach/mentor signing up for a fundraiser shouldn't fill or be blocked by a
+ * student cap. `capExemptRoleNames` comes from team_settings.roles entries
+ * flagged `excludeFromCaps` (see RoleSetting in contexts/TeamSettingsContext
+ * and shared/schema.ts's teamSettings.roles). A user with NO roles is never
+ * exempt (fails toward counting them, the pre-existing behavior) — exemption
+ * requires every role they hold to be on the exempt list.
+ */
+export const isCapExemptRoles = (userRoles: readonly string[] = [], capExemptRoleNames: readonly string[] = []): boolean =>
+  userRoles.length > 0 && capExemptRoleNames.length > 0 && userRoles.every((r) => capExemptRoleNames.includes(r));

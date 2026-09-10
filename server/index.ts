@@ -222,6 +222,7 @@ initializeDatabase().then(() => {
       await storage.migrateTrainerRoleRename();
       await storage.seedTrainerScopes();
       await storage.backfillLevelBadges();
+      await storage.migrateCoachCapExempt();
     } catch (e) {
       console.warn("Certifications v2 migration skipped:", e);
     }

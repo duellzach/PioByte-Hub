@@ -724,6 +724,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
                   <option value="lead">Lead</option>
                   <option value="member">Member</option>
                 </select>
+                <label className="flex items-center gap-1.5 cursor-pointer shrink-0" title="Sign-ups from this role never count toward — or get waitlisted by — an event's capacity">
+                  <input
+                    type="checkbox"
+                    checked={!!role.excludeFromCaps}
+                    onChange={e => updateRole(idx, { excludeFromCaps: e.target.checked })}
+                    className="w-3.5 h-3.5"
+                    style={{ accentColor: 'var(--team-color)' }}
+                  />
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">No cap</span>
+                </label>
                 {isProtected ? (
                   <span title="Required role" className="w-6 flex items-center justify-center text-slate-300 dark:text-slate-600">
                     <Settings size={13} />

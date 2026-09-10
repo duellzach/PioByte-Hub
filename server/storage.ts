@@ -35,6 +35,7 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
 import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
+import { isCapExemptRoles } from "../shared/roles";
 import {
   type DepartmentChangeSet,
   type DepartmentPropagationCounts,
@@ -2086,6 +2087,31 @@ export class DatabaseStorage implements IStorage {
   /** Atomically claim a one-shot migration. True = you own it, run it now.
    *  False = it has already run (possibly by another instance under
    *  autoscale, or in a prior boot) — do not run it again. */
+  /**
+   * One-time backfill: mark the built-in 'Coach' role as excludeFromCaps so
+   * existing teams (whose team_settings.roles predates this field) get the
+   * "coach/mentor sign-ups don't count toward event caps" behavior without
+   * having to re-save Control Panel settings. Only touches a 'Coach' entry
+   * that has no excludeFromCaps key at all — a team that has already set it
+   * (true or explicitly false) keeps its own choice.
+   */
+  async migrateCoachCapExempt(): Promise<void> {
+    await db.transaction(async (tx) => {
+      if (!(await this.claimMigrationTx(tx, 'coach-role-cap-exempt-default'))) return;
+      await tx.execute(sql`
+        UPDATE team_settings SET roles = (
+          SELECT coalesce(jsonb_agg(
+            CASE WHEN elem->>'name' = 'Coach' AND NOT (elem ? 'excludeFromCaps')
+                 THEN jsonb_set(elem, '{excludeFromCaps}', 'true')
+                 ELSE elem END
+            ORDER BY ord), '[]'::jsonb)
+          FROM jsonb_array_elements(team_settings.roles) WITH ORDINALITY AS t(elem, ord)
+        )
+        WHERE roles @> '[{"name":"Coach"}]'::jsonb
+      `);
+    });
+  }
+
   async claimMigration(key: string): Promise<boolean> {
     const result = await db.execute(sql`
       INSERT INTO schema_migrations (key) VALUES (${key})
@@ -2393,10 +2419,23 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(eventSignups).where(eq(eventSignups.id, id));
     return row;
   }
-  async countAcceptedSignups(calendarEventId: number): Promise<number> {
-    const rows = await db.select().from(eventSignups)
+  /**
+   * Accepted sign-ups that count toward an event's capacity. `excludeRoles`
+   * (role names marked "doesn't count toward event caps" in team settings —
+   * see server/routes/eventSignups.ts#isCapExempt) drops anyone whose every
+   * role is in that set, so a coach/mentor sign-up never fills or blocks a
+   * student's spot.
+   */
+  async countAcceptedSignups(calendarEventId: number, excludeRoles: string[] = []): Promise<number> {
+    if (excludeRoles.length === 0) {
+      const rows = await db.select().from(eventSignups)
+        .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')));
+      return rows.length;
+    }
+    const rows = await db.select({ roles: users.roles }).from(eventSignups)
+      .innerJoin(users, eq(eventSignups.userId, users.id))
       .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')));
-    return rows.length;
+    return rows.filter((r) => !isCapExemptRoles(r.roles || [], excludeRoles)).length;
   }
   async upsertEventSignup(calendarEventId: number, userId: number, status: string): Promise<EventSignup> {
     const [row] = await db.insert(eventSignups)
@@ -2860,7 +2899,7 @@ export class DatabaseStorage implements IStorage {
         { name: 'Leadership', color: '#ef4444' },
       ],
       roles: [
-        { name: 'Coach', tier: 'leadership' },
+        { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
         { name: 'Team Captain', tier: 'leadership' },
         { name: 'SCRUM Master', tier: 'leadership' },
         { name: 'Department Head', tier: 'lead' },

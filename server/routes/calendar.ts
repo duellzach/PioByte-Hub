@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { getUserRoles, hasAnyRole, COACH_CAPTAIN_DEPT_HEAD, LEADERSHIP_ALL, tbaFetch, TBA_KEY, toaFetch, TOA_KEY } from "../helpers";
 import { filterVisibleEvents } from "../services/eventVisibility";
 import { sendPushToUsers } from "../push";
+import { getCapExemptRoleNames } from "./eventSignups";
 
 const router = Router();
 
@@ -12,10 +13,11 @@ router.get("/calendar", async (req, res) => {
     const events = await storage.getCalendarEvents(includeArchived);
     const roles = req.userId ? await getUserRoles(req.userId) : [];
     const visible = await filterVisibleEvents(events, req.userId!, roles);
+    const exemptRoles = await getCapExemptRoleNames();
     const enriched = await Promise.all(visible.map(async (e) => {
       const cap = (e as any).capacity as number | null;
       if (cap == null) return e;
-      const acceptedCount = await storage.countAcceptedSignups(e.id);
+      const acceptedCount = await storage.countAcceptedSignups(e.id, exemptRoles);
       return { ...e, acceptedCount };
     }));
     res.json(enriched);

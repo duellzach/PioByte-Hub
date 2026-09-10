@@ -4,6 +4,7 @@ import { requireRoles } from "../middleware/auth";
 import { localDatePT, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
 import { roundToQuarterHour, hasAnyRole, LEADERSHIP_ALL } from "../helpers";
+import { isCapExemptRoles } from "../../shared/roles";
 import { filterVisibleEvents } from "../services/eventVisibility";
 import { getTeamTimezone } from "../services/teamTime";
 import { db } from "../db";
@@ -120,6 +121,12 @@ function isLeadership(roles: string[] = []): boolean {
   return roles.some((r) => LEADERSHIP.includes(r));
 }
 
+/** Role names flagged "doesn't count toward event caps" in team settings. */
+export async function getCapExemptRoleNames(): Promise<string[]> {
+  const settings: any = await storage.getTeamSettings();
+  return (settings.roles || []).filter((r: any) => r?.excludeFromCaps).map((r: any) => r.name);
+}
+
 // Student signs themselves up for an event.
 router.post("/calendar/:id/signup", async (req, res) => {
   try {
@@ -128,11 +135,16 @@ router.post("/calendar/:id/signup", async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
     if (!(event as any).signupEnabled) return res.status(400).json({ error: "Sign-ups are not open for this event" });
 
-    // Respect capacity → waitlist when full (existing accepted signups).
+    // Respect capacity → waitlist when full (existing accepted signups). A
+    // coach/mentor (cap-exempt role) is always accepted outright — they
+    // neither count against the cap nor get stuck behind it.
     let status = "requested";
     const cap = (event as any).capacity as number | null;
-    if (cap != null) {
-      const accepted = await storage.countAcceptedSignups(eventId);
+    const requester = await storage.getUser(req.userId!);
+    const exemptRoles = await getCapExemptRoleNames();
+    const requesterExempt = isCapExemptRoles((requester as any)?.roles || [], exemptRoles);
+    if (cap != null && !requesterExempt) {
+      const accepted = await storage.countAcceptedSignups(eventId, exemptRoles);
       if (accepted >= cap) status = "waitlisted";
     }
     const signup = await storage.upsertEventSignup(eventId, req.userId!, status);
@@ -173,6 +185,8 @@ router.get("/calendar/:id/signups", async (req, res) => {
 
     const allUsers = await storage.getUsers();
     const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+    const rolesMap = new Map(allUsers.map((u) => [u.id, (u as any).roles || []]));
+    const exemptRoles = await getCapExemptRoleNames();
     // Clocked minutes per user for this event (approved time entries).
     const entries = await storage.getTimeEntries();
     const minutesByUser: Record<number, number> = {};
@@ -185,6 +199,9 @@ router.get("/calendar/:id/signups", async (req, res) => {
       ...s,
       userName: userMap.get(s.userId) || `User ${s.userId}`,
       clockedMinutes: minutesByUser[s.userId] || 0,
+      // Whether this person's sign-up is excluded from the event's capacity
+      // math (e.g. a coach/mentor) — see getCapExemptRoleNames above.
+      capExempt: isCapExemptRoles(rolesMap.get(s.userId) || [], exemptRoles),
     })));
   } catch (error) {
     console.error("Error fetching signups:", error);
@@ -304,9 +321,10 @@ router.get("/me/upcoming", async (req, res) => {
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
       .slice(0, 12);
 
+    const exemptRoles = await getCapExemptRoleNames();
     const upcoming = await Promise.all(filtered.map(async (e) => {
       const cap = (e as any).capacity as number | null;
-      const acceptedCount = cap != null ? await storage.countAcceptedSignups(e.id) : null;
+      const acceptedCount = cap != null ? await storage.countAcceptedSignups(e.id, exemptRoles) : null;
       return {
         id: e.id, title: e.title, type: e.type, startDate: e.startDate, endDate: e.endDate,
         startTime: e.startTime, location: e.location,

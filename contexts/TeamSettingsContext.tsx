@@ -8,6 +8,10 @@ export interface DepartmentSetting {
 export interface RoleSetting {
   name: string;
   tier: string;
+  // This role doesn't count toward a calendar event's sign-up capacity —
+  // e.g. a coach/mentor signing up for a fundraiser shouldn't fill or be
+  // blocked by a student cap.
+  excludeFromCaps?: boolean;
 }
 
 export interface TeamSettingsData {
@@ -42,7 +46,7 @@ export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
     { name: 'Leadership', color: '#ef4444' },
   ],
   roles: [
-    { name: 'Coach', tier: 'leadership' },
+    { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
     { name: 'Team Captain', tier: 'leadership' },
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },

@@ -618,8 +618,13 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'Business', color: '#14b8a6' },
     { name: 'Leadership', color: '#ef4444' },
   ]),
-  roles: jsonb("roles").$type<{ name: string; tier: string }[]>().notNull().default([
-    { name: 'Coach', tier: 'leadership' },
+  // `excludeFromCaps`: this role doesn't count toward a calendar event's
+  // sign-up capacity — e.g. a coach/mentor signing up for a fundraiser
+  // shouldn't fill or be blocked by a student cap. See shared/roles.ts's
+  // isCapExemptRoles for how this is applied (a user is exempt only if
+  // EVERY role they hold is flagged this way).
+  roles: jsonb("roles").$type<{ name: string; tier: string; excludeFromCaps?: boolean }[]>().notNull().default([
+    { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
     { name: 'Team Captain', tier: 'leadership' },
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },

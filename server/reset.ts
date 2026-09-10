@@ -64,7 +64,7 @@ async function reset() {
           { name: 'Leadership',  color: '#ef4444' },
         ])}::jsonb,
         roles = ${JSON.stringify([
-          { name: 'Coach',           tier: 'leadership' },
+          { name: 'Coach',           tier: 'leadership', excludeFromCaps: true },
           { name: 'Team Captain',    tier: 'leadership' },
           { name: 'SCRUM Master',    tier: 'leadership' },
           { name: 'Department Head', tier: 'lead'       },

@@ -62,7 +62,7 @@ const DEFAULT_DEPARTMENTS = [
 ];
 
 const DEFAULT_ROLES = [
-  { name: 'Coach', tier: 'leadership' },
+  { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
   { name: 'Team Captain', tier: 'leadership' },
   { name: 'SCRUM Master', tier: 'leadership' },
   { name: 'Department Head', tier: 'lead' },
