@@ -213,11 +213,9 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                         )}
                       </div>
                       {s.capExempt && (
-                        <span
-                          title="This role doesn't count toward the event's capacity"
-                          className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300"
-                        >
-                          No cap
+                        <span title="Mentor/adult role — doesn't count toward the capacity cap"
+                          className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                          Doesn't count toward cap
                         </span>
                       )}
                       <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>

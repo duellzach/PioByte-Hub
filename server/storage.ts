@@ -2091,23 +2091,37 @@ export class DatabaseStorage implements IStorage {
    * One-time backfill: mark the built-in 'Coach' role as excludeFromCaps so
    * existing teams (whose team_settings.roles predates this field) get the
    * "coach/mentor sign-ups don't count toward event caps" behavior without
-   * having to re-save Control Panel settings. Only touches a 'Coach' entry
-   * that has no excludeFromCaps key at all — a team that has already set it
-   * (true or explicitly false) keeps its own choice.
+   * having to re-save Control Panel settings. Also converts a legacy
+   * `capExempt` key (written by an earlier build of this same feature under
+   * a different field name) into `excludeFromCaps` on any role that has it,
+   * so a database that ran that earlier migration isn't left stuck on the
+   * old field. Only touches a 'Coach' entry that has no excludeFromCaps key
+   * at all — a team that has already set it (true or explicitly false)
+   * keeps its own choice.
+   *
+   * Uses its own migration key distinct from any key an earlier build of
+   * this feature may have already claimed with different (now-wrong)
+   * update logic — reusing a key here would make this corrective migration
+   * silently a no-op on any database where the old body already ran.
    */
   async migrateCoachCapExempt(): Promise<void> {
     await db.transaction(async (tx) => {
-      if (!(await this.claimMigrationTx(tx, 'coach-role-cap-exempt-default'))) return;
+      if (!(await this.claimMigrationTx(tx, 'coach-role-cap-exempt-default-v2'))) return;
       await tx.execute(sql`
         UPDATE team_settings SET roles = (
           SELECT coalesce(jsonb_agg(
-            CASE WHEN elem->>'name' = 'Coach' AND NOT (elem ? 'excludeFromCaps')
-                 THEN jsonb_set(elem, '{excludeFromCaps}', 'true')
-                 ELSE elem END
+            CASE
+              WHEN elem ? 'capExempt' AND NOT (elem ? 'excludeFromCaps')
+                THEN jsonb_set(elem - 'capExempt', '{excludeFromCaps}', elem->'capExempt')
+              WHEN elem->>'name' = 'Coach' AND NOT (elem ? 'excludeFromCaps')
+                THEN jsonb_set(elem, '{excludeFromCaps}', 'true')
+              ELSE elem
+            END
             ORDER BY ord), '[]'::jsonb)
           FROM jsonb_array_elements(team_settings.roles) WITH ORDINALITY AS t(elem, ord)
         )
         WHERE roles @> '[{"name":"Coach"}]'::jsonb
+           OR EXISTS (SELECT 1 FROM jsonb_array_elements(roles) e WHERE e ? 'capExempt')
       `);
     });
   }

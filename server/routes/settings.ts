@@ -61,6 +61,7 @@ const DEFAULT_DEPARTMENTS = [
   { name: 'Leadership', color: '#ef4444' },
 ];
 
+// hint: Structural change (rename/retype). Check callers of this entity.
 const DEFAULT_ROLES = [
   { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
   { name: 'Team Captain', tier: 'leadership' },
@@ -187,7 +188,7 @@ router.get("/settings/pwa-icon.png", async (req, res) => {
     const settings = await storage.getTeamSettings();
     const themeHex = (settings.themeColor as string) || '#dc2626';
     const logoUrl  = settings.logoUrl as string | null;
-    const teamNum  = (settings.teamNumber as number) || 10991;
+    const teamNum = req.query.team as string;
     const SIZE = 512;
     const c = hexToRgb(themeHex);
 

@@ -76,6 +76,7 @@ const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.
   </div>
 );
 
+// hint: Logic changed on both sides. Requires understanding intent of each change.
 const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUserId, users }) => {
   const { settings, setSettings } = useTeamSettings();
 

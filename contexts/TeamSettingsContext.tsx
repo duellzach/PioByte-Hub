@@ -10,7 +10,9 @@ export interface RoleSetting {
   tier: string;
   // This role doesn't count toward a calendar event's sign-up capacity —
   // e.g. a coach/mentor signing up for a fundraiser shouldn't fill or be
-  // blocked by a student cap.
+  // blocked by a student cap. Sign-ups from a user whose roles are ALL
+  // marked this way are never counted toward, or subject to, an event's
+  // capacity cap.
   excludeFromCaps?: boolean;
 }
 

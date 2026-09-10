@@ -135,15 +135,17 @@ router.post("/calendar/:id/signup", async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
     if (!(event as any).signupEnabled) return res.status(400).json({ error: "Sign-ups are not open for this event" });
 
-    // Respect capacity → waitlist when full (existing accepted signups). A
-    // coach/mentor (cap-exempt role) is always accepted outright — they
-    // neither count against the cap nor get stuck behind it.
+    // A cap-exempt user (e.g. a Coach) is always accepted immediately,
+    // regardless of whether the event has a cap or how full it is. Everyone
+    // else keeps the existing capacity → waitlist behavior.
     let status = "requested";
     const cap = (event as any).capacity as number | null;
     const requester = await storage.getUser(req.userId!);
     const exemptRoles = await getCapExemptRoleNames();
     const requesterExempt = isCapExemptRoles((requester as any)?.roles || [], exemptRoles);
-    if (cap != null && !requesterExempt) {
+    if (requesterExempt) {
+      status = "accepted";
+    } else if (cap != null) {
       const accepted = await storage.countAcceptedSignups(eventId, exemptRoles);
       if (accepted >= cap) status = "waitlisted";
     }

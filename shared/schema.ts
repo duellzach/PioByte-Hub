@@ -603,6 +603,7 @@ export const resources = pgTable("resources", {
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = typeof resources.$inferInsert;
 
+// hint: Logic changed on both sides. Requires understanding intent of each change.
 export const teamSettings = pgTable("team_settings", {
   id: serial("id").primaryKey(),
   teamNumber: integer("team_number").notNull().default(10991),
