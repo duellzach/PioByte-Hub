@@ -168,22 +168,27 @@ router.delete("/calendar/:id/signup", async (req, res) => {
   }
 });
 
-// Roster. Leadership sees everyone (enriched with names + clocked minutes for
-// this event); a member sees only their own row. An invite-only event's
-// roster is hidden entirely from anyone who isn't leadership, the creator, or
-// on the invite list — same visibility rule as the event itself.
+// Roster. Leadership AND the event's creator see everyone (enriched with
+// names + clocked minutes for this event) — a creator without a leadership
+// role still needs to know who's coming to their own event, even though they
+// can't manage sign-ups (accept/decline/check-in stay leadership-only, see
+// the PUT /signups/:id route below). Everyone else sees only their own row.
+// An invite-only event's roster is hidden entirely from anyone who isn't
+// leadership, the creator, or on the invite list — same visibility rule as
+// the event itself.
 router.get("/calendar/:id/signups", async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const event = await storage.getCalendarEvent(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if ((event as any).inviteOnly && !hasAnyRole(req.userRoles || [], LEADERSHIP_ALL) && event.createdBy !== req.userId) {
+    const isCreator = event.createdBy === req.userId;
+    if ((event as any).inviteOnly && !hasAnyRole(req.userRoles || [], LEADERSHIP_ALL) && !isCreator) {
       const invitees = await storage.getEventInviteeIds(eventId);
       if (!invitees.includes(req.userId!)) return res.status(404).json({ error: "Event not found" });
     }
     const leadership = isLeadership(req.userRoles);
     let signups = await storage.getEventSignups(eventId);
-    if (!leadership) signups = signups.filter((s) => s.userId === req.userId);
+    if (!leadership && !isCreator) signups = signups.filter((s) => s.userId === req.userId);
 
     const allUsers = await storage.getUsers();
     const userMap = new Map(allUsers.map((u) => [u.id, u.name]));

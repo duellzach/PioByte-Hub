@@ -874,6 +874,10 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         const style = getTypeStyle(ev as CalendarEvent);
         const isRecurring = isRecurringInstance(ev);
         const evStart = getEventStartDate(ev);
+        // A non-leadership creator can still see who's signed up for their own
+        // event (read-only — accept/decline/check-in stay leadership-only).
+        const isEventCreator = !!currentUser && parseInt(currentUser.id) === ev.createdBy;
+        const canViewRoster = isCoachOrCaptain || isEventCreator;
         return (
           <div
             id="chip-popover"
@@ -945,7 +949,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                       </span>
                     </div>
                   )}
-                  {isCoachOrCaptain ? (
+                  {canViewRoster ? (
                     <button onClick={() => { setRosterEvent({ id: ev.id, title: ev.title, startDate: (ev as any)._instanceDate ?? ev.startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
                   ) : (
                     <button
