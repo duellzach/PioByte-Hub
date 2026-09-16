@@ -84,6 +84,17 @@ async function initializeDatabase() {
   } catch (e) {
     console.warn("Auto-seed skipped:", e);
   }
+
+  // Must exist before the server accepts any traffic — calendar/upcoming
+  // routes query event_shifts and event_signups.shift_id unconditionally,
+  // so running this in the app.listen() callback (like most other ensure*
+  // migrations) would let early requests 500 against missing objects.
+  try {
+    await storage.ensureEventShiftsTable();
+    await storage.ensureSignupShiftIdColumn();
+  } catch (e) {
+    console.error("Event shifts migration failed — shift signup routes will error until this is fixed:", e);
+  }
 }
 
 const app = express();

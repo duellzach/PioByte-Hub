@@ -7,6 +7,16 @@ import EventRosterModal from './EventRosterModal';
 import UserMultiSelect from './UserMultiSelect';
 import { CATEGORY_STYLES, HOUR_CATEGORIES } from './hourCategoryStyles';
 
+interface EventShift {
+  id: number;
+  calendarEventId: number;
+  title: string;
+  startTime: string;
+  endTime: string;
+  capacity: number | null;
+  acceptedCount?: number;
+}
+
 interface CalendarEvent {
   id: number;
   title: string;
@@ -29,6 +39,7 @@ interface CalendarEvent {
   signupEnabled?: boolean;
   capacity?: number | null;
   acceptedCount?: number;
+  shifts?: EventShift[];
   inviteOnly?: boolean;
   comments?: { id: string; userId: number; text: string; timestamp: number }[];
 }
@@ -72,6 +83,7 @@ const EMPTY_FORM = {
   attending: true,
   signupEnabled: true,
   capacity: '',
+  shifts: [] as { id?: number; title: string; startTime: string; endTime: string; capacity: string }[],
   inviteOnly: false,
   invitees: [] as (number | string)[],
 };
@@ -150,6 +162,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string; startDate: string } | null>(null);
   const [signupBusy, setSignupBusy] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
+  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
   const [commentText, setCommentText] = useState('');
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState('');
@@ -207,6 +220,13 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   }, [chipPopover]);
 
   useEffect(() => { setCommentText(''); setCommentError(''); }, [chipPopover?.event.id]);
+  useEffect(() => {
+    setSignupBusy(false);
+    setSignupDone(false);
+    const ev = chipPopover?.event as CalendarEvent | undefined;
+    const openShift = ev?.shifts?.find(s => s.capacity == null || (s.acceptedCount ?? 0) < s.capacity);
+    setSelectedShiftId((openShift ?? ev?.shifts?.[0])?.id ?? null);
+  }, [chipPopover?.event.id]);
 
   const handlePostComment = async (eventId: number) => {
     const text = commentText.trim();
@@ -361,6 +381,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       attending: ev.attending !== false,
       signupEnabled: ev.signupEnabled === true,
       capacity: (ev as any).capacity != null ? String((ev as any).capacity) : '',
+      shifts: (ev.shifts || []).map(s => ({ id: s.id, title: s.title, startTime: s.startTime, endTime: s.endTime, capacity: s.capacity != null ? String(s.capacity) : '' })),
       inviteOnly: !!ev.inviteOnly,
       invitees: [],
     });
@@ -380,6 +401,11 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     if (form.recurrenceType === 'weekly' && !form.recurrenceEndsOn) { setError('Ends-on date is required for weekly recurrence'); return; }
     if (form.recurrenceType === 'weekly' && form.recurrenceEndsOn < form.startDate) { setError('Ends-on must be after the start date'); return; }
     if (form.recurrenceType === 'weekly' && form.recurrenceDays.length === 0) { setError('Select at least one day of the week'); return; }
+    if (form.signupEnabled && form.shifts.length > 0) {
+      for (const s of form.shifts) {
+        if (!s.title.trim() || !s.startTime || !s.endTime) { setError('Each shift needs a name, start time, and end time'); return; }
+      }
+    }
     setSaving(true);
     setError('');
     try {
@@ -398,6 +424,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         recurrenceDays: form.recurrenceType === 'weekly' ? JSON.stringify([...form.recurrenceDays].sort()) : null,
         signupEnabled: form.signupEnabled,
         capacity: form.signupEnabled && form.capacity.trim() ? parseInt(form.capacity, 10) : null,
+        shifts: form.signupEnabled ? form.shifts.map(s => ({ id: s.id, title: s.title.trim(), startTime: s.startTime, endTime: s.endTime, capacity: s.capacity.trim() || null })) : [],
         inviteOnly: form.inviteOnly,
         invitees: form.inviteOnly ? form.invitees : [],
       };
@@ -1016,7 +1043,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   own, so keep roster actions on persisted events/overrides only. */}
               {ev.signupEnabled && !isRecurring && (
                 <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700 space-y-2">
-                  {ev.capacity != null && (
+                  {(!ev.shifts || ev.shifts.length === 0) && ev.capacity != null && (
                     <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
                       <span className="text-slate-400 dark:text-slate-500">Spots</span>
                       <span className={`${(ev.acceptedCount ?? 0) >= ev.capacity ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
@@ -1027,6 +1054,38 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   )}
                   {canViewRoster ? (
                     <button onClick={() => { setRosterEvent({ id: ev.id, title: ev.title, startDate: (ev as any)._instanceDate ?? ev.startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
+                  ) : ev.shifts && ev.shifts.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {ev.shifts.map(shift => {
+                        const full = shift.capacity != null && (shift.acceptedCount ?? 0) >= shift.capacity;
+                        return (
+                          <label key={shift.id} className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer">
+                            <input
+                              type="radio"
+                              name="shift-select"
+                              checked={selectedShiftId === shift.id}
+                              onChange={() => setSelectedShiftId(shift.id)}
+                              className="accent-teamColor"
+                            />
+                            <span className="flex-1 text-[10px] font-bold text-slate-700 dark:text-slate-200">
+                              {shift.title} <span className="text-slate-400 font-medium">· {shift.startTime}–{shift.endTime}</span>
+                            </span>
+                            {shift.capacity != null && (
+                              <span className={`text-[9px] font-black uppercase ${full ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                {shift.acceptedCount ?? 0}/{shift.capacity}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                      <button
+                        onClick={async () => { if (!selectedShiftId) return; setSignupBusy(true); try { await api.events.signup(ev.id, selectedShiftId); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
+                        disabled={signupBusy || signupDone || !selectedShiftId}
+                        className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 disabled:opacity-60"
+                      >
+                        {signupDone ? 'Signed up ✓' : signupBusy ? '…' : 'Sign Up'}
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={async () => { setSignupBusy(true); try { await api.events.signup(ev.id); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
@@ -1320,16 +1379,71 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               {form.signupEnabled && (
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
-                    Signup Limit <span className="font-medium normal-case text-slate-400">— leave blank for unlimited</span>
+                    Signup Limit <span className="font-medium normal-case text-slate-400">— leave blank for unlimited{form.shifts.length > 0 ? ', ignored while shifts are defined below' : ''}</span>
                   </label>
                   <input
                     type="number"
                     min="1"
                     value={form.capacity}
                     onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
+                    disabled={form.shifts.length > 0}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm disabled:opacity-50"
                     placeholder="e.g. 10"
                   />
+                </div>
+              )}
+
+              {form.signupEnabled && (
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                    Shifts <span className="font-medium normal-case text-slate-400">— optional, let people sign up for a specific time block instead of the whole event</span>
+                  </label>
+                  <div className="space-y-2">
+                    {form.shifts.map((shift, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl p-2">
+                        <input
+                          value={shift.title}
+                          onChange={e => setForm(f => ({ ...f, shifts: f.shifts.map((s, i) => i === idx ? { ...s, title: e.target.value } : s) }))}
+                          placeholder="Shift name"
+                          className="flex-1 min-w-0 px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-teamColor dark:text-white text-xs font-medium"
+                        />
+                        <input
+                          type="time"
+                          value={shift.startTime}
+                          onChange={e => setForm(f => ({ ...f, shifts: f.shifts.map((s, i) => i === idx ? { ...s, startTime: e.target.value } : s) }))}
+                          className="w-[6.5rem] px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-teamColor dark:text-white text-xs font-medium"
+                        />
+                        <input
+                          type="time"
+                          value={shift.endTime}
+                          onChange={e => setForm(f => ({ ...f, shifts: f.shifts.map((s, i) => i === idx ? { ...s, endTime: e.target.value } : s) }))}
+                          className="w-[6.5rem] px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-teamColor dark:text-white text-xs font-medium"
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          value={shift.capacity}
+                          onChange={e => setForm(f => ({ ...f, shifts: f.shifts.map((s, i) => i === idx ? { ...s, capacity: e.target.value } : s) }))}
+                          placeholder="Cap"
+                          className="w-14 px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-teamColor dark:text-white text-xs font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, shifts: f.shifts.filter((_, i) => i !== idx) }))}
+                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, shifts: [...f.shifts, { title: '', startTime: f.startTime || '', endTime: f.endTime || '', capacity: '' }] }))}
+                      className="w-full py-2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-1"
+                    >
+                      <Plus size={11} /> Add Shift
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -135,21 +135,45 @@ router.post("/calendar/:id/signup", async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
     if (!(event as any).signupEnabled) return res.status(400).json({ error: "Sign-ups are not open for this event" });
 
+    // An invite-only event can't be signed up for by someone who can't even
+    // see it — otherwise guessing an event ID would let anyone sign up and
+    // (since invite visibility is derived from having a signup row) grant
+    // themselves access to a private event's details and roster. Same rule
+    // as the event's own visibility check (server/services/eventVisibility.ts)
+    // and the roster route below.
+    const isCreator = event.createdBy === req.userId;
+    if ((event as any).inviteOnly && !hasAnyRole(req.userRoles || [], LEADERSHIP_ALL) && !isCreator) {
+      const invitees = await storage.getEventInviteeIds(eventId);
+      if (!invitees.includes(req.userId!)) return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Shift-based events require picking a specific shift instead of
+    // signing up for the event as a whole — capacity/waitlisting is then
+    // computed per shift, not per event.
+    const shifts = await storage.getEventShifts(eventId);
+    let shift: import("../../shared/schema").EventShift | undefined;
+    if (shifts.length > 0) {
+      const shiftId = req.body?.shiftId != null ? parseInt(req.body.shiftId) : NaN;
+      if (Number.isNaN(shiftId)) return res.status(400).json({ error: "Select a shift to sign up for" });
+      shift = shifts.find((s) => s.id === shiftId);
+      if (!shift) return res.status(400).json({ error: "Invalid shift for this event" });
+    }
+
     // A cap-exempt user (e.g. a Coach) is always accepted immediately,
-    // regardless of whether the event has a cap or how full it is. Everyone
-    // else keeps the existing capacity → waitlist behavior.
+    // regardless of whether the event/shift has a cap or how full it is.
+    // Everyone else keeps the existing capacity → waitlist behavior.
     let status = "requested";
-    const cap = (event as any).capacity as number | null;
+    const cap = shift ? shift.capacity : ((event as any).capacity as number | null);
     const requester = await storage.getUser(req.userId!);
     const exemptRoles = await getCapExemptRoleNames();
     const requesterExempt = isCapExemptRoles((requester as any)?.roles || [], exemptRoles);
     if (requesterExempt) {
       status = "accepted";
     } else if (cap != null) {
-      const accepted = await storage.countAcceptedSignups(eventId, exemptRoles);
+      const accepted = await storage.countAcceptedSignups(eventId, exemptRoles, shift?.id);
       if (accepted >= cap) status = "waitlisted";
     }
-    const signup = await storage.upsertEventSignup(eventId, req.userId!, status);
+    const signup = await storage.upsertEventSignup(eventId, req.userId!, status, shift?.id ?? null);
     res.status(201).json(signup);
   } catch (error) {
     console.error("Error signing up for event:", error);
@@ -217,13 +241,31 @@ router.get("/calendar/:id/signups", async (req, res) => {
 });
 
 // Leadership accepts / declines / waitlists a signup.
+// Leadership accepts/declines/waitlists a signup and/or reassigns it to a
+// different shift on the same event (e.g. moving someone between shifts).
 router.put("/signups/:id", requireRoles(...LEADERSHIP), async (req, res) => {
   try {
-    const { status } = req.body;
-    if (!["requested", "accepted", "declined", "waitlisted"].includes(status)) {
+    const { status, shiftId } = req.body;
+    if (status !== undefined && !["requested", "accepted", "declined", "waitlisted"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
-    const updated = await storage.setEventSignupStatus(parseInt(req.params.id), status, req.userId!);
+    const id = parseInt(req.params.id);
+    let updated: EventSignup | undefined;
+    if (status !== undefined) {
+      updated = await storage.setEventSignupStatus(id, status, req.userId!);
+      if (!updated) return res.status(404).json({ error: "Signup not found" });
+    }
+    if (shiftId !== undefined) {
+      const signup = updated ?? await storage.getEventSignupById(id);
+      if (!signup) return res.status(404).json({ error: "Signup not found" });
+      if (shiftId !== null) {
+        const shift = await storage.getEventShift(parseInt(shiftId));
+        if (!shift || shift.calendarEventId !== signup.calendarEventId) {
+          return res.status(400).json({ error: "Invalid shift for this event" });
+        }
+      }
+      updated = await storage.updateSignupShift(id, shiftId !== null ? parseInt(shiftId) : null);
+    }
     if (!updated) return res.status(404).json({ error: "Signup not found" });
     res.json(updated);
   } catch (error) {
@@ -321,6 +363,7 @@ router.get("/me/upcoming", async (req, res) => {
     const today = localDatePT(new Date(), await getTeamTimezone());
     const mySignups = await storage.getUserSignups(req.userId!);
     const statusByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.status]));
+    const shiftByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.shiftId]));
     const allEvents = await storage.getCalendarEvents();
     const events = await filterVisibleEvents(allEvents, req.userId!, req.userRoles || []);
     const filtered = events
@@ -330,14 +373,17 @@ router.get("/me/upcoming", async (req, res) => {
 
     const exemptRoles = await getCapExemptRoleNames();
     const upcoming = await Promise.all(filtered.map(async (e) => {
+      const shifts = await storage.getEventShiftsWithCounts(e.id, exemptRoles);
       const cap = (e as any).capacity as number | null;
-      const acceptedCount = cap != null ? await storage.countAcceptedSignups(e.id, exemptRoles) : null;
+      const acceptedCount = shifts.length === 0 && cap != null ? await storage.countAcceptedSignups(e.id, exemptRoles) : null;
       return {
         id: e.id, title: e.title, type: e.type, startDate: e.startDate, endDate: e.endDate,
         startTime: e.startTime, location: e.location,
         myStatus: statusByEvent.get(e.id) || null,
+        myShiftId: shiftByEvent.get(e.id) ?? null,
         capacity: cap,
         acceptedCount,
+        shifts,
       };
     }));
     res.json(upcoming);

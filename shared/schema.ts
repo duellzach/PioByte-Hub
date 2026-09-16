@@ -595,6 +595,23 @@ export const calendarEvents = pgTable("calendar_events", {
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
 
+// A time block within a signup-enabled event that students sign up for
+// individually (e.g. a long competition day split into morning/afternoon
+// shifts) instead of the whole event at once. Opt-in per event — an event
+// with no rows here keeps the old event-wide capacity/sign-up behavior.
+export const eventShifts = pgTable("event_shifts", {
+  id: serial("id").primaryKey(),
+  calendarEventId: integer("calendar_event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  capacity: integer("capacity"), // null = unlimited
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type EventShift = typeof eventShifts.$inferSelect;
+export type InsertEventShift = typeof eventShifts.$inferInsert;
+
 export const resources = pgTable("resources", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -741,6 +758,11 @@ export const eventSignups = pgTable("event_signups", {
   id: serial("id").primaryKey(),
   calendarEventId: integer("calendar_event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Which shift of the event this sign-up is for, when the event has shifts
+  // defined. Null on events without shifts, and set back to null (rather than
+  // cascading the delete) if the shift itself is later removed, so the
+  // person's sign-up history on the event isn't lost.
+  shiftId: integer("shift_id").references(() => eventShifts.id, { onDelete: "set null" }),
   status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted | invited
   approvedBy: integer("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at", { withTimezone: true }),

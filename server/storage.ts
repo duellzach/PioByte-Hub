@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
 import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
@@ -32,7 +32,7 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
   if (row.data && typeof row.data === "object" && Object.keys(row.data).length > 0) return row;
   return { ...row, data: dataFromLegacyRow(kind, row) };
 }
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, EventShift, InsertEventShift, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import { isCapExemptRoles } from "../shared/roles";
@@ -280,6 +280,16 @@ export interface IStorage {
   addCalendarEventComment(eventId: number, userId: number, text: string): Promise<CalendarEvent | undefined>;
   deleteCalendarEventComment(eventId: number, commentId: string): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
+
+  // Event shifts — opt-in per-event time blocks students sign up for individually.
+  getEventShifts(calendarEventId: number): Promise<EventShift[]>;
+  getEventShift(id: number): Promise<EventShift | undefined>;
+  getEventShiftsWithCounts(calendarEventId: number, excludeRoles?: string[]): Promise<(EventShift & { acceptedCount: number })[]>;
+  createEventShift(data: InsertEventShift): Promise<EventShift>;
+  updateEventShift(id: number, data: Partial<InsertEventShift>): Promise<EventShift | undefined>;
+  deleteEventShift(id: number): Promise<void>;
+  ensureEventShiftsTable(): Promise<void>;
+  ensureSignupShiftIdColumn(): Promise<void>;
   backfillNexusEventKeys(): Promise<void>;
   backfillOutreachHours(): Promise<void>;
   seedCalendarEvents(createdBy: number): Promise<void>;
@@ -2474,23 +2484,74 @@ export class DatabaseStorage implements IStorage {
    * role is in that set, so a coach/mentor sign-up never fills or blocks a
    * student's spot.
    */
-  async countAcceptedSignups(calendarEventId: number, excludeRoles: string[] = []): Promise<number> {
+  async countAcceptedSignups(calendarEventId: number, excludeRoles: string[] = [], shiftId?: number): Promise<number> {
+    const conditions = [eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')];
+    if (shiftId != null) conditions.push(eq(eventSignups.shiftId, shiftId));
     if (excludeRoles.length === 0) {
-      const rows = await db.select().from(eventSignups)
-        .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')));
+      const rows = await db.select().from(eventSignups).where(and(...conditions));
       return rows.length;
     }
     const rows = await db.select({ roles: users.roles }).from(eventSignups)
       .innerJoin(users, eq(eventSignups.userId, users.id))
-      .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.status, 'accepted')));
+      .where(and(...conditions));
     return rows.filter((r) => !isCapExemptRoles(r.roles || [], excludeRoles)).length;
   }
-  async upsertEventSignup(calendarEventId: number, userId: number, status: string): Promise<EventSignup> {
+  async upsertEventSignup(calendarEventId: number, userId: number, status: string, shiftId: number | null = null): Promise<EventSignup> {
     const [row] = await db.insert(eventSignups)
-      .values({ calendarEventId, userId, status })
-      .onConflictDoUpdate({ target: [eventSignups.calendarEventId, eventSignups.userId], set: { status } })
+      .values({ calendarEventId, userId, status, shiftId })
+      .onConflictDoUpdate({ target: [eventSignups.calendarEventId, eventSignups.userId], set: { status, shiftId } })
       .returning();
     return row;
+  }
+  async updateSignupShift(id: number, shiftId: number | null): Promise<EventSignup | undefined> {
+    const [row] = await db.update(eventSignups).set({ shiftId }).where(eq(eventSignups.id, id)).returning();
+    return row;
+  }
+
+  // --- Event shifts ---
+  async getEventShifts(calendarEventId: number): Promise<EventShift[]> {
+    return db.select().from(eventShifts).where(eq(eventShifts.calendarEventId, calendarEventId)).orderBy(eventShifts.startTime);
+  }
+  async getEventShift(id: number): Promise<EventShift | undefined> {
+    const [row] = await db.select().from(eventShifts).where(eq(eventShifts.id, id));
+    return row;
+  }
+  async getEventShiftsWithCounts(calendarEventId: number, excludeRoles: string[] = []): Promise<(EventShift & { acceptedCount: number })[]> {
+    const shifts = await this.getEventShifts(calendarEventId);
+    return Promise.all(shifts.map(async (s) => ({ ...s, acceptedCount: await this.countAcceptedSignups(calendarEventId, excludeRoles, s.id) })));
+  }
+  async createEventShift(data: InsertEventShift): Promise<EventShift> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.insert(eventShifts).values(sanitized).returning();
+    return row;
+  }
+  async updateEventShift(id: number, data: Partial<InsertEventShift>): Promise<EventShift | undefined> {
+    const sanitized: any = { ...data };
+    delete sanitized.id;
+    delete sanitized.createdAt;
+    const [row] = await db.update(eventShifts).set(sanitized).where(eq(eventShifts.id, id)).returning();
+    return row;
+  }
+  async deleteEventShift(id: number): Promise<void> {
+    await db.delete(eventShifts).where(eq(eventShifts.id, id));
+  }
+  async ensureEventShiftsTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS event_shifts (
+        id SERIAL PRIMARY KEY,
+        calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        capacity INTEGER,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+  async ensureSignupShiftIdColumn(): Promise<void> {
+    await db.execute(sql`ALTER TABLE event_signups ADD COLUMN IF NOT EXISTS shift_id INTEGER REFERENCES event_shifts(id) ON DELETE SET NULL`);
   }
   async setEventSignupStatus(id: number, status: string, approvedBy: number): Promise<EventSignup | undefined> {
     const [row] = await db.update(eventSignups)
@@ -2498,7 +2559,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(eventSignups.id, id)).returning();
     return row;
   }
+  /**
+   * Withdraw a user's own sign-up. If they originally got in via an invite
+   * (invitedAt/invitedBy is set), revert the row to "invited" instead of
+   * deleting it outright — otherwise, on an invite-only event, withdrawing
+   * would erase the only record that they're allowed to see/rejoin the
+   * event at all, permanently locking them out until re-invited.
+   */
   async deleteEventSignup(calendarEventId: number, userId: number): Promise<void> {
+    const existing = await this.getEventSignup(calendarEventId, userId);
+    if (existing && existing.invitedAt) {
+      await db.update(eventSignups)
+        .set({ status: 'invited', shiftId: null, approvedBy: null, approvedAt: null })
+        .where(eq(eventSignups.id, existing.id));
+      return;
+    }
     await db.delete(eventSignups)
       .where(and(eq(eventSignups.calendarEventId, calendarEventId), eq(eventSignups.userId, userId)));
   }

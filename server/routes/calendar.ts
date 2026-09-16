@@ -15,10 +15,11 @@ router.get("/calendar", async (req, res) => {
     const visible = await filterVisibleEvents(events, req.userId!, roles);
     const exemptRoles = await getCapExemptRoleNames();
     const enriched = await Promise.all(visible.map(async (e) => {
+      const shifts = (e as any).signupEnabled ? await storage.getEventShiftsWithCounts(e.id, exemptRoles) : [];
       const cap = (e as any).capacity as number | null;
-      if (cap == null) return e;
+      if (cap == null) return { ...e, shifts };
       const acceptedCount = await storage.countAcceptedSignups(e.id, exemptRoles);
-      return { ...e, acceptedCount };
+      return { ...e, shifts, acceptedCount };
     }));
     res.json(enriched);
   } catch (error) {
@@ -74,9 +75,37 @@ async function applyInvites(eventId: number, eventTitle: string, invitees: numbe
   }).catch((e) => console.error("sendPushToUsers (invite):", e));
 }
 
+// Creates/updates/deletes an event's shift rows to match the desired list
+// (each item optionally carrying its own `id` to update in place — new rows
+// omit it). Mirrors applyInvites' diff-by-id approach above. Undefined
+// `shifts` (a caller that doesn't know about shifts) leaves existing rows
+// untouched; an explicit empty array clears them.
+async function applyShifts(eventId: number, shifts: any[] | undefined) {
+  if (!Array.isArray(shifts)) return;
+  const existing = await storage.getEventShifts(eventId);
+  const existingIds = new Set(existing.map((s) => s.id));
+  const keepIds = new Set<number>();
+  for (const s of shifts) {
+    const title = String(s?.title || "").trim();
+    const startTime = s?.startTime || "";
+    const endTime = s?.endTime || "";
+    if (!title || !startTime || !endTime) continue; // skip incomplete rows
+    const capacity = s?.capacity != null && s.capacity !== "" ? parseInt(s.capacity, 10) : null;
+    const data = { calendarEventId: eventId, title, startTime, endTime, capacity };
+    if (s?.id && existingIds.has(parseInt(s.id))) {
+      const updated = await storage.updateEventShift(parseInt(s.id), data);
+      if (updated) keepIds.add(updated.id);
+    } else {
+      const created = await storage.createEventShift(data);
+      keepIds.add(created.id);
+    }
+  }
+  await Promise.all(existing.filter((s) => !keepIds.has(s.id)).map((s) => storage.deleteEventShift(s.id)));
+}
+
 router.post("/calendar", async (req, res) => {
   try {
-    const { requesterId, invitees, ...data } = req.body;
+    const { requesterId, invitees, shifts, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
@@ -90,6 +119,9 @@ router.post("/calendar", async (req, res) => {
     if (data.inviteOnly) {
       await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
     }
+    if (data.signupEnabled) {
+      await applyShifts(event.id, shifts);
+    }
     res.status(201).json(event);
   } catch (error) {
     console.error("Error creating calendar event:", error);
@@ -100,7 +132,7 @@ router.post("/calendar", async (req, res) => {
 router.put("/calendar/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { requesterId, invitees, ...data } = req.body;
+    const { requesterId, invitees, shifts, ...data } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
     const actorRoles = await getUserRoles(parseInt(requesterId));
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
@@ -110,6 +142,9 @@ router.put("/calendar/:id", async (req, res) => {
     if (!event) return res.status(404).json({ error: "Calendar event not found" });
     if (event.inviteOnly) {
       await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
+    }
+    if (shifts !== undefined) {
+      await applyShifts(id, event.signupEnabled ? shifts : []);
     }
     res.json(event);
   } catch (error) {
@@ -144,6 +179,25 @@ async function canViewEvent(event: { id: number; inviteOnly: boolean; createdBy:
   const invitees = await storage.getEventInviteeIds(event.id);
   return invitees.includes(userId);
 }
+
+// Shifts for a signup-enabled event, with per-shift accepted counts — used
+// both by the sign-up UI (to pick a shift) and the roster view (to group by
+// shift). Same visibility rule as the event itself.
+router.get("/calendar/:id/shifts", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const event = await storage.getCalendarEvent(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const roles = req.userId ? await getUserRoles(req.userId) : [];
+    if (!(await canViewEvent(event, req.userId!, roles))) return res.status(404).json({ error: "Event not found" });
+    const exemptRoles = await getCapExemptRoleNames();
+    const shifts = await storage.getEventShiftsWithCounts(id, exemptRoles);
+    res.json(shifts);
+  } catch (error) {
+    console.error("Error fetching shifts:", error);
+    res.status(500).json({ error: "Failed to fetch shifts" });
+  }
+});
 
 router.post("/calendar/:id/comments", async (req, res) => {
   try {

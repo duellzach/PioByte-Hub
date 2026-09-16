@@ -51,6 +51,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
 
   const [tab, setTab] = useState<'roster' | 'attendance'>('roster');
   const [roster, setRoster] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [walkinSearch, setWalkinSearch] = useState('');
@@ -62,14 +63,21 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   const load = async () => {
     setLoading(true);
     try {
-      const [r, u] = await Promise.all([
+      const [r, sh, u] = await Promise.all([
         api.events.roster(eventId),
+        api.events.shifts(eventId).catch(() => []),
         isCoach ? api.users.getAll() : Promise.resolve([]),
       ]);
       setRoster(r);
+      setShifts(sh);
       setAllUsers((u as any[]).filter((u: any) => !u.archived));
     } catch { setRoster([]); }
     finally { setLoading(false); }
+  };
+
+  const setShift = async (signupId: number, shiftId: number | null) => {
+    await api.events.setSignupShift(signupId, shiftId).catch(() => {});
+    await load();
   };
 
   useEffect(() => { load(); }, [eventId]);
@@ -199,8 +207,8 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
             roster.length === 0 ? (
               <p className="text-center text-xs text-slate-400 font-bold uppercase tracking-widest py-8">No sign-ups yet</p>
             ) : (
-              <div className="space-y-2">
-                {roster.map((s) => {
+              (() => {
+                const renderRow = (s: any) => {
                   const st = STATUS[s.status] || STATUS.requested;
                   return (
                     <div key={s.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl">
@@ -218,6 +226,16 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                           Doesn't count toward cap
                         </span>
                       )}
+                      {isCoach && shifts.length > 0 && (
+                        <select
+                          value={s.shiftId ?? ''}
+                          onChange={(e) => setShift(s.id, e.target.value ? parseInt(e.target.value) : null)}
+                          className="text-[10px] font-bold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-1.5 py-1 text-slate-600 dark:text-slate-300"
+                        >
+                          <option value="">Unassigned</option>
+                          {shifts.map((sh) => <option key={sh.id} value={sh.id}>{sh.title}</option>)}
+                        </select>
+                      )}
                       <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>
                       {isCoach && s.status !== 'accepted' && (
                         <button onClick={() => setStatus(s.id, 'accepted')} title="Accept"
@@ -233,8 +251,43 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                       )}
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                if (shifts.length === 0) {
+                  return <div className="space-y-2">{roster.map(renderRow)}</div>;
+                }
+
+                const unassigned = roster.filter((s) => !s.shiftId);
+                return (
+                  <div className="space-y-4">
+                    {shifts.map((sh) => {
+                      const rows = roster.filter((s) => s.shiftId === sh.id);
+                      const full = sh.capacity != null && sh.acceptedCount >= sh.capacity;
+                      return (
+                        <div key={sh.id}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{sh.title} · {sh.startTime}–{sh.endTime}</p>
+                            {sh.capacity != null && (
+                              <span className={`text-[9px] font-black uppercase ${full ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{sh.acceptedCount}/{sh.capacity}</span>
+                            )}
+                          </div>
+                          {rows.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 font-bold py-1.5">No sign-ups yet</p>
+                          ) : (
+                            <div className="space-y-2">{rows.map(renderRow)}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {unassigned.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Unassigned</p>
+                        <div className="space-y-2">{unassigned.map(renderRow)}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             )
 
           ) : (

@@ -101,10 +101,12 @@ export const api = {
       ),
   },
   events: {
-    signup: (eventId: number) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST' }),
+    signup: (eventId: number, shiftId?: number) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST', body: JSON.stringify({ shiftId }) }),
     withdraw: (eventId: number) => apiRequest<void>(`/calendar/${eventId}/signup`, { method: 'DELETE' }),
     roster: (eventId: number) => apiRequest<any[]>(`/calendar/${eventId}/signups`),
+    shifts: (eventId: number) => apiRequest<any[]>(`/calendar/${eventId}/shifts`),
     setSignupStatus: (signupId: number, status: string) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    setSignupShift: (signupId: number, shiftId: number | null) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ shiftId }) }),
     myUpcoming: () => apiRequest<any[]>('/me/upcoming'),
     clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
     archive: (eventId: number, archived: boolean) =>
