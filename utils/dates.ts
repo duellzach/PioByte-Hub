@@ -147,12 +147,38 @@ interface RecurringEventShape {
   recurrenceEndsOn?: string | null;
   parentEventId?: number | null;
   deletedDates?: string | null;
+  recurrenceDays?: string | null;
+}
+
+/** Weekday numbers (0=Sun..6=Sat) a weekly recurrence repeats on, falling back
+ *  to the start date's own weekday for rows created before multi-day support. */
+export function parseRecurrenceDays(ev: Pick<RecurringEventShape, 'startDate' | 'recurrenceDays'>): number[] {
+  if (ev.recurrenceDays) {
+    try {
+      const parsed = JSON.parse(ev.recurrenceDays);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch { /* fall through to default */ }
+  }
+  return [parseLocalDate(ev.startDate).getDay()];
+}
+
+/** First date on or after `startDate` whose weekday is in `recurrenceDays` (or
+ *  `startDate` itself if it already matches) — the true RFC 5545 DTSTART for a
+ *  weekly series whose first selected weekday isn't the row's own startDate. */
+export function firstRecurrenceOccurrence(ev: Pick<RecurringEventShape, 'startDate' | 'recurrenceDays'>): string {
+  const days = new Set(parseRecurrenceDays(ev));
+  let cur = parseLocalDate(ev.startDate);
+  for (let i = 0; i < 7; i++) {
+    if (days.has(cur.getDay())) return cur.toISOString().slice(0, 10);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return ev.startDate; // unreachable given a non-empty day set, but keeps a safe fallback
 }
 
 /**
  * Whether an event covers `date`. Weekly recurrences are stored as a single row
- * (start date + an ends-on date) and expanded on read, so a recurring meeting
- * that began months ago still occurs today.
+ * (start date + an ends-on date + a set of weekdays) and expanded on read, so a
+ * recurring meeting that began months ago still occurs today.
  */
 export function eventOccursOn(ev: RecurringEventShape, date: string): boolean {
   if (ev.recurrenceType === 'weekly' && ev.recurrenceEndsOn && !ev.parentEventId) {
@@ -162,11 +188,8 @@ export function eventOccursOn(ev: RecurringEventShape, date: string): boolean {
       try { deleted = JSON.parse(ev.deletedDates); } catch { deleted = []; }
     }
     if (Array.isArray(deleted) && deleted.includes(date)) return false;
-    // Same weekday cadence as the first occurrence.
-    const start = parseLocalDate(ev.startDate);
-    const target = parseLocalDate(date);
-    const days = Math.round((target.getTime() - start.getTime()) / 86400000);
-    return days >= 0 && days % 7 === 0;
+    const days = parseRecurrenceDays(ev);
+    return days.includes(parseLocalDate(date).getDay());
   }
   return ev.startDate <= date && (ev.endDate || ev.startDate) >= date;
 }

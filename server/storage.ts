@@ -276,6 +276,7 @@ export interface IStorage {
   deleteCalendarEvent(id: number): Promise<void>;
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   ensureCalendarCommentsColumn(): Promise<void>;
+  ensureRecurrenceDaysColumn(): Promise<void>;
   addCalendarEventComment(eventId: number, userId: number, text: string): Promise<CalendarEvent | undefined>;
   deleteCalendarEventComment(eventId: number, commentId: string): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
@@ -1717,6 +1718,10 @@ export class DatabaseStorage implements IStorage {
 
   async ensureCalendarCommentsColumn(): Promise<void> {
     await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS comments JSONB NOT NULL DEFAULT '[]'`);
+  }
+
+  async ensureRecurrenceDaysColumn(): Promise<void> {
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS recurrence_days TEXT`);
   }
 
   // Appends via a single atomic UPDATE (comments || new-element) instead of a

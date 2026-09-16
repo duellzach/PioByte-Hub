@@ -21,6 +21,7 @@ interface CalendarEvent {
   createdAt: string;
   recurrenceType?: string | null;
   recurrenceEndsOn?: string | null;
+  recurrenceDays?: string | null;
   parentEventId?: number | null;
   instanceDate?: string | null;
   deletedDates?: string | null;
@@ -67,6 +68,7 @@ const EMPTY_FORM = {
   location: '',
   recurrenceType: 'none',
   recurrenceEndsOn: '',
+  recurrenceDays: [] as number[],
   attending: true,
   signupEnabled: true,
   capacity: '',
@@ -79,10 +81,23 @@ function getTypeStyle(ev: CalendarEvent) {
   return TYPE_STYLES[ev.type] || TYPE_STYLES['other'];
 }
 
-function addWeeks(dateStr: string, weeks: number): string {
+function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
-  d.setDate(d.getDate() + weeks * 7);
+  d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** Weekday numbers (0=Sun..6=Sat) a weekly recurrence repeats on, falling
+ *  back to the start date's own weekday for rows created before multi-day
+ *  support — keeps existing single-day series behaving exactly as before. */
+function recurrenceDaysOf(ev: CalendarEvent): number[] {
+  if (ev.recurrenceDays) {
+    try {
+      const parsed = JSON.parse(ev.recurrenceDays);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch { /* fall through to default */ }
+  }
+  return [new Date(ev.startDate + 'T12:00:00').getDay()];
 }
 
 function expandRecurring(events: CalendarEvent[]): (CalendarEvent | VirtualInstance)[] {
@@ -97,15 +112,16 @@ function expandRecurring(events: CalendarEvent[]): (CalendarEvent | VirtualInsta
     if (ev.recurrenceType === 'weekly' && ev.recurrenceEndsOn && !ev.parentEventId) {
       const deleted: string[] = ev.deletedDates ? JSON.parse(ev.deletedDates) : [];
       const deletedSet = new Set(deleted);
+      const days = new Set(recurrenceDaysOf(ev));
       let cur = ev.startDate;
       const end = ev.recurrenceEndsOn;
       let iter = 0;
-      while (cur <= end && iter < 200) {
+      while (cur <= end && iter < 3660) {
         iter++;
-        if (!deletedSet.has(cur) && !exceptionDates.has(`${ev.id}::${cur}`)) {
+        if (days.has(new Date(cur + 'T12:00:00').getDay()) && !deletedSet.has(cur) && !exceptionDates.has(`${ev.id}::${cur}`)) {
           result.push({ ...ev, _isVirtual: true, _instanceDate: cur } as VirtualInstance);
         }
-        cur = addWeeks(cur, 1);
+        cur = addDays(cur, 1);
       }
     } else {
       result.push(ev);
@@ -341,6 +357,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       location: ev.location || '',
       recurrenceType: ev.recurrenceType || 'none',
       recurrenceEndsOn: ev.recurrenceEndsOn || '',
+      recurrenceDays: ev.recurrenceType === 'weekly' ? recurrenceDaysOf(ev) : [],
       attending: ev.attending !== false,
       signupEnabled: ev.signupEnabled === true,
       capacity: (ev as any).capacity != null ? String((ev as any).capacity) : '',
@@ -362,6 +379,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     if (form.endDate && form.endDate < form.startDate) { setError('End date cannot be before start date'); return; }
     if (form.recurrenceType === 'weekly' && !form.recurrenceEndsOn) { setError('Ends-on date is required for weekly recurrence'); return; }
     if (form.recurrenceType === 'weekly' && form.recurrenceEndsOn < form.startDate) { setError('Ends-on must be after the start date'); return; }
+    if (form.recurrenceType === 'weekly' && form.recurrenceDays.length === 0) { setError('Select at least one day of the week'); return; }
     setSaving(true);
     setError('');
     try {
@@ -377,6 +395,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
         attending: form.attending,
         recurrenceType: form.recurrenceType !== 'none' ? form.recurrenceType : null,
         recurrenceEndsOn: form.recurrenceType !== 'none' ? form.recurrenceEndsOn : null,
+        recurrenceDays: form.recurrenceType === 'weekly' ? JSON.stringify([...form.recurrenceDays].sort()) : null,
         signupEnabled: form.signupEnabled,
         capacity: form.signupEnabled && form.capacity.trim() ? parseInt(form.capacity, 10) : null,
         inviteOnly: form.inviteOnly,
@@ -1222,21 +1241,51 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     None
                   </button>
                   <button
-                    onClick={() => setForm(f => ({ ...f, recurrenceType: 'weekly' }))}
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      recurrenceType: 'weekly',
+                      recurrenceDays: f.recurrenceDays.length > 0 ? f.recurrenceDays : (f.startDate ? [new Date(f.startDate + 'T12:00:00').getDay()] : []),
+                    }))}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase transition-all ${form.recurrenceType === 'weekly' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'}`}
                   >
                     <RotateCcw size={9} /> Weekly
                   </button>
                 </div>
                 {form.recurrenceType === 'weekly' && (
-                  <div className="mt-2">
-                    <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Ends On *</label>
-                    <input
-                      type="date"
-                      value={form.recurrenceEndsOn}
-                      onChange={e => setForm(f => ({ ...f, recurrenceEndsOn: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
-                    />
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Repeats On *</label>
+                      <div className="flex gap-1">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, dayNum) => {
+                          const active = form.recurrenceDays.includes(dayNum);
+                          return (
+                            <button
+                              key={dayNum}
+                              type="button"
+                              onClick={() => setForm(f => ({
+                                ...f,
+                                recurrenceDays: f.recurrenceDays.includes(dayNum)
+                                  ? f.recurrenceDays.filter(d => d !== dayNum)
+                                  : [...f.recurrenceDays, dayNum],
+                              }))}
+                              className={`w-8 h-8 rounded-lg font-black text-[10px] uppercase transition-all ${active ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                              title={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayNum]}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Ends On *</label>
+                      <input
+                        type="date"
+                        value={form.recurrenceEndsOn}
+                        onChange={e => setForm(f => ({ ...f, recurrenceEndsOn: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium text-sm"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

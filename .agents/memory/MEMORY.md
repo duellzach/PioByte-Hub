@@ -1,2 +1,3 @@
 - [Competition attendance dates](competition-attendance-dates.md) — missing end dates mean one-day events; live attendance must use the event's date range, while history remains unfiltered.
 - [Cap-exempt (mentor/adult) roles](cap-exempt-roles.md) — event-capacity exemption requires ALL of a user's roles to be marked exempt, not just one; shared predicate is isCapExemptRoles in shared/roles.ts.
+- [Schema migration boot pattern](schema-migration-boot-pattern.md) — new columns need an ensure*() boot-time ALTER TABLE in server/storage.ts + server/index.ts, not just shared/schema.ts.

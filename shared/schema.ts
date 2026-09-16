@@ -572,6 +572,10 @@ export const calendarEvents = pgTable("calendar_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   recurrenceType: text("recurrence_type"),
   recurrenceEndsOn: text("recurrence_ends_on"),
+  // JSON array of weekday numbers (0=Sun..6=Sat) a weekly recurrence repeats
+  // on, e.g. "[2,4]" for Tue+Thu. Null on rows created before multi-day
+  // support — callers fall back to the single weekday of startDate.
+  recurrenceDays: text("recurrence_days"),
   parentEventId: integer("parent_event_id").references((): AnyPgColumn => calendarEvents.id, { onDelete: 'cascade' }),
   instanceDate: text("instance_date"),
   deletedDates: text("deleted_dates"),

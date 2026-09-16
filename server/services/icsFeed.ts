@@ -2,7 +2,7 @@ import ical, { ICalEventRepeatingFreq, ICalWeekday } from "ical-generator";
 import { getVtimezoneComponent } from "@touch4it/ical-timezones";
 import type { CalendarEvent } from "../../shared/schema";
 import { HOUR_CATEGORY_LABELS, isHourCategory } from "../../shared/hourCategories";
-import { parseLocalDate } from "../../utils/dates";
+import { parseLocalDate, parseRecurrenceDays, firstRecurrenceOccurrence } from "../../utils/dates";
 
 // Builds an RFC 5545 (.ics) feed from a user's already visibility-filtered
 // calendar events (see server/services/eventVisibility.ts — invite-only
@@ -86,15 +86,33 @@ export function buildCalendarFeed(events: CalendarEvent[], teamName: string, tea
   const parentById = new Map(parents.map((p) => [p.id, p]));
 
   for (const ev of parents) {
-    const { start, end, allDay } = eventTiming(ev);
     const isWeekly = ev.recurrenceType === "weekly" && !!ev.recurrenceEndsOn;
+    // RFC 5545 requires DTSTART to be the *first* actual occurrence, which
+    // isn't necessarily the row's own startDate once a series can repeat on
+    // weekdays other than the one it was created on (e.g. created on a
+    // Monday but only Tue/Thu are selected) — otherwise clients would show
+    // a phantom occurrence on startDate that BYDAY excludes.
+    let timingSource = ev;
+    if (isWeekly) {
+      const adjustedStart = firstRecurrenceOccurrence(ev);
+      if (adjustedStart !== ev.startDate) {
+        const shiftDays = Math.round(
+          (parseLocalDate(adjustedStart).getTime() - parseLocalDate(ev.startDate).getTime()) / 86400000
+        );
+        const adjustedEnd = ev.endDate
+          ? (() => { const d = parseLocalDate(ev.endDate!); d.setDate(d.getDate() + shiftDays); return d.toISOString().slice(0, 10); })()
+          : ev.endDate;
+        timingSource = { ...ev, startDate: adjustedStart, endDate: adjustedEnd };
+      }
+    }
+    const { start, end, allDay } = eventTiming(timingSource);
 
     let repeating: any;
     if (isWeekly) {
       const deleted = parseDeletedDates(ev.deletedDates);
       repeating = {
         freq: ICalEventRepeatingFreq.WEEKLY,
-        byDay: [WEEKDAY_BY_INDEX[parseLocalDate(ev.startDate).getDay()]],
+        byDay: parseRecurrenceDays(ev).map((d) => WEEKDAY_BY_INDEX[d]),
         until: allDay ? parseLocalDate(ev.recurrenceEndsOn!) : wallClock(ev.recurrenceEndsOn!, ev.startTime!),
         // An empty array is still truthy — ical-generator would emit a blank,
         // invalid `EXDATE:` line if we always set this key. Only include it
