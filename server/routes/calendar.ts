@@ -135,6 +135,58 @@ router.delete("/calendar/:id", async (req, res) => {
   }
 });
 
+// A user can see (and comment on) an event if it isn't invite-only, they're
+// leadership, they created it, or they're on the invite list — same rule as
+// the calendar list's visibility filter (server/services/eventVisibility.ts),
+// just evaluated for a single event instead of a batch.
+async function canViewEvent(event: { id: number; inviteOnly: boolean; createdBy: number }, userId: number, roles: string[]): Promise<boolean> {
+  if (!event.inviteOnly || hasAnyRole(roles, LEADERSHIP_ALL) || event.createdBy === userId) return true;
+  const invitees = await storage.getEventInviteeIds(event.id);
+  return invitees.includes(userId);
+}
+
+router.post("/calendar/:id/comments", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { text } = req.body;
+    if (!req.userId) return res.status(401).json({ error: "Not authenticated" });
+    if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: "Comment text is required" });
+    if (text.trim().length > 2000) return res.status(400).json({ error: "Comment is too long (2000 character max)" });
+    const event = await storage.getCalendarEvent(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const roles = req.userRoles || (await getUserRoles(req.userId));
+    if (!(await canViewEvent(event, req.userId, roles))) return res.status(404).json({ error: "Event not found" });
+    const updated = await storage.addCalendarEventComment(id, req.userId, text.trim());
+    res.status(201).json(updated);
+  } catch (error) {
+    console.error("Error adding calendar event comment:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+
+router.delete("/calendar/:id/comments/:commentId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { commentId } = req.params;
+    if (!req.userId) return res.status(401).json({ error: "Not authenticated" });
+    const event = await storage.getCalendarEvent(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const roles = req.userRoles || (await getUserRoles(req.userId));
+    if (!(await canViewEvent(event, req.userId, roles))) return res.status(404).json({ error: "Event not found" });
+    const comment = ((event as any).comments || []).find((c: any) => c.id === commentId);
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+    const isOwnComment = comment.userId === req.userId;
+    if (!isOwnComment && !hasAnyRole(roles, LEADERSHIP_ALL)) {
+      return res.status(403).json({ error: "You can only delete your own comments" });
+    }
+    const updated = await storage.deleteCalendarEventComment(id, commentId);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error deleting calendar event comment:", error);
+    res.status(500).json({ error: "Failed to delete comment" });
+  }
+});
+
 router.patch("/calendar/:id/deleted-dates", async (req, res) => {
   try {
     const id = parseInt(req.params.id);

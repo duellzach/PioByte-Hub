@@ -275,6 +275,9 @@ export interface IStorage {
   updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: number): Promise<void>;
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
+  ensureCalendarCommentsColumn(): Promise<void>;
+  addCalendarEventComment(eventId: number, userId: number, text: string): Promise<CalendarEvent | undefined>;
+  deleteCalendarEventComment(eventId: number, commentId: string): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
   backfillNexusEventKeys(): Promise<void>;
   backfillOutreachHours(): Promise<void>;
@@ -1710,6 +1713,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async ensureCalendarCommentsColumn(): Promise<void> {
+    await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS comments JSONB NOT NULL DEFAULT '[]'`);
+  }
+
+  // Appends via a single atomic UPDATE (comments || new-element) instead of a
+  // read-modify-write in application code, so two concurrent comments on the
+  // same event can never clobber each other.
+  async addCalendarEventComment(eventId: number, userId: number, text: string): Promise<CalendarEvent | undefined> {
+    const comment = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, userId, text, timestamp: Date.now() };
+    const [row] = await db.update(calendarEvents)
+      .set({ comments: sql`comments || ${JSON.stringify([comment])}::jsonb` })
+      .where(eq(calendarEvents.id, eventId))
+      .returning();
+    return row;
+  }
+
+  // Filters out the target comment with a single atomic UPDATE, same
+  // race-avoidance rationale as addCalendarEventComment above.
+  async deleteCalendarEventComment(eventId: number, commentId: string): Promise<CalendarEvent | undefined> {
+    const [row] = await db.update(calendarEvents)
+      .set({ comments: sql`COALESCE((SELECT jsonb_agg(elem) FROM jsonb_array_elements(comments) elem WHERE elem->>'id' <> ${commentId}), '[]'::jsonb)` })
+      .where(eq(calendarEvents.id, eventId))
+      .returning();
+    return row;
   }
 
   async ensureArchiveColumns(): Promise<void> {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore, Lock, Rss, Copy, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore, Lock, Rss, Copy, Check, MessageSquare } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { todayLocalStr } from '../utils/dates';
@@ -29,6 +29,7 @@ interface CalendarEvent {
   capacity?: number | null;
   acceptedCount?: number;
   inviteOnly?: boolean;
+  comments?: { id: string; userId: number; text: string; timestamp: number }[];
 }
 
 interface VirtualInstance extends CalendarEvent {
@@ -133,6 +134,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string; startDate: string } | null>(null);
   const [signupBusy, setSignupBusy] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentError, setCommentError] = useState('');
   const [tbaModal, setTbaModal] = useState(false);
   const [tbaLoading, setTbaLoading] = useState(false);
   const [tbaEvents, setTbaEvents] = useState<any[]>([]);
@@ -157,12 +161,11 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [showArchivedEvents, setShowArchivedEvents] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
 
-  // Only leadership can mark an event invite-only, so only fetch the roster
-  // for the picker when they can actually see the create/edit dialog.
+  // Used for the leadership-only invite picker, and to resolve names for
+  // comment authors in the event popover (comments are open to everyone).
   useEffect(() => {
-    if (!isCoachOrCaptain) return;
     api.users.getAll().then(setAllUsers).catch(() => {});
-  }, [isCoachOrCaptain]);
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -186,6 +189,34 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [chipPopover]);
+
+  useEffect(() => { setCommentText(''); setCommentError(''); }, [chipPopover?.event.id]);
+
+  const handlePostComment = async (eventId: number) => {
+    const text = commentText.trim();
+    if (!text || commentBusy) return;
+    setCommentBusy(true);
+    setCommentError('');
+    try {
+      const updated = await api.calendar.addComment(eventId, text);
+      setCommentText('');
+      setChipPopover(prev => prev ? { ...prev, event: { ...prev.event, comments: updated.comments } as any } : prev);
+      fetchEvents();
+    } catch (err: any) {
+      setCommentError(err?.message || 'Failed to post comment');
+    } finally { setCommentBusy(false); }
+  };
+
+  const handleDeleteComment = async (eventId: number, commentId: string) => {
+    setCommentError('');
+    try {
+      const updated = await api.calendar.deleteComment(eventId, commentId);
+      setChipPopover(prev => prev ? { ...prev, event: { ...prev.event, comments: updated.comments } as any } : prev);
+      fetchEvents();
+    } catch (err: any) {
+      setCommentError(err?.message || 'Failed to delete comment');
+    }
+  };
 
   // Keeps the chip popover fully on-screen: re-reads the anchor chip's live
   // position (not a stale snapshot) so it stays correct through resize/scroll,
@@ -713,6 +744,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                       const style = getTypeStyle(ev as CalendarEvent);
                       const evStart = getEventStartDate(ev);
                       const isRecurring = isRecurringInstance(ev);
+                      const commentCount = ((ev as any).comments || []).length;
                       return (
                         <div key={`${ev.id}-${i}`} className={`p-3 rounded-xl ${style.bg} ${(style as any).border || ''}`}>
                           <div className={`flex items-center justify-between mb-1 ${style.text}`}>
@@ -726,9 +758,17 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                                 </span>
                               )}
                             </div>
-                            {isCoachOrCaptain && evStart === selectedDate && (
-                              <div className="flex gap-1">
-                                {isRecurring ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setChipPopover({ event: ev, anchorEl: e.currentTarget }); }}
+                                className="p-1 rounded hover:bg-black/10 transition-colors flex items-center gap-0.5"
+                                title="Comments"
+                              >
+                                <MessageSquare size={10} />
+                                {commentCount > 0 && <span className="text-[8px] font-black">{commentCount}</span>}
+                              </button>
+                              {isCoachOrCaptain && evStart === selectedDate && (
+                                isRecurring ? (
                                   <>
                                     <button onClick={() => handleEditThisOccurrence(ev as VirtualInstance)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Edit this occurrence"><Pencil size={10} /></button>
                                     <button onClick={() => handleDeleteThisOccurrence(ev as VirtualInstance)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Delete this occurrence"><Trash2 size={10} /></button>
@@ -738,9 +778,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                                     <button onClick={() => openEdit(ev as CalendarEvent)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Edit"><Pencil size={10} /></button>
                                     <button onClick={() => handleDelete(ev as CalendarEvent)} className="p-1 rounded hover:bg-black/10 transition-colors" title="Delete"><Trash2 size={10} /></button>
                                   </>
-                                )}
-                              </div>
-                            )}
+                                )
+                              )}
+                            </div>
                           </div>
                           <p className={`text-xs font-black ${style.text}`}>{ev.title}</p>
                           {ev.startTime && (
@@ -773,13 +813,17 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   const start = getEventStartDate(ev);
                   const d = new Date(start + 'T12:00:00');
                   const isRecurring = isRecurringInstance(ev);
+                  const commentCount = ((ev as any).comments || []).length;
                   return (
                     <div key={`${ev.id}-${i}`} className="flex items-start gap-2.5">
                       <div className="flex-shrink-0 text-center w-10">
                         <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short' })}</div>
                         <div className="text-base font-black text-slate-900 dark:text-white leading-none">{d.toLocaleDateString([], { day: 'numeric' })}</div>
                       </div>
-                      <div className={`flex-1 p-2 rounded-xl ${style.bg} ${(style as any).border || ''}`}>
+                      <button
+                        onClick={(e) => setChipPopover({ event: ev, anchorEl: e.currentTarget })}
+                        className={`flex-1 text-left p-2 rounded-xl ${style.bg} ${(style as any).border || ''} hover:opacity-90 transition-opacity`}
+                      >
                         <div className={`flex items-center gap-1 mb-0.5 ${style.text}`}>
                           {style.icon}
                           <span className="text-[8px] font-black uppercase">{style.label}</span>
@@ -787,10 +831,13 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                           {ev.type === 'competition' && !ev.attending && (
                             <span className="text-[7px] font-black bg-slate-500/20 px-1 rounded uppercase">Not Attending</span>
                           )}
+                          {commentCount > 0 && (
+                            <span className="ml-auto flex items-center gap-0.5 text-[8px] font-black"><MessageSquare size={9} />{commentCount}</span>
+                          )}
                         </div>
                         <p className={`text-[10px] font-black ${style.text}`}>{ev.title}</p>
                         {ev.location && <p className="text-[9px] text-slate-500 dark:text-slate-400">{ev.location}</p>}
-                      </div>
+                      </button>
                     </div>
                   );
                 })}
@@ -811,8 +858,13 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               const start = getEventStartDate(ev);
               const d = new Date(start + 'T12:00:00');
               const isRecurring = isRecurringInstance(ev);
+              const commentCount = ((ev as any).comments || []).length;
               return (
-                <div key={`${ev.id}-${i}`} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
+                <div
+                  key={`${ev.id}-${i}`}
+                  onClick={(e) => setChipPopover({ event: ev, anchorEl: e.currentTarget })}
+                  className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer"
+                >
                   <div className="flex-shrink-0 w-12 text-center">
                     <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase">{d.toLocaleDateString([], { month: 'short' })}</div>
                     <div className="text-xl font-black text-slate-900 dark:text-white leading-none">{d.toLocaleDateString([], { day: 'numeric' })}</div>
@@ -844,24 +896,29 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                       </p>
                     )}
                   </div>
-                  {isCoachOrCaptain && !isRecurring && (
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => openEdit(ev as CalendarEvent)}
-                        className="p-1.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg hover:text-slate-800 dark:hover:text-white transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(ev as CalendarEvent)}
-                        className="p-1.5 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-lg hover:bg-red-100 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {commentCount > 0 && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-black text-slate-400 dark:text-slate-500"><MessageSquare size={12} />{commentCount}</span>
+                    )}
+                    {isCoachOrCaptain && !isRecurring && (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openEdit(ev as CalendarEvent); }}
+                          className="p-1.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg hover:text-slate-800 dark:hover:text-white transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(ev as CalendarEvent); }}
+                          className="p-1.5 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-lg hover:bg-red-100 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -962,6 +1019,62 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                   )}
                 </div>
               )}
+              {(() => {
+                // Unmodified recurring occurrences share the parent event's
+                // row/id, so their comment thread is the parent's thread —
+                // still lets people discuss any occurrence of the series.
+                const evComments: { id: string; userId: number; text: string; timestamp: number }[] = (ev as any).comments || [];
+                const sorted = [...evComments].sort((a, b) => b.timestamp - a.timestamp);
+                return (
+                  <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                    <div className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <MessageSquare size={10} /> Comments{sorted.length > 0 ? ` (${sorted.length})` : ''}
+                    </div>
+                    {sorted.length > 0 && (
+                      <div className="space-y-1.5">
+                        {sorted.map((c) => {
+                          const author = allUsers.find((u: any) => u.id === c.userId);
+                          const canDelete = isCoachOrCaptain || (!!currentUser && parseInt(currentUser.id) === c.userId);
+                          return (
+                            <div key={c.id} className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded-lg group">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[8px] font-black text-slate-700 dark:text-slate-200 uppercase truncate">{author?.name || 'Unknown'}</span>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className="text-[7px] text-slate-400 dark:text-slate-500 font-bold">{new Date(c.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                                  {canDelete && (
+                                    <button onClick={() => handleDeleteComment(ev.id, c.id)} title="Delete comment" className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-colors">
+                                      <Trash2 size={9} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5 break-words">{c.text}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {commentError && <p className="text-[9px] font-bold text-red-500">{commentError}</p>}
+                    <div className="flex gap-1">
+                      <input
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handlePostComment(ev.id); }}
+                        placeholder="Add a comment…"
+                        maxLength={2000}
+                        className="flex-1 min-w-0 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 dark:text-white outline-none focus:border-teamColor"
+                      />
+                      <button
+                        onClick={() => handlePostComment(ev.id)}
+                        disabled={commentBusy || !commentText.trim()}
+                        className="px-2.5 py-1.5 bg-teamColor text-white rounded-lg text-[9px] font-black uppercase tracking-widest disabled:opacity-50 flex-shrink-0"
+                      >
+                        Post
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
               {isCoachOrCaptain && isRecurring && (
                 <div className="pt-2 space-y-1 border-t border-slate-100 dark:border-slate-700">
                   <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manage occurrence</p>

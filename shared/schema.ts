@@ -584,6 +584,8 @@ export const calendarEvents = pgTable("calendar_events", {
   // Invite-only visibility: hidden from everyone except invitees, the
   // creator, and leadership. See server/services/eventVisibility.ts.
   inviteOnly: boolean("invite_only").notNull().default(false),
+  // Discussion thread on the event, same shape as task/announcement comments.
+  comments: jsonb("comments").$type<{ id: string; userId: number; text: string; timestamp: number }[]>().notNull().default([]),
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;

@@ -352,6 +352,10 @@ export const api = {
       apiRequest<void>(`/calendar/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
     patchDeletedDates: (id: number, requesterId: number, deletedDates: string[]) =>
       apiRequest<any>(`/calendar/${id}/deleted-dates`, { method: 'PATCH', body: JSON.stringify({ requesterId, deletedDates }) }),
+    addComment: (id: number, text: string) =>
+      apiRequest<any>(`/calendar/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+    deleteComment: (id: number, commentId: string) =>
+      apiRequest<any>(`/calendar/${id}/comments/${commentId}`, { method: 'DELETE' }),
     tbaPreview: (requesterId: number) =>
       apiRequest<any[]>(`/calendar/tba-preview?requesterId=${requesterId}`),
     tbaImport: (requesterId: number, events: any[]) =>
