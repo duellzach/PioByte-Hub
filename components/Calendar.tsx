@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore, Lock, Rss, Copy, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
@@ -127,7 +127,9 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent | VirtualInstance; x: number; y: number } | null>(null);
+  const [chipPopover, setChipPopover] = useState<{ event: CalendarEvent | VirtualInstance; anchorEl: HTMLElement } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
   const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string; startDate: string } | null>(null);
   const [signupBusy, setSignupBusy] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
@@ -184,6 +186,43 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [chipPopover]);
+
+  // Keeps the chip popover fully on-screen: re-reads the anchor chip's live
+  // position (not a stale snapshot) so it stays correct through resize/scroll,
+  // flips to open upward when there isn't room below, and clamps its height
+  // to whichever side has more room so it never renders off-screen.
+  const recalcPopoverPosition = useCallback(() => {
+    if (!chipPopover || !popoverRef.current) return;
+    const anchorRect = chipPopover.anchorEl.getBoundingClientRect();
+    const margin = 8;
+    const spaceBelow = Math.max(0, window.innerHeight - anchorRect.bottom - margin);
+    const spaceAbove = Math.max(0, anchorRect.top - margin);
+    const popoverHeight = popoverRef.current.getBoundingClientRect().height;
+    const openUpward = popoverHeight > spaceBelow && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(80, openUpward ? spaceAbove : spaceBelow);
+    const leftPct = anchorRect.left / window.innerWidth;
+    const style: React.CSSProperties = { maxHeight };
+    if (openUpward) style.bottom = window.innerHeight - anchorRect.top + 4;
+    else style.top = anchorRect.bottom + 4;
+    if (leftPct > 0.6) style.right = window.innerWidth - anchorRect.left;
+    else style.left = anchorRect.left;
+    setPopoverStyle(style);
+  }, [chipPopover]);
+
+  useLayoutEffect(() => {
+    if (!chipPopover) { setPopoverStyle({}); return; }
+    recalcPopoverPosition();
+  }, [chipPopover, recalcPopoverPosition]);
+
+  useEffect(() => {
+    if (!chipPopover) return;
+    window.addEventListener('resize', recalcPopoverPosition);
+    window.addEventListener('scroll', recalcPopoverPosition, true);
+    return () => {
+      window.removeEventListener('resize', recalcPopoverPosition);
+      window.removeEventListener('scroll', recalcPopoverPosition, true);
+    };
+  }, [chipPopover, recalcPopoverPosition]);
 
   const expanded = useMemo(() => expandRecurring(events), [events]);
 
@@ -630,8 +669,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                               key={`${ev.id}-${i}`}
                               onClick={e => {
                                 e.stopPropagation();
-                                const r = (e.target as HTMLElement).getBoundingClientRect();
-                                setChipPopover({ event: ev, x: r.left, y: r.bottom + 4 });
+                                setChipPopover({ event: ev, anchorEl: e.currentTarget });
                               }}
                               className={`w-full text-left px-1 py-0.5 rounded text-[7px] font-black truncate ${isSelected ? 'bg-white/20 text-white dark:text-slate-900' : `${style.bg} ${style.text} ${(style as any).border || ''}`} hover:opacity-80 transition-opacity ${isRecurring ? 'ring-1 ring-current ring-opacity-30' : ''}`}
                             >
@@ -834,15 +872,14 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
       {chipPopover && (() => {
         const ev = chipPopover.event;
         const style = getTypeStyle(ev as CalendarEvent);
-        const leftPct = chipPopover.x / window.innerWidth;
-        const xPos = leftPct > 0.6 ? 'right' : 'left';
         const isRecurring = isRecurringInstance(ev);
         const evStart = getEventStartDate(ev);
         return (
           <div
             id="chip-popover"
-            className="fixed z-[400] w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-            style={{ top: chipPopover.y, [xPos]: xPos === 'right' ? window.innerWidth - chipPopover.x : chipPopover.x }}
+            ref={popoverRef}
+            className="fixed z-[400] w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+            style={popoverStyle}
           >
             <div className={`p-3 ${style.bg} ${(style as any).border || ''}`}>
               <div className="flex items-center justify-between">
