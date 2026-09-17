@@ -14,7 +14,11 @@ const fmtMoney = (cents: number) => `$${(cents / 100).toLocaleString(undefined, 
 const Fundraising: React.FC<FundraisingProps> = ({ currentUser, users }) => {
   const { settings } = useTeamSettings();
   const roles: string[] = currentUser?.roles || [];
-  const isLeadership = roles.some((r) => ['Coach', 'Team Captain', 'SCRUM Master'].includes(r));
+  // Fundraising is Coach-only end to end — the nav item and route are also
+  // gated (components/Layout.tsx, App.tsx), and every server endpoint
+  // requires the Coach role (server/routes/requirements.ts). This flag just
+  // drives which controls render for the Coach viewing the page.
+  const isLeadership = roles.includes('Coach');
   const categories: string[] = (settings as any).fundraisingCategories || ['Concessions', 'Farmers Market', 'Parent Night Out', 'Sponsorship', 'Other'];
 
   const [entries, setEntries] = useState<any[]>([]);

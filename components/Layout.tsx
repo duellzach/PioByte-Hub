@@ -56,6 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
   const [alertError, setAlertError] = useState('');
 
   const isCoachOrCaptain = user?.roles?.includes('Coach') || user?.roles?.includes('Team Captain');
+  const isCoach = user?.roles?.includes('Coach') ?? false;
   const isGuest = user?.roles?.includes('Guest');
 
   useEffect(() => {
@@ -196,7 +197,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           {!isGuest && <NavItem to="/certifications" icon={<ShieldCheck size={16} />} label="CERTIFICATIONS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
-          {!isGuest && <NavItem to="/fundraising" icon={<DollarSign size={16} />} label="FUNDRAISING" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {isCoach && <NavItem to="/fundraising" icon={<DollarSign size={16} />} label="FUNDRAISING" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {isCoachOrCaptain && (
             <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL PANEL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />
           )}

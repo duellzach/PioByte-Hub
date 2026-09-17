@@ -12,15 +12,15 @@ const router = Router();
 const isLeadership = (roles: string[] = []) => roles.some((r) => LEADERSHIP.includes(r));
 
 // ---------------------------------------------------------------------------
-// Fundraising CRUD
+// Fundraising CRUD — Coach-only. The whole tab (view, log for anyone, verify,
+// delete) is restricted to the Coach role; even Team Captain/SCRUM Master and
+// regular members have no access, by explicit product decision.
 // ---------------------------------------------------------------------------
 
-router.get("/fundraising", async (req, res) => {
+router.get("/fundraising", requireRoles("Coach"), async (req, res) => {
   try {
-    const leadership = isLeadership(req.userRoles);
     const filter: any = {};
-    if (!leadership) filter.userId = req.userId;
-    else if (req.query.userId) filter.userId = parseInt(req.query.userId as string);
+    if (req.query.userId) filter.userId = parseInt(req.query.userId as string);
     if (req.query.status) filter.status = req.query.status;
     res.json(await storage.getFundraisingEntries(filter));
   } catch (error) {
@@ -29,26 +29,20 @@ router.get("/fundraising", async (req, res) => {
   }
 });
 
-router.post("/fundraising", async (req, res) => {
+router.post("/fundraising", requireRoles("Coach"), async (req, res) => {
   try {
-    const leadership = isLeadership(req.userRoles);
     const amountCents = parseInt(req.body.amountCents);
     if (!amountCents || amountCents <= 0) return res.status(400).json({ error: "A positive amount is required" });
-    // Non-leadership may only credit themselves, and it lands pending.
-    const userId = leadership && req.body.userId ? parseInt(req.body.userId) : req.userId!;
-    if (!leadership && req.body.userId && parseInt(req.body.userId) !== req.userId) {
-      return res.status(403).json({ error: "You can only log your own contributions" });
-    }
-    const status = leadership ? "verified" : "pending";
+    const userId = req.body.userId ? parseInt(req.body.userId) : req.userId!;
     const entry = await storage.createFundraisingEntry({
       userId,
       amountCents,
       category: req.body.category || "Other",
       description: req.body.description || "",
       occurredOn: req.body.occurredOn || localDatePT(new Date(), await getTeamTimezone()),
-      status,
-      verifiedBy: leadership ? req.userId! : null,
-      verifiedAt: leadership ? new Date() : null,
+      status: "verified",
+      verifiedBy: req.userId!,
+      verifiedAt: new Date(),
       createdBy: req.userId!,
     });
     res.status(201).json(entry);
@@ -58,7 +52,7 @@ router.post("/fundraising", async (req, res) => {
   }
 });
 
-router.put("/fundraising/:id", requireRoles(...LEADERSHIP), async (req, res) => {
+router.put("/fundraising/:id", requireRoles("Coach"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data: any = {};
@@ -77,16 +71,11 @@ router.put("/fundraising/:id", requireRoles(...LEADERSHIP), async (req, res) => 
   }
 });
 
-router.delete("/fundraising/:id", async (req, res) => {
+router.delete("/fundraising/:id", requireRoles("Coach"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const entry = await storage.getFundraisingEntry(id);
     if (!entry) return res.status(404).json({ error: "Entry not found" });
-    const leadership = isLeadership(req.userRoles);
-    // Leadership can delete anything; a creator can delete their own while pending.
-    if (!leadership && !(entry.createdBy === req.userId && entry.status === "pending")) {
-      return res.status(403).json({ error: "Not allowed" });
-    }
     await storage.deleteFundraisingEntry(id);
     res.status(204).send();
   } catch (error) {

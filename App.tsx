@@ -670,7 +670,11 @@ const App: React.FC = () => {
               } />
               <Route path="/calendar" element={isGuest ? <Navigate to="/scout" replace /> : <Calendar currentUser={state.currentUser} />} />
               <Route path="/resources" element={isGuest ? <Navigate to="/scout" replace /> : <Resources currentUser={state.currentUser} users={state.users} />} />
-              <Route path="/fundraising" element={isGuest ? <Navigate to="/scout" replace /> : <Fundraising currentUser={state.currentUser} users={state.users} />} />
+              <Route path="/fundraising" element={
+                (isGuest || !(state.currentUser?.roles as string[] || []).includes('Coach'))
+                  ? <Navigate to="/" replace />
+                  : <Fundraising currentUser={state.currentUser} users={state.users} />
+              } />
               <Route path="/control-panel" element={isGuest ? <Navigate to="/scout" replace /> :
                 <ControlPanel
                   currentUserRoles={state.currentUser?.roles || []}
