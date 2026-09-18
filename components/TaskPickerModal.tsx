@@ -43,13 +43,22 @@ const TaskPickerModal: React.FC<Props> = ({
   const [query, setQuery] = useState('');
   const [board, setBoard] = useState('');
 
-  // A task's board is its project board, unless it's department-only — those
-  // live on their department's board instead, same distinction the main
-  // Kanban view draws between project boards and department boards. Keyed
-  // with a prefix so a project and a department that happen to share a name
-  // never collide.
-  const boardKeyFor = (t: AvailableTask) => t.deptOnly ? `dept:${t.departments[0] || ''}` : `proj:${t.projectName}`;
-  const boardLabelFor = (t: AvailableTask) => t.deptOnly ? `⬡ ${t.departments[0] || 'Department'}` : t.projectName;
+  // A task can live on more than one board at once, mirroring the Kanban
+  // view: a department board shows every task tagged with that department
+  // regardless of project, and a project board shows every non-department-only
+  // task in that project. So a task with departments keeps its project
+  // membership *plus* one membership per department, unless it's marked
+  // department-only, in which case it drops off its project board entirely
+  // and lives only on its department board(s). Keyed with a prefix so a
+  // project and a department that happen to share a name never collide.
+  const boardKeysFor = (t: AvailableTask): string[] => {
+    const deptKeys = (t.departments || []).map(d => `dept:${d}`);
+    return t.deptOnly ? deptKeys : [`proj:${t.projectName}`, ...deptKeys];
+  };
+  const boardLabelForKey = (key: string) => key.startsWith('dept:') ? `⬡ ${key.slice(5)}` : key.slice(5);
+  // The row subtitle shows every board a task belongs to, so a task visible
+  // on both its project and a department board doesn't look mislabeled.
+  const boardLabelsFor = (t: AvailableTask) => boardKeysFor(t).map(boardLabelForKey).join(' + ') || t.projectName;
 
   // Assigned tasks always float to the top regardless of the board filter —
   // the filter narrows what else is offered, not the student's own work.
@@ -58,8 +67,9 @@ const TaskPickerModal: React.FC<Props> = ({
   const boards = useMemo(() => {
     const byKey = new Map<string, { key: string; label: string; isDept: boolean }>();
     for (const t of [...assignedTasks, ...openTasks]) {
-      const key = boardKeyFor(t);
-      if (!byKey.has(key)) byKey.set(key, { key, label: boardLabelFor(t), isDept: t.deptOnly });
+      for (const key of boardKeysFor(t)) {
+        if (!byKey.has(key)) byKey.set(key, { key, label: boardLabelForKey(key), isDept: key.startsWith('dept:') });
+      }
     }
     const all = Array.from(byKey.values());
     const projects = all.filter(b => !b.isDept).sort((a, b) => a.label.localeCompare(b.label));
@@ -72,8 +82,8 @@ const TaskPickerModal: React.FC<Props> = ({
   const matches = (haystack: string[]) => !q || haystack.some(h => (h || '').toLowerCase().includes(q));
 
   const filtered = useMemo(() => ({
-    assigned: assignedTasks.filter(t => matches([t.title, boardLabelFor(t)])),
-    open: openTasks.filter(t => (!board || boardKeyFor(t) === board) && matches([t.title, boardLabelFor(t)])),
+    assigned: assignedTasks.filter(t => matches([t.title, boardLabelsFor(t)])),
+    open: openTasks.filter(t => (!board || boardKeysFor(t).includes(board)) && matches([t.title, boardLabelsFor(t)])),
     general: generalTasks.filter(g => !board && matches([g.name, g.description || ''])),
   }), [assignedTasks, openTasks, generalTasks, q, board]);
 
@@ -109,7 +119,7 @@ const TaskPickerModal: React.FC<Props> = ({
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5">
-              {boardLabelFor(task)} • {task.status}
+              {boardLabelsFor(task)} • {task.status}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
