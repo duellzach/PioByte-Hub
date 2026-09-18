@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive, Repeat, Shuffle } from 'lucide-react';
 import { api } from '../services/api';
-import { liveCompetitionEvents, todayLocalStr, isClassCheckInWindowOpen } from '../utils/dates';
+import { liveCompetitionEvents, todayLocalStr, isClassCheckInWindowOpen, isSchoolDay } from '../utils/dates';
 import { useTeamTime } from '../utils/timeFormat';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
@@ -162,6 +162,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [settings.timezone, windowCheckTick],
   );
+  // Separate from the time window: a Class option should be offered on every
+  // school day even outside 7am–3:10pm, just disabled until the window opens.
+  const isSchoolDayToday = useMemo(
+    () => isSchoolDay(new Date(), settings.timezone),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.timezone, windowCheckTick],
+  );
 
   const myOpenEntry = useMemo(() => {
     return state.timeEntries.find(e => 
@@ -260,13 +267,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }).catch(() => {});
   }, []);
 
-  // Ask "what are you clocking?" only when there are events to clock into today;
-  // otherwise go straight to a normal shop check-in.
+  // Ask "what are you clocking?" when there are events to clock into today, or
+  // when a Class Member should be offered the standalone Class option (every
+  // school day, event or not) — otherwise go straight to a normal shop check-in.
   const handleCheckIn = async () => {
     setCheckInLoading(true);
     try {
       const events = await api.events.clockableEvents().catch(() => []);
-      if (events.length > 0) {
+      if (events.length > 0 || (isClassMemberSubjectToWindow && isSchoolDayToday)) {
         setClockableEvents(events);
         setShowKindPicker(true);
         setCheckInLoading(false);
@@ -357,6 +365,21 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       onRefresh();
     } finally {
       setCheckInLoading(false);
+    }
+  };
+
+  /** Standalone Class check-in — no calendar event, same shape as Shop. */
+  const doClassCheckIn = async () => {
+    setShowKindPicker(false);
+    setCheckInLoading(true);
+    try {
+      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'class' });
+      await openCheckInPicker(parseInt(entry.id));
+    } catch (error: any) {
+      alert(error?.message || 'Could not clock in to Class hours.');
+    } finally {
+      setCheckInLoading(false);
+      onRefresh();
     }
   };
 
@@ -1788,6 +1811,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 <div className="w-10 h-10 rounded-xl bg-teamColor/10 text-teamColor flex items-center justify-center flex-shrink-0"><Briefcase size={18} /></div>
                 <div><p className="font-black text-sm text-slate-900 dark:text-white">Shop Time</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Build / work session</p></div>
               </button>
+              {isClassMemberSubjectToWindow && isSchoolDayToday && !clockableEvents.some((ev) => ev.type === 'class') && (() => {
+                const s = styleFor('class');
+                const classLocked = !classCheckInWindowOpen;
+                return (
+                  <button
+                    onClick={() => !classLocked && doClassCheckIn()}
+                    disabled={classLocked}
+                    title={classLocked ? 'Class check-in is only available 7:00am–3:10pm, Monday–Friday' : undefined}
+                    className={`w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-all text-left ${classLocked ? 'opacity-50 cursor-not-allowed' : 'hover:ring-2 hover:ring-teamColor'}`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg} ${s.text}`}><MapPin size={18} /></div>
+                    <div>
+                      <p className="font-black text-sm text-slate-900 dark:text-white">Class Time</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">School day session</p>
+                      {classLocked && <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">Available 7:00am–3:10pm, Mon–Fri</p>}
+                    </div>
+                  </button>
+                );
+              })()}
               {clockableEvents.map((ev) => {
                 const s = styleFor(ev.type);
                 const classLocked = ev.type === 'class' && isClassMemberSubjectToWindow && !classCheckInWindowOpen;

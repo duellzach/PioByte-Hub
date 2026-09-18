@@ -92,11 +92,13 @@ router.post("/time-entries/check-in", async (req, res) => {
       }
     }
 
-    // Every non-shop kind is clocked against a calendar event. Events that take
-    // sign-ups block clock-in only once a signup has been explicitly declined;
-    // requested/waitlisted/no-signup-yet are all still clockable — a coach
-    // still confirms the hours either way.
-    if (kind !== "shop") {
+    // Every non-shop kind is clocked against a calendar event, with one
+    // exception: Class hours may also be clocked standalone (no event), same
+    // as Shop, since a school day doesn't require a calendar entry to exist.
+    // Events that take sign-ups block clock-in only once a signup has been
+    // explicitly declined; requested/waitlisted/no-signup-yet are all still
+    // clockable — a coach still confirms the hours either way.
+    if (kind !== "shop" && !(kind === "class" && !calendarEventId)) {
       if (!calendarEventId) return res.status(400).json({ error: "An event is required for this kind of time" });
       const event = await storage.getCalendarEvent(calendarEventId);
       if (!event) return res.status(404).json({ error: "Event not found" });
