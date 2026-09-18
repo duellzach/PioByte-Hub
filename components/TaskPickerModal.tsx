@@ -41,15 +41,26 @@ const TaskPickerModal: React.FC<Props> = ({
   const [taskId, setTaskId] = useState<number | null>(selectedTaskId);
   const [generalTaskId, setGeneralTaskId] = useState<number | null>(selectedGeneralTaskId);
   const [query, setQuery] = useState('');
+  const [board, setBoard] = useState('');
+
+  // Assigned tasks always float to the top regardless of the board filter —
+  // the filter narrows what else is offered, not the student's own work.
+  // General Tasks aren't tied to any board, so they drop out once a specific
+  // board is chosen; they still show under "All Boards".
+  const boards = useMemo(() => {
+    const names = new Set<string>();
+    for (const t of [...assignedTasks, ...openTasks]) if (t.projectName) names.add(t.projectName);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [assignedTasks, openTasks]);
 
   const q = query.trim().toLowerCase();
   const matches = (haystack: string[]) => !q || haystack.some(h => (h || '').toLowerCase().includes(q));
 
   const filtered = useMemo(() => ({
     assigned: assignedTasks.filter(t => matches([t.title, t.projectName])),
-    open: openTasks.filter(t => matches([t.title, t.projectName])),
-    general: generalTasks.filter(g => matches([g.name, g.description || ''])),
-  }), [assignedTasks, openTasks, generalTasks, q]);
+    open: openTasks.filter(t => (!board || t.projectName === board) && matches([t.title, t.projectName])),
+    general: generalTasks.filter(g => !board && matches([g.name, g.description || ''])),
+  }), [assignedTasks, openTasks, generalTasks, q, board]);
 
   const empty = filtered.assigned.length === 0 && filtered.open.length === 0 && filtered.general.length === 0;
   const hasAnything = assignedTasks.length > 0 || openTasks.length > 0 || generalTasks.length > 0;
@@ -117,7 +128,7 @@ const TaskPickerModal: React.FC<Props> = ({
         </div>
 
         {hasAnything && !loading && (
-          <div className="px-5 pb-3">
+          <div className="px-5 pb-3 space-y-2">
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
@@ -128,6 +139,19 @@ const TaskPickerModal: React.FC<Props> = ({
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-xs"
               />
             </div>
+            {boards.length > 1 && (
+              <select
+                value={board}
+                onChange={e => setBoard(e.target.value)}
+                aria-label="Filter by board"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-[11px] uppercase tracking-wide"
+              >
+                <option value="">All Boards</option>
+                {boards.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
@@ -191,7 +215,7 @@ const TaskPickerModal: React.FC<Props> = ({
 
             {empty && (
               <p className="text-center text-slate-400 dark:text-slate-500 py-10 text-xs font-black uppercase tracking-widest">
-                {hasAnything ? 'Nothing matches that search' : 'No tasks available'}
+                {hasAnything ? (q || board ? 'Nothing matches those filters' : 'Nothing matches that search') : 'No tasks available'}
               </p>
             )}
           </div>
