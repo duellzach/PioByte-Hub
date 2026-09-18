@@ -208,6 +208,8 @@ export interface AvailableTask {
   isAssigned: boolean;
   projectName: string;
   departments: string[];
+  /** True when this task lives only on its department board, not a project board. */
+  deptOnly: boolean;
 }
 
 /** Minutes by hour category for one member/window, plus the summed `total`. */

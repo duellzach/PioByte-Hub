@@ -43,22 +43,37 @@ const TaskPickerModal: React.FC<Props> = ({
   const [query, setQuery] = useState('');
   const [board, setBoard] = useState('');
 
+  // A task's board is its project board, unless it's department-only — those
+  // live on their department's board instead, same distinction the main
+  // Kanban view draws between project boards and department boards. Keyed
+  // with a prefix so a project and a department that happen to share a name
+  // never collide.
+  const boardKeyFor = (t: AvailableTask) => t.deptOnly ? `dept:${t.departments[0] || ''}` : `proj:${t.projectName}`;
+  const boardLabelFor = (t: AvailableTask) => t.deptOnly ? `⬡ ${t.departments[0] || 'Department'}` : t.projectName;
+
   // Assigned tasks always float to the top regardless of the board filter —
   // the filter narrows what else is offered, not the student's own work.
   // General Tasks aren't tied to any board, so they drop out once a specific
   // board is chosen; they still show under "All Boards".
   const boards = useMemo(() => {
-    const names = new Set<string>();
-    for (const t of [...assignedTasks, ...openTasks]) if (t.projectName) names.add(t.projectName);
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
+    const byKey = new Map<string, { key: string; label: string; isDept: boolean }>();
+    for (const t of [...assignedTasks, ...openTasks]) {
+      const key = boardKeyFor(t);
+      if (!byKey.has(key)) byKey.set(key, { key, label: boardLabelFor(t), isDept: t.deptOnly });
+    }
+    const all = Array.from(byKey.values());
+    const projects = all.filter(b => !b.isDept).sort((a, b) => a.label.localeCompare(b.label));
+    const depts = all.filter(b => b.isDept).sort((a, b) => a.label.localeCompare(b.label));
+    return { projects, depts };
   }, [assignedTasks, openTasks]);
+  const boardCount = boards.projects.length + boards.depts.length;
 
   const q = query.trim().toLowerCase();
   const matches = (haystack: string[]) => !q || haystack.some(h => (h || '').toLowerCase().includes(q));
 
   const filtered = useMemo(() => ({
-    assigned: assignedTasks.filter(t => matches([t.title, t.projectName])),
-    open: openTasks.filter(t => (!board || t.projectName === board) && matches([t.title, t.projectName])),
+    assigned: assignedTasks.filter(t => matches([t.title, boardLabelFor(t)])),
+    open: openTasks.filter(t => (!board || boardKeyFor(t) === board) && matches([t.title, boardLabelFor(t)])),
     general: generalTasks.filter(g => !board && matches([g.name, g.description || ''])),
   }), [assignedTasks, openTasks, generalTasks, q, board]);
 
@@ -94,7 +109,7 @@ const TaskPickerModal: React.FC<Props> = ({
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5">
-              {task.projectName} • {task.status}
+              {boardLabelFor(task)} • {task.status}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -139,7 +154,7 @@ const TaskPickerModal: React.FC<Props> = ({
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-xs"
               />
             </div>
-            {boards.length > 1 && (
+            {boardCount > 1 && (
               <select
                 value={board}
                 onChange={e => setBoard(e.target.value)}
@@ -147,9 +162,20 @@ const TaskPickerModal: React.FC<Props> = ({
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-[11px] uppercase tracking-wide"
               >
                 <option value="">All Boards</option>
-                {boards.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
+                {boards.projects.length > 0 && (
+                  <optgroup label="Projects">
+                    {boards.projects.map(b => (
+                      <option key={b.key} value={b.key}>{b.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {boards.depts.length > 0 && (
+                  <optgroup label="Department Boards">
+                    {boards.depts.map(b => (
+                      <option key={b.key} value={b.key}>{b.label}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             )}
           </div>
