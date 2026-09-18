@@ -194,6 +194,25 @@ export function eventOccursOn(ev: RecurringEventShape, date: string): boolean {
   return ev.startDate <= date && (ev.endDate || ev.startDate) >= date;
 }
 
+/**
+ * Whether right now falls inside the school-day window during which a Class
+ * Member student may self check-in for Class hours: 7:00am–3:10pm, Monday
+ * through Friday, team-local time. Shared between server (enforcement) and
+ * client (UI hint) so both agree on the boundary.
+ */
+export function isClassCheckInWindowOpen(now: Date = new Date(), tz: string = DEFAULT_TEAM_TIMEZONE): boolean {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    weekday: 'short', hour: '2-digit', minute: '2-digit',
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(now).map((p) => [p.type, p.value]));
+  const WEEKDAY_NUM: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const weekday = WEEKDAY_NUM[parts.weekday];
+  if (weekday === undefined || weekday === 0 || weekday === 6) return false;
+  const minutesSinceMidnight = Number(parts.hour) * 60 + Number(parts.minute);
+  return minutesSinceMidnight >= 7 * 60 && minutesSinceMidnight <= 15 * 60 + 10; // 7:00am–3:10pm inclusive
+}
+
 /** Format a `YYYY-MM-DD` date-only string for display in the viewer's local zone. */
 export function formatLocalDate(
   dateStr: string,

@@ -23,6 +23,10 @@
  */
 export const LEADERSHIP_ALL = ['Coach', 'Team Captain', 'Department Head', 'SCRUM Master'];
 
+/** Students in this role self-check-in for Class hours only during the school
+ *  day window (see `isClassCheckInWindowOpen` in utils/dates.ts). */
+export const CLASS_MEMBER_ROLE = 'Class Member';
+
 /** Whether any of a user's roles falls in `allowed`. Mirrors server helpers' `hasAnyRole`. */
 export const hasAnyRole = (userRoles: readonly string[] = [], allowed: readonly string[]): boolean =>
   userRoles.some((r) => allowed.includes(r));

@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
 import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive, Repeat, Shuffle } from 'lucide-react';
 import { api } from '../services/api';
-import { liveCompetitionEvents, todayLocalStr } from '../utils/dates';
+import { liveCompetitionEvents, todayLocalStr, isClassCheckInWindowOpen } from '../utils/dates';
 import { useTeamTime } from '../utils/timeFormat';
+import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
-import { LEADERSHIP_ALL, hasAnyRole } from '../shared/roles';
+import { LEADERSHIP_ALL, hasAnyRole, CLASS_MEMBER_ROLE } from '../shared/roles';
 import { presentEntries as selectPresent, groupByCategory, untaskedCount as countUntasked, workingOnLabel } from '../utils/presence';
 import TaskPickerModal from './TaskPickerModal';
 
@@ -140,6 +141,27 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     [state.currentUser],
   );
   const currentUserId = parseInt(state.currentUser?.id || '0');
+
+  // Class Member students only self check-in for Class hours during the
+  // school day. This is a UI hint — the server (server/routes/time.ts) is the
+  // authoritative gate, so this never needs to be perfectly in sync.
+  const { settings } = useTeamSettings();
+  const isClassMemberSubjectToWindow = useMemo(
+    () => hasAnyRole(state.currentUser?.roles ?? [], [CLASS_MEMBER_ROLE]),
+    [state.currentUser],
+  );
+  // Re-derive every minute so the disabled state clears/sets itself at the
+  // 7:00am/3:10pm boundary without requiring the member to reopen the modal.
+  const [windowCheckTick, setWindowCheckTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setWindowCheckTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const classCheckInWindowOpen = useMemo(
+    () => isClassCheckInWindowOpen(new Date(), settings.timezone),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.timezone, windowCheckTick],
+  );
 
   const myOpenEntry = useMemo(() => {
     return state.timeEntries.find(e => 
@@ -1768,12 +1790,20 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </button>
               {clockableEvents.map((ev) => {
                 const s = styleFor(ev.type);
+                const classLocked = ev.type === 'class' && isClassMemberSubjectToWindow && !classCheckInWindowOpen;
                 return (
-                  <button key={ev.id} onClick={() => doEventCheckIn(ev)} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
+                  <button
+                    key={ev.id}
+                    onClick={() => !classLocked && doEventCheckIn(ev)}
+                    disabled={classLocked}
+                    title={classLocked ? 'Class check-in is only available 7:00am–3:10pm, Monday–Friday' : undefined}
+                    className={`w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-all text-left ${classLocked ? 'opacity-50 cursor-not-allowed' : 'hover:ring-2 hover:ring-teamColor'}`}
+                  >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg} ${s.text}`}><MapPin size={18} /></div>
                     <div className="min-w-0">
                       <p className="font-black text-sm text-slate-900 dark:text-white truncate">{ev.title}</p>
                       <CategoryBadge category={ev.type} className="mt-0.5" />
+                      {classLocked && <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">Available 7:00am–3:10pm, Mon–Fri</p>}
                     </div>
                   </button>
                 );

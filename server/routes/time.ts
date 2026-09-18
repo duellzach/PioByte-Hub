@@ -3,8 +3,9 @@ import { storage } from "../storage";
 import { roundToQuarterHour, getUserRoles, hasAnyRole, COACH_CAPTAIN, LEADERSHIP_ALL } from "../helpers";
 import { requireRoles } from "../middleware/auth";
 import { isHourCategory } from "../../shared/hourCategories";
-import { localDatePT, pacificDateTime } from "../../utils/dates";
+import { localDatePT, pacificDateTime, isClassCheckInWindowOpen } from "../../utils/dates";
 import { getTeamTimezone } from "../services/teamTime";
+import { CLASS_MEMBER_ROLE } from "../../shared/roles";
 
 const router = Router();
 
@@ -77,6 +78,19 @@ router.post("/time-entries/check-in", async (req, res) => {
       return res.status(400).json({ error: `Unknown time category "${kind}"` });
     }
     const calendarEventId = req.body.calendarEventId ? parseInt(req.body.calendarEventId) : null;
+
+    // Class Member students may only self check-in for Class hours during the
+    // school day (Mon–Fri, 7:00am–3:10pm team-local). This never affects any
+    // other hour category or coach-driven manual/bulk entries.
+    if (kind === "class") {
+      const subjectRoles = await getUserRoles(parseInt(userId));
+      if (hasAnyRole(subjectRoles, [CLASS_MEMBER_ROLE])) {
+        const tz = await getTeamTimezone();
+        if (!isClassCheckInWindowOpen(new Date(), tz)) {
+          return res.status(403).json({ error: "Class check-in is only available 7:00am–3:10pm, Monday–Friday" });
+        }
+      }
+    }
 
     // Every non-shop kind is clocked against a calendar event. Events that take
     // sign-ups block clock-in only once a signup has been explicitly declined;
