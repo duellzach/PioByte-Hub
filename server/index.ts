@@ -217,6 +217,7 @@ initializeDatabase().then(() => {
       await storage.ensureCertificationLevelsAndBadges();
       await storage.ensureCalendarCommentsColumn();
       await storage.ensureRecurrenceDaysColumn();
+      await storage.ensureBacklogStatusDefault();
       await getTeamTimezone(); // warm the cache and surface any DB issue at boot
       // Generate any due recurring tasks now, then re-check hourly. The guarded
       // UPDATE inside makes this safe to run on every instance under autoscale.

@@ -35,7 +35,7 @@ export const tasks = pgTable("tasks", {
   projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
-  status: text("status").notNull().default("Not Started"),
+  status: text("status").notNull().default("Backlog"),
   priority: text("priority").notNull().default("Medium"),
   effort: integer("effort"),
   departments: jsonb("departments").$type<string[]>().notNull().default([]),

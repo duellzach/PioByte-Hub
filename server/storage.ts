@@ -277,6 +277,7 @@ export interface IStorage {
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   ensureCalendarCommentsColumn(): Promise<void>;
   ensureRecurrenceDaysColumn(): Promise<void>;
+  ensureBacklogStatusDefault(): Promise<void>;
   addCalendarEventComment(eventId: number, userId: number, text: string): Promise<CalendarEvent | undefined>;
   deleteCalendarEventComment(eventId: number, commentId: string): Promise<CalendarEvent | undefined>;
   migrateCalendarTypes(): Promise<void>;
@@ -1734,6 +1735,15 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS recurrence_days TEXT`);
   }
 
+  // The `tasks.status` column default changed from "Not Started" to
+  // "Backlog" in shared/schema.ts, but that only affects a fresh push — an
+  // existing database keeps whatever default was already set on the column.
+  // Explicitly re-assert it at boot so already-provisioned databases (dev and
+  // production) pick up the new default without a manual `schema:push`.
+  async ensureBacklogStatusDefault(): Promise<void> {
+    await db.execute(sql`ALTER TABLE tasks ALTER COLUMN status SET DEFAULT 'Backlog'`);
+  }
+
   // Appends via a single atomic UPDATE (comments || new-element) instead of a
   // read-modify-write in application code, so two concurrent comments on the
   // same event can never clobber each other.
@@ -2827,7 +2837,7 @@ export class DatabaseStorage implements IStorage {
         projectId: t.projectId,
         title: t.title,
         description: t.description || "",
-        status: "Not Started",
+        status: "Backlog",
         priority: t.priority,
         effort: t.effort ?? undefined,
         departments: (t.departments as string[]) || [],

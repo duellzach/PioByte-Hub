@@ -52,7 +52,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     projectId: 'default',
     title: '',
     description: '',
-    status: TaskStatus.NotStarted,
+    status: TaskStatus.Backlog,
     priority: Priority.Medium,
     effort: 1,
     departments: [],

@@ -608,7 +608,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             projectId: isDeptBoard ? (accessibleProjects.find(p => !p.archived)?.id || '') : activeBoardKey,
             title: '',
             description: '',
-            status: TaskStatus.NotStarted,
+            status: TaskStatus.Backlog,
             priority: Priority.Medium,
             effort: 1,
             departments: [],

@@ -129,7 +129,7 @@ export function buildTemplateCsv(ctx: Pick<TaskCsvContext, 'departments'>): stri
   const rows: any[][] = [
     [...TASK_CSV_HEADERS],
     [
-      'Wire up drivetrain motors', 'Connect and test all four drive motors', 'Not Started', 'High', 3,
+      'Wire up drivetrain motors', 'Connect and test all four drive motors', 'In Progress', 'High', 3,
       dept, '', '', '', '', 'Motors spin correct direction;Current draw within spec', 'no', '',
     ],
     [
@@ -137,7 +137,7 @@ export function buildTemplateCsv(ctx: Pick<TaskCsvContext, 'departments'>): stri
       dept, '', '', '', '', '', 'no', '',
     ],
     [
-      'Order polycarbonate sheets', '', 'Not Started', 'Low', 1,
+      'Order polycarbonate sheets', '', 'Backlog', 'Low', 1,
       dept, '', '', '', '', '', 'no', 'Design intake CAD model',
     ],
   ];
@@ -153,7 +153,7 @@ export function buildAiInstructions(ctx: TaskCsvContext): string {
     'Rules for each column:',
     '- Title: required, short and specific.',
     '- Description: optional, free text.',
-    `- Status: one of ${ctx.statuses.join(', ')} (default "Not Started" if unsure).`,
+    `- Status: one of ${ctx.statuses.join(', ')} (default "Backlog" if unsure).`,
     `- Priority: one of ${ctx.priorities.join(', ')} (default "Medium" if unsure).`,
     `- Effort: one of ${ctx.effortPoints.join(', ')} (rough relative sizing; leave blank if unsure).`,
     `- Departments: any of ${ctx.departments.join(', ')}, separated by semicolons if more than one.`,
@@ -222,7 +222,7 @@ export function rowsToDraftTasks(rows: string[][], ctx: TaskCsvContext): ParseRe
       warnings.push({ row: rowNum, column: 'Title', message: 'Duplicate title elsewhere in this file.' });
     }
 
-    let status = 'Not Started';
+    let status = 'Backlog';
     const statusRaw = cell('Status');
     if (statusRaw) {
       const match = statusByName.get(norm(statusRaw));

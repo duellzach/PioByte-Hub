@@ -101,7 +101,7 @@ router.post("/tasks/bulk", requireRoles(...LEADERSHIP), async (req, res) => {
       const title = typeof picked.title === "string" ? picked.title.trim() : "";
       if (!title) { errors.push({ row: rowNum, message: "Title is required" }); return; }
 
-      const status = STATUS_VALUES.includes(picked.status) ? picked.status : "Not Started";
+      const status = STATUS_VALUES.includes(picked.status) ? picked.status : "Backlog";
       const priority = PRIORITY_VALUES.includes(picked.priority) ? picked.priority : "Medium";
 
       let effort: number | undefined;
