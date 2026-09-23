@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Target, DollarSign, Clock, ClipboardCheck, CheckSquare, Square } from 'lucide-react';
+import { Target, DollarSign, Clock, ClipboardCheck, CheckSquare, Square, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 import { CategoryBadge } from './hourCategoryStyles';
 
@@ -27,6 +27,16 @@ export const Bar: React.FC<{ label: string; value: string; percent: number; done
 const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) => {
   const [data, setData] = useState<any | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Checklist starts collapsed; the choice is remembered per browser.
+  const [checklistOpen, setChecklistOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('reqChecklistOpen') === '1'; } catch { return false; }
+  });
+  const toggleChecklist = () => {
+    setChecklistOpen(open => {
+      try { localStorage.setItem('reqChecklistOpen', open ? '0' : '1'); } catch {}
+      return !open;
+    });
+  };
 
   useEffect(() => {
     api.requirements.mine().then(setData).catch(() => setData(null)).finally(() => setLoaded(true));
@@ -51,12 +61,19 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
       <div className="flex-1 min-h-0 overflow-auto kanban-scroll space-y-3.5 -mr-1 pr-1">
         {checklist.length > 0 && (
           <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            <button
+              onClick={toggleChecklist}
+              aria-expanded={checklistOpen}
+              className="w-full flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-teamColor transition-colors"
+            >
               <ClipboardCheck size={11} /> Checklist
-              <span className="ml-auto tabular-nums">{checklist.filter(c => c.completed).length}/{checklist.length}</span>
-            </div>
+              <span className={`ml-auto tabular-nums ${checklist.every(c => c.completed) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+                {checklist.filter(c => c.completed).length}/{checklist.length}
+              </span>
+              <ChevronDown size={12} className={`transition-transform ${checklistOpen ? 'rotate-180' : ''}`} />
+            </button>
             {/* Read-only: only a coach can tick these off. */}
-            {checklist.map((c: any) => (
+            {checklistOpen && checklist.map((c: any) => (
               <div key={c.id} className="flex items-start gap-2" title={c.completed ? 'Completed' : 'A coach will check this off once done'}>
                 {c.completed
                   ? <CheckSquare size={15} className="text-emerald-500 shrink-0 mt-px" />

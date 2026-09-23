@@ -64,13 +64,15 @@ async function applyInvites(eventId: number, eventTitle: string, invitees: numbe
     storage.createNotification({
       toUserId,
       fromUserId: actorId,
-      message: `You've been invited to "${eventTitle}".`,
+      // `[event:ID]` prefix (same convention as `[broadcast:ID]`) lets the
+      // Home feed link the notification straight to the event.
+      message: `[event:${eventId}] You've been invited to "${eventTitle}".`,
     }).catch((e) => console.error("createNotification (invite):", e))
   ));
   sendPushToUsers(added, {
     title: actor?.name ? `${actor.name} • PioByte Hub` : "PioByte Hub",
     body: `You've been invited to "${eventTitle}"`,
-    url: "/#/calendar",
+    url: `/#/calendar?event=${eventId}`,
     tag: `event-invite-${eventId}`,
   }).catch((e) => console.error("sendPushToUsers (invite):", e));
 }

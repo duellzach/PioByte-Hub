@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, Trophy, Users, Plus, X, Pencil, Trash2, Loader2, RefreshCw, Download, RotateCcw, CheckSquare, Square, AlertTriangle, Archive, ArchiveRestore, Lock, Rss, Copy, Check, MessageSquare } from 'lucide-react';
 import { api } from '../services/api';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { todayLocalStr } from '../utils/dates';
 import EventRosterModal from './EventRosterModal';
@@ -208,6 +209,43 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   }, [showArchivedEvents]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  // Deep link: `#/calendar?event=ID` (from an invite notification or push)
+  // jumps to the event's month, selects its day, and opens its popover.
+  const location = useLocation();
+  const navigateTo = useNavigate();
+  const [pendingOpenId, setPendingOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('event');
+    if (id) setPendingOpenId(id);
+  }, [location.search]);
+  useEffect(() => {
+    if (!pendingOpenId || loading) return;
+    const ev = events.find(e => String(e.id) === pendingOpenId);
+    if (!ev) {
+      // Not visible to this user (deleted, archived) — just show the calendar.
+      setPendingOpenId(null);
+      navigateTo('/calendar', { replace: true });
+      return;
+    }
+    const d = new Date(ev.startDate + 'T12:00:00');
+    setView('month');
+    setYear(d.getFullYear());
+    setMonth(d.getMonth());
+    setSelectedDate(ev.startDate);
+    // Wait for the month and the day panel to render, then anchor to its chip.
+    const t = window.setTimeout(() => {
+      const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-event-id="${pendingOpenId}"]`));
+      const chip = chips.find(c => c.offsetParent !== null) || chips[0];
+      if (chip) {
+        chip.scrollIntoView({ block: 'center' });
+        setChipPopover({ event: ev, anchorEl: chip });
+      }
+      setPendingOpenId(null);
+      navigateTo('/calendar', { replace: true });
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [pendingOpenId, loading, events]);
 
   useEffect(() => {
     if (!chipPopover) return;
@@ -744,6 +782,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                           return (
                             <button
                               key={`${ev.id}-${i}`}
+                              data-event-id={String(ev.id)}
                               onClick={e => {
                                 e.stopPropagation();
                                 setChipPopover({ event: ev, anchorEl: e.currentTarget });
@@ -806,6 +845,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                             </div>
                             <div className="flex items-center gap-1">
                               <button
+                                data-event-id={String(ev.id)}
                                 onClick={(e) => { e.stopPropagation(); setChipPopover({ event: ev, anchorEl: e.currentTarget }); }}
                                 className="p-1 rounded hover:bg-black/10 transition-colors flex items-center gap-0.5"
                                 title="Comments"
@@ -867,6 +907,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                         <div className="text-base font-black text-slate-900 dark:text-white leading-none">{d.toLocaleDateString([], { day: 'numeric' })}</div>
                       </div>
                       <button
+                        data-event-id={String(ev.id)}
                         onClick={(e) => setChipPopover({ event: ev, anchorEl: e.currentTarget })}
                         className={`flex-1 text-left p-2 rounded-xl ${style.bg} ${(style as any).border || ''} hover:opacity-90 transition-opacity`}
                       >
@@ -908,6 +949,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
               return (
                 <div
                   key={`${ev.id}-${i}`}
+                  data-event-id={String(ev.id)}
                   onClick={(e) => setChipPopover({ event: ev, anchorEl: e.currentTarget })}
                   className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group cursor-pointer"
                 >

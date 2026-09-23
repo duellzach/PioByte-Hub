@@ -592,6 +592,15 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
               const broadcastMatch = n.message.match(/^\[broadcast:(\d+)\]\s*/);
               const displayMessage = broadcastMatch ? n.message.replace(broadcastMatch[0], '') : n.message;
               const broadcastId = broadcastMatch ? broadcastMatch[1] : null;
+              // Event invites carry `[event:ID]`; older ones only have the wording.
+              const eventMatch = n.message.match(/^\[event:(\d+)\]\s*/);
+              const isInvite = !!eventMatch || n.message.startsWith("You've been invited to");
+              const inviteEventId = eventMatch ? eventMatch[1] : null;
+              const messageText = eventMatch ? displayMessage.replace(eventMatch[0], '') : displayMessage;
+              const openInvite = () => {
+                if (!n.read) onClearNotification(String(n.id));
+                navigate(inviteEventId ? `/calendar?event=${inviteEventId}` : '/calendar');
+              };
               
               return (
               <div 
@@ -599,20 +608,27 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                 className={`p-5 rounded-2xl border transition-all flex items-start gap-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 ${!n.read ? 'shadow-lg border-l-4 border-l-red-600' : 'opacity-60'}`}
               >
                 <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-black ${isBroadcast ? 'bg-slate-900 dark:bg-slate-700 text-white' : 'bg-teamColor/10 text-teamColor'}`}>
-                  {isBroadcast ? <Megaphone size={20} /> : <MessageSquare size={20} />}
+                  {isBroadcast ? <Megaphone size={20} /> : isInvite ? <Calendar size={20} /> : <MessageSquare size={20} />}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-sm font-black text-slate-900 dark:text-white uppercase">
-                      {isBroadcast ? 'Briefing Mention' : 'Mission Mention'}
+                      {isBroadcast ? 'Briefing Mention' : isInvite ? 'Event Invite' : 'Mission Mention'}
                     </p>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{fmtTime(n.timestamp)}</span>
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 leading-relaxed italic">
-                    <span className="font-bold text-slate-900 dark:text-white not-italic">@{state.users.find(u => String(u.id) === String(n.fromUserId))?.username || 'System'}</span>: "{displayMessage.length > 80 ? displayMessage.substring(0, 80) + '...' : displayMessage}"
+                    <span className="font-bold text-slate-900 dark:text-white not-italic">@{state.users.find(u => String(u.id) === String(n.fromUserId))?.username || 'System'}</span>: "{messageText.length > 80 ? messageText.substring(0, 80) + '...' : messageText}"
                   </p>
                   <div className="flex gap-4">
-                    {isBroadcast ? (
+                    {isInvite ? (
+                      <button
+                        onClick={openInvite}
+                        className="text-[10px] font-black text-teamColor uppercase tracking-widest hover:underline"
+                      >
+                        View Event
+                      </button>
+                    ) : isBroadcast ? (
                        <button 
                         onClick={() => {
                             const ann = state.announcements.find(a => String(a.id) === broadcastId);
@@ -635,7 +651,7 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                     )}
                     {!n.read && (
                       <button 
-                        onClick={() => onClearNotification(String(n.id))}
+                        onClick={() => isInvite ? openInvite() : onClearNotification(String(n.id))}
                         className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-300"
                       >
                         Acknowledge
