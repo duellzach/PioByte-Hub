@@ -8,6 +8,8 @@ import {
   normalizeLevel,
   normalizeDepartment,
   MAX_LEVEL,
+  CERT_AUTHOR_ROLES,
+  canAuthorCertIn,
   type EarnedLevelBadge,
 } from "../../shared/certifications";
 
@@ -115,9 +117,13 @@ router.post("/certifications", async (req, res) => {
     if (!name || !createdBy) {
       return res.status(400).json({ error: "name and createdBy are required" });
     }
-    const actorRoles = await getUserRoles(parseInt(createdBy));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Team Captains can create certifications" });
+    const actor = await storage.getUser(parseInt(createdBy));
+    const actorRoles = (actor?.roles as string[]) || [];
+    if (!hasAnyRole(actorRoles, CERT_AUTHOR_ROLES)) {
+      return res.status(403).json({ error: "Only Coaches, Team Captains, or Department Heads can create certifications" });
+    }
+    if (!canAuthorCertIn(actorRoles, (actor?.departments as string[]) || [], normalizeDepartment(department))) {
+      return res.status(403).json({ error: "Department Heads can only create certifications for their own department or General" });
     }
     const cert = await storage.createCertification({
       name,
@@ -142,11 +148,21 @@ router.put("/certifications/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const { requesterId, ...updateData } = req.body;
     if (!requesterId) return res.status(400).json({ error: "requesterId is required" });
-    const actorRoles = await getUserRoles(parseInt(requesterId));
-    if (!hasAnyRole(actorRoles, COACH_CAPTAIN)) {
-      return res.status(403).json({ error: "Only Coaches or Team Captains can update certifications" });
+    const actor = await storage.getUser(parseInt(requesterId));
+    const actorRoles = (actor?.roles as string[]) || [];
+    if (!hasAnyRole(actorRoles, CERT_AUTHOR_ROLES)) {
+      return res.status(403).json({ error: "Only Coaches, Team Captains, or Department Heads can update certifications" });
     }
     if (updateData.department !== undefined) updateData.department = normalizeDepartment(updateData.department);
+    // A Department Head must own both where the cert is now and where it's going.
+    const existing = await storage.getCertification(id);
+    if (!existing) return res.status(404).json({ error: "Certification not found" });
+    const actorDepts = (actor?.departments as string[]) || [];
+    const targetDept = updateData.department !== undefined ? updateData.department : existing.department;
+    if (!canAuthorCertIn(actorRoles, actorDepts, existing.department) || !canAuthorCertIn(actorRoles, actorDepts, targetDept)) {
+      return res.status(403).json({ error: "Department Heads can only edit certifications in their own department or General" });
+    }
+    delete updateData.createdBy;
     if (updateData.level !== undefined) updateData.level = normalizeLevel(updateData.level);
     const cert = await storage.updateCertification(id, updateData);
     if (!cert) return res.status(404).json({ error: "Certification not found" });

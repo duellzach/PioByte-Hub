@@ -94,6 +94,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkoutHandoffNote, setCheckoutHandoffNote] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
   const [checkoutMarkComplete, setCheckoutMarkComplete] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
@@ -425,13 +426,12 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const openCheckoutModal = () => {
     if (!myOpenEntry) return;
-    if (myOpenEntry.workingOnTaskId || myOpenEntry.workingOnGeneralTaskId) {
-      setCheckoutHandoffNote('');
-      setCheckoutMarkComplete(false);
-      setShowCheckoutModal(true);
-    } else {
-      handleCheckOut();
-    }
+    // Always offer the note box — a session with no task picked still gets a
+    // "what did you work on" record for coaches to read.
+    setCheckoutHandoffNote('');
+    setCheckoutMarkComplete(false);
+    setCheckoutError('');
+    setShowCheckoutModal(true);
   };
 
   const handleCheckOut = async (handoffNote?: string, markComplete?: boolean) => {
@@ -444,8 +444,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       });
       setShowCheckoutModal(false);
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Check-out failed:', error);
+      // Keep the modal (and the typed note) open so nothing is lost.
+      setCheckoutError(error?.message || 'Check-out failed — your note has not been saved yet. Try again.');
     } finally {
       setCheckoutLoading(false);
     }
@@ -836,7 +838,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     Since {formatTime(myOpenEntry.checkInAt)} on {formatDate(myOpenEntry.checkInAt)}
                   </p>
                   {myOpenEntry.status === 'pending_check_in' && (
-                    <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation</p>
+                    <p className="text-[9px] text-orange-600 dark:text-orange-400 font-bold uppercase mt-1">Awaiting coach confirmation — you can still check out</p>
                   )}
                 </div>
               </div>
@@ -872,12 +874,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
             <button
               onClick={openCheckoutModal}
-              disabled={myOpenEntry.status === 'pending_check_in' || checkoutLoading}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${
-                myOpenEntry.status === 'pending_check_in'
-                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                  : 'bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20'
-              }`}
+              disabled={checkoutLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all bg-teamColor text-white hover:opacity-90 shadow-lg shadow-teamColor/20 disabled:opacity-60"
             >
               <LogOut size={14} /> Check Out
             </button>
@@ -1365,13 +1363,21 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       {entry.checkOutAt && ` - ${formatTime(entry.checkOutAt)}`}
                       {entry.calendarEventId && eventTitles[entry.calendarEventId] && ` • ${eventTitles[entry.calendarEventId].title}`}
                     </p>
+                    {(entry.workingOnTaskTitle || entry.workingOnGeneralTaskName) && (
+                      <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                        {entry.workingOnTaskTitle || entry.workingOnGeneralTaskName}
+                      </p>
+                    )}
+                    {entry.taskHandoffNote && (
+                      <p className="text-[10px] italic text-slate-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">“{entry.taskHandoffNote}”</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
                     entry.status === 'pending_check_in' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
                   }`}>
-                    {entry.status === 'pending_check_in' ? 'Check-In' : 'Check-Out'}
+                    {entry.status === 'pending_check_in' ? 'Check-In' : !entry.checkInConfirmedBy ? 'In + Out' : 'Check-Out'}
                   </span>
                   <button
                     onClick={() => handleConfirm(entry.id, entry.status === 'pending_check_in' ? 'check_in' : 'check_out')}
@@ -1487,7 +1493,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                                 <Shuffle size={11} /> {workingOn ? 'Retask' : 'Assign'}
                               </button>
                             )}
-                            {isCoach && entry.status === 'checked_in' && (
+                            {isCoach && (entry.status === 'checked_in' || entry.status === 'pending_check_in') && (
                               <button
                                 onClick={() => handleCoachCheckOut(entry.id, entry.userId)}
                                 className="flex items-center gap-1 px-3 py-2 bg-teamColor text-white rounded-lg font-bold text-[10px] uppercase hover:opacity-90 transition-all shadow-lg shadow-teamColor/20"
@@ -1871,6 +1877,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             assignedTasks={availableAssignedTasks}
             openTasks={availableOpenTasks}
             generalTasks={availableGeneralTasks}
+            userNameFor={(id) => getUserName(String(id))}
             selectedTaskId={taskPicker.currentTaskId}
             selectedGeneralTaskId={taskPicker.currentGeneralTaskId}
             confirmLabel={taskPicker.mode === 'reassign' ? 'Move Them' : taskPicker.mode === 'switch' ? 'Switch' : 'Start Working'}
@@ -1887,7 +1894,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </>
       )}
 
-      {showCheckoutModal && myOpenEntry && (
+      {showCheckoutModal && myOpenEntry && (() => { const hasCheckoutTask = !!(myOpenEntry.workingOnTaskId || myOpenEntry.workingOnGeneralTaskId); return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
           <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg p-6 shadow-2xl">
             <div className="flex justify-between items-start mb-5">
@@ -1922,20 +1929,24 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
               <div>
                 <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
-                  Handoff Note {!checkoutMarkComplete && <span className="text-red-500">*</span>}
+                  {hasCheckoutTask ? 'Handoff Note' : 'What did you work on today?'} {hasCheckoutTask && !checkoutMarkComplete && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
                   value={checkoutHandoffNote}
                   onChange={e => setCheckoutHandoffNote(e.target.value)}
                   rows={3}
-                  placeholder={checkoutMarkComplete ? 'Optional completion notes...' : 'What did you accomplish? What\'s next for this task?'}
+                  placeholder={!hasCheckoutTask ? 'Optional — a quick summary for your coaches...' : checkoutMarkComplete ? 'Optional completion notes...' : 'What did you accomplish? What\'s next for this task?'}
                   className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium resize-none text-sm"
                 />
               </div>
 
               {(() => {
-                const noteRequired = !checkoutMarkComplete && !checkoutHandoffNote.trim();
+                const noteRequired = hasCheckoutTask && !checkoutMarkComplete && !checkoutHandoffNote.trim();
                 return (
+                  <>
+                  {checkoutError && (
+                    <p className="text-xs font-bold text-red-500 text-center">{checkoutError}</p>
+                  )}
                   <button
                     onClick={() => handleCheckOut(checkoutHandoffNote.trim() || undefined, checkoutMarkComplete)}
                     disabled={checkoutLoading || noteRequired}
@@ -1948,12 +1959,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
                     {noteRequired ? 'Add a handoff note to continue' : 'Confirm Check Out'}
                   </button>
+                  </>
                 );
               })()}
             </div>
           </div>
         </div>
-      )}
+      ); })()}
 
       {showGenTaskSettings && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">

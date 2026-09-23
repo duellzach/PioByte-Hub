@@ -14,6 +14,8 @@ export const users = pgTable("users", {
   // Per-student requirement overrides (Epic C). null = use team defaults.
   fundraisingGoalCents: integer("fundraising_goal_cents"),
   hourRequirementOverrides: jsonb("hour_requirement_overrides").$type<Record<string, number>>(),
+  // Up to three user_badges ids the member chose to show off first.
+  featuredBadgeIds: jsonb("featured_badge_ids").$type<number[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -799,3 +801,28 @@ export const fundraisingEntries = pgTable("fundraising_entries", {
 
 export type FundraisingEntry = typeof fundraisingEntries.$inferSelect;
 export type InsertFundraisingEntry = typeof fundraisingEntries.$inferInsert;
+
+// One-off membership items a coach ticks off per student ("Register with
+// FIRST", "Pay Club Dues", "Sign Handbook Contract"). Archived rather than
+// deleted so past completions keep their label.
+export const requirementChecklistItems = pgTable("requirement_checklist_items", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  description: text("description").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const userChecklistCompletions = pgTable("user_checklist_completions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  itemId: integer("item_id").notNull().references(() => requirementChecklistItems.id, { onDelete: "cascade" }),
+  completedBy: integer("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  userItemUnique: uniqueIndex("user_checklist_completions_user_item").on(t.userId, t.itemId),
+}));
+
+export type RequirementChecklistItem = typeof requirementChecklistItems.$inferSelect;
+export type UserChecklistCompletion = typeof userChecklistCompletions.$inferSelect;

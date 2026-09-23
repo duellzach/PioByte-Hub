@@ -230,12 +230,128 @@ async function computeRequirements(userId: number) {
       return { key: h.key, label: h.label, categories, combinePhases, combined, phases };
     });
 
+  // Coach-ticked one-off items (register with FIRST, dues, handbook...).
+  const [items, done] = await Promise.all([
+    storage.getChecklistItems(),
+    storage.getChecklistCompletions(userId),
+  ]);
+  const doneByItem = new Map(done.map((c) => [c.itemId, c]));
+  const checklist = items.map((i) => ({
+    id: i.id,
+    label: i.label,
+    description: i.description,
+    completed: doneByItem.has(i.id),
+    completedAt: doneByItem.get(i.id)?.completedAt ?? null,
+  }));
+
   return {
     fundraising: { enabled: !!req.fundraising?.enabled, raisedCents, pendingCents, goalCents },
     hours,
+    checklist,
     categoryTotals: totalsFromRows(rows),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Membership checklist. Anyone signed in can read the item list (students see
+// their own ticks via /me/requirements); only Coaches define items or tick
+// them off — by explicit product decision, not Captains.
+// ---------------------------------------------------------------------------
+
+router.get("/requirement-checklist", async (req, res) => {
+  try {
+    const includeArchived = req.query.includeArchived === "true" && (req.userRoles || []).includes("Coach");
+    res.json(await storage.getChecklistItems(includeArchived));
+  } catch (error) {
+    console.error("Error fetching checklist items:", error);
+    res.status(500).json({ error: "Failed to fetch checklist items" });
+  }
+});
+
+router.post("/requirement-checklist", requireRoles("Coach"), async (req, res) => {
+  try {
+    const label = String(req.body?.label ?? "").trim();
+    if (!label) return res.status(400).json({ error: "label is required" });
+    const existing = await storage.getChecklistItems(true);
+    const sortOrder = existing.reduce((m, i) => Math.max(m, i.sortOrder), -1) + 1;
+    res.status(201).json(await storage.createChecklistItem({
+      label: label.slice(0, 120),
+      description: String(req.body?.description ?? "").trim().slice(0, 500),
+      sortOrder,
+    }));
+  } catch (error) {
+    console.error("Error creating checklist item:", error);
+    res.status(500).json({ error: "Failed to create checklist item" });
+  }
+});
+
+router.put("/requirement-checklist/:id", requireRoles("Coach"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const patch: { label?: string; description?: string; sortOrder?: number; archived?: boolean } = {};
+    if (req.body?.label !== undefined) {
+      const label = String(req.body.label).trim();
+      if (!label) return res.status(400).json({ error: "label cannot be empty" });
+      patch.label = label.slice(0, 120);
+    }
+    if (req.body?.description !== undefined) patch.description = String(req.body.description).trim().slice(0, 500);
+    if (Number.isInteger(req.body?.sortOrder)) patch.sortOrder = req.body.sortOrder;
+    if (typeof req.body?.archived === "boolean") patch.archived = req.body.archived;
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Nothing to update" });
+    const row = await storage.updateChecklistItem(id, patch);
+    if (!row) return res.status(404).json({ error: "Checklist item not found" });
+    res.json(row);
+  } catch (error) {
+    console.error("Error updating checklist item:", error);
+    res.status(500).json({ error: "Failed to update checklist item" });
+  }
+});
+
+router.put("/users/:id/checklist/:itemId", requireRoles("Coach"), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.itemId);
+    if (typeof req.body?.completed !== "boolean") {
+      return res.status(400).json({ error: "completed (boolean) is required" });
+    }
+    const [user, items] = await Promise.all([storage.getUser(userId), storage.getChecklistItems(true)]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!items.some((i) => i.id === itemId)) return res.status(404).json({ error: "Checklist item not found" });
+    await storage.setChecklistCompletion(userId, itemId, req.body.completed, req.userId!);
+    res.json({ userId, itemId, completed: req.body.completed });
+  } catch (error) {
+    console.error("Error updating checklist completion:", error);
+    res.status(500).json({ error: "Failed to update checklist" });
+  }
+});
+
+// Every active member's requirement progress in one call — the coach's
+// "who's on track to be on the team" view. Coaches and non-members are left
+// out: requirements are for students.
+router.get("/requirements/team", async (req, res) => {
+  try {
+    if (!isLeadership(req.userRoles)) return res.status(403).json({ error: "Not allowed" });
+    const users = (await storage.getUsers()).filter((u: any) => {
+      const roles: string[] = (u.roles as string[]) || [];
+      return !u.archived && !roles.includes("Coach") && roles.length > 0;
+    });
+    const out = [];
+    for (const u of users) {
+      out.push({
+        userId: u.id,
+        name: u.name,
+        roles: (u.roles as string[]) || [],
+        departments: (u.departments as string[]) || [],
+        requirements: await computeRequirements(u.id),
+      });
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    res.json(out);
+  } catch (error) {
+    console.error("Error computing team requirements:", error);
+    res.status(500).json({ error: "Failed to compute team requirements" });
+  }
+});
 
 router.get("/me/requirements", async (req, res) => {
   try {

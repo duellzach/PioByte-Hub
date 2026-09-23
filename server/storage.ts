@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, fundraisingEntries, seasons, scoutingTemplates } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, fundraisingEntries, seasons, scoutingTemplates, requirementChecklistItems, userChecklistCompletions } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
 import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
@@ -2756,6 +2756,58 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteFundraisingEntry(id: number): Promise<void> {
     await db.delete(fundraisingEntries).where(eq(fundraisingEntries.id, id));
+  }
+
+  // --- Membership checklist (coach-ticked one-off items) ---
+  async ensureRequirementChecklist(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS requirement_checklist_items (
+        id SERIAL PRIMARY KEY,
+        label TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        archived BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_checklist_completions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        item_id INTEGER NOT NULL REFERENCES requirement_checklist_items(id) ON DELETE CASCADE,
+        completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS user_checklist_completions_user_item ON user_checklist_completions (user_id, item_id)`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS featured_badge_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  }
+  async getChecklistItems(includeArchived = false) {
+    const rows = await db.select().from(requirementChecklistItems)
+      .orderBy(requirementChecklistItems.sortOrder, requirementChecklistItems.id);
+    return includeArchived ? rows : rows.filter((r) => !r.archived);
+  }
+  async createChecklistItem(data: { label: string; description?: string; sortOrder?: number }) {
+    const [row] = await db.insert(requirementChecklistItems).values(data).returning();
+    return row;
+  }
+  async updateChecklistItem(id: number, data: { label?: string; description?: string; sortOrder?: number; archived?: boolean }) {
+    const [row] = await db.update(requirementChecklistItems).set(data).where(eq(requirementChecklistItems.id, id)).returning();
+    return row;
+  }
+  async getChecklistCompletions(userId?: number) {
+    const q = db.select().from(userChecklistCompletions);
+    return userId === undefined ? q : q.where(eq(userChecklistCompletions.userId, userId));
+  }
+  async setChecklistCompletion(userId: number, itemId: number, completed: boolean, actorId: number) {
+    if (completed) {
+      await db.insert(userChecklistCompletions)
+        .values({ userId, itemId, completedBy: actorId })
+        .onConflictDoNothing();
+    } else {
+      await db.delete(userChecklistCompletions)
+        .where(and(eq(userChecklistCompletions.userId, userId), eq(userChecklistCompletions.itemId, itemId)));
+    }
   }
 
   async ensureRecurringTasksTable(): Promise<void> {

@@ -121,6 +121,15 @@ export const api = {
   requirements: {
     mine: () => apiRequest<any>('/me/requirements'),
     forUser: (userId: number) => apiRequest<any>(`/users/${userId}/requirements`),
+    team: () => apiRequest<any[]>('/requirements/team'),
+    checklistItems: (includeArchived = false) =>
+      apiRequest<any[]>(`/requirement-checklist${includeArchived ? '?includeArchived=true' : ''}`),
+    createChecklistItem: (data: { label: string; description?: string }) =>
+      apiRequest<any>('/requirement-checklist', { method: 'POST', body: JSON.stringify(data) }),
+    updateChecklistItem: (id: number, data: { label?: string; description?: string; sortOrder?: number; archived?: boolean }) =>
+      apiRequest<any>(`/requirement-checklist/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    setChecklist: (userId: number, itemId: number, completed: boolean) =>
+      apiRequest<any>(`/users/${userId}/checklist/${itemId}`, { method: 'PUT', body: JSON.stringify({ completed }) }),
   },
   fundraising: {
     list: (params?: { userId?: number; status?: string }) => {
@@ -319,6 +328,8 @@ export const api = {
     // Keyed by user id, so the team page fetches once rather than per card.
     getAllByUser: () => apiRequest<Record<number, any[]>>('/badges'),
     getForUser: (userId: number) => apiRequest<any[]>(`/users/${userId}/badges`),
+    setFeatured: (userId: number, badgeIds: number[]) =>
+      apiRequest<{ userId: number; featuredBadgeIds: number[] }>(`/users/${userId}/featured-badges`, { method: 'PUT', body: JSON.stringify({ badgeIds }) }),
     award: (userId: number, badgeDefinitionId: number, note?: string) =>
       apiRequest<any>(`/users/${userId}/badges`, { method: 'POST', body: JSON.stringify({ badgeDefinitionId, note }) }),
     revoke: (userId: number, badgeId: number) =>

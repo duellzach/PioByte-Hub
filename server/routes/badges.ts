@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { COACH_CAPTAIN } from "../helpers";
 import { isBadgeIconKey, isBadgeColor } from "../../shared/badgeIcons";
+import { validateFeaturedBadgeIds } from "../../shared/featuredBadges";
 
 const router = Router();
 
@@ -107,6 +108,28 @@ router.get("/users/:id/badges", async (req, res) => {
   } catch (error) {
     console.error("Error fetching user badges:", error);
     res.status(500).json({ error: "Failed to fetch user badges" });
+  }
+});
+
+/**
+ * Choose up to three of your own badges to show first. The member themselves,
+ * or a Coach on their behalf.
+ */
+router.put("/users/:id/featured-badges", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (req.userId !== userId && !(req.userRoles || []).includes("Coach")) {
+      return res.status(403).json({ error: "You can only choose your own featured badges" });
+    }
+    const owned = (await storage.getUserBadges(userId)).map((b) => b.id);
+    const result = validateFeaturedBadgeIds(req.body?.badgeIds, owned);
+    if ("error" in result) return res.status(400).json({ error: result.error });
+    const user = await storage.updateUser(userId, { featuredBadgeIds: result.ids });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ userId, featuredBadgeIds: result.ids });
+  } catch (error) {
+    console.error("Error setting featured badges:", error);
+    res.status(500).json({ error: "Failed to set featured badges" });
   }
 });
 

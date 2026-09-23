@@ -116,7 +116,14 @@ router.put("/users/:id", async (req, res) => {
       delete updateData.muted;
       delete updateData.archived;
       delete updateData.password;
+      // Requirement goals are set by coaches; a student lowering their own
+      // hour or fundraising goal would fake their eligibility.
+      delete updateData.fundraisingGoalCents;
+      delete updateData.hourRequirementOverrides;
     }
+    // Featured badges go through PUT /users/:id/featured-badges, which checks
+    // the ids actually belong to this user.
+    delete updateData.featuredBadgeIds;
     if (updateData.username) {
       updateData.username = updateData.username.toLowerCase().trim();
       const existingUser = await storage.getUserByUsername(updateData.username);

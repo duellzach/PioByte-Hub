@@ -24,6 +24,7 @@ import {
   certificationTracks,
   normalizeLevel,
   normalizeDepartment,
+  canAuthorCertIn,
   type LeveledCert,
   type EarnedLevelBadge,
 } from "../shared/certifications";
@@ -236,6 +237,26 @@ test("normalizeDepartment trims, and maps blank to General", () => {
   assert.equal(normalizeDepartment("   "), null);
   assert.equal(normalizeDepartment(null), null);
   assert.equal(normalizeDepartment(undefined), null);
+});
+
+test("canAuthorCertIn: Coach and Captain author anywhere", () => {
+  assert.equal(canAuthorCertIn(["Coach"], [], "Software"), true);
+  assert.equal(canAuthorCertIn(["Team Captain"], [], GENERAL), true);
+});
+
+test("canAuthorCertIn: Department Head only in own department or General", () => {
+  const roles = ["Department Head", "Team Member"];
+  assert.equal(canAuthorCertIn(roles, ["Manufacturing"], "Manufacturing"), true);
+  assert.equal(canAuthorCertIn(roles, ["Manufacturing"], normalizeDepartment("  Manufacturing ")), true);
+  assert.equal(canAuthorCertIn(roles, ["Manufacturing"], GENERAL), true);
+  assert.equal(canAuthorCertIn(roles, ["Manufacturing"], "Software"), false);
+  assert.equal(canAuthorCertIn(roles, [], "Software"), false);
+});
+
+test("canAuthorCertIn: other roles never author", () => {
+  assert.equal(canAuthorCertIn(["SCRUM Master"], ["Software"], "Software"), false);
+  assert.equal(canAuthorCertIn(["Trainer"], ["Software"], GENERAL), false);
+  assert.equal(canAuthorCertIn([], [], GENERAL), false);
 });
 
 if (process.exitCode) {

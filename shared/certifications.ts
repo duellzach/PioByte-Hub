@@ -198,3 +198,23 @@ export function normalizeDepartment(raw: unknown): string | null {
   const trimmed = raw.trim();
   return trimmed.length === 0 ? null : trimmed;
 }
+
+/** Roles that may create and edit certifications. Deleting stays Coach/Captain. */
+export const CERT_AUTHOR_ROLES = ['Coach', 'Team Captain', 'Department Head'];
+export const CERT_DELETE_ROLES = ['Coach', 'Team Captain'];
+
+/**
+ * Whether someone may author (create or edit) a certification in `certDepartment`.
+ * Coaches and Captains may author anywhere; a Department Head only in a
+ * department they belong to, or General (null).
+ */
+export function canAuthorCertIn(
+  roles: readonly string[],
+  userDepartments: readonly string[],
+  certDepartment: string | null,
+): boolean {
+  if (roles.some((r) => r === 'Coach' || r === 'Team Captain')) return true;
+  if (!roles.includes('Department Head')) return false;
+  if (certDepartment === GENERAL) return true;
+  return userDepartments.some((d) => sameDepartment(d, certDepartment));
+}

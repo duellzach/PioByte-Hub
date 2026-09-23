@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Clock, Briefcase, Trophy, ListChecks, Loader2, Download, CalendarDays, Users } from 'lucide-react';
+import { X, Clock, Briefcase, Trophy, ListChecks, Loader2, Download, CalendarDays, Users, MessageSquareText } from 'lucide-react';
 import { api } from '../services/api';
 import type { ProductivityDeepDive } from '../types';
 import { parseLocalDate } from '../utils/dates';
@@ -37,7 +37,7 @@ const MemberProductivityModal: React.FC<Props> = ({ userId, userName, window: in
   const [data, setData] = useState<ProductivityDeepDive | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'tasks' | 'sessions'>('tasks');
+  const [tab, setTab] = useState<'tasks' | 'sessions' | 'notes'>('tasks');
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +188,7 @@ const MemberProductivityModal: React.FC<Props> = ({ userId, userName, window: in
             )}
 
             <div>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <button
                   onClick={() => setTab('tasks')}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${tab === 'tasks' ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}
@@ -200,6 +200,12 @@ const MemberProductivityModal: React.FC<Props> = ({ userId, userName, window: in
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${tab === 'sessions' ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}
                 >
                   Sessions ({data.sessions.length})
+                </button>
+                <button
+                  onClick={() => setTab('notes')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${tab === 'notes' ? 'bg-teamColor text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}
+                >
+                  Hand-off Notes ({data.handoffNotes.length})
                 </button>
                 {tab === 'tasks' && data.contributions.length > 0 && (
                   <button
@@ -243,6 +249,44 @@ const MemberProductivityModal: React.FC<Props> = ({ userId, userName, window: in
                     ))}
                   </div>
                 )
+              ) : tab === 'notes' ? (
+                data.handoffNotes.length === 0 ? (
+                  <p className="text-center text-slate-400 dark:text-slate-500 py-10 text-xs font-bold uppercase tracking-widest">
+                    No hand-off notes in this window
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {data.handoffNotes.map(n => (
+                      <div key={n.entryId} className="p-3 bg-white dark:bg-slate-700/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-start justify-between gap-3 mb-1.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${n.taskId ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : n.generalTaskId ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300' : 'bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-300'}`}>
+                              {n.taskId ? <Briefcase size={13} /> : n.generalTaskId ? <ListChecks size={13} /> : <MessageSquareText size={13} />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                                {n.taskTitle || n.generalTaskName || 'No task selected'}
+                              </p>
+                              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                                {n.taskId ? (n.projectName || 'Board task') : n.generalTaskId ? 'General task' : 'Session note'}
+                                {' • '}{dayLabel(n.date)}
+                                {n.checkOutAt ? ` • ${new Date(n.checkOutAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-[8px] font-black px-2 py-1 rounded uppercase tracking-wider flex-shrink-0 ${
+                            n.status === 'completed' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            : n.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                            : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {n.status === 'completed' ? 'Approved' : n.status === 'rejected' ? 'Rejected' : 'Pending'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words pl-9">{n.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : data.sessions.length === 0 ? (
                 <p className="text-center text-slate-400 dark:text-slate-500 py-10 text-xs font-bold uppercase tracking-widest">
                   No sessions in this window
@@ -257,6 +301,9 @@ const MemberProductivityModal: React.FC<Props> = ({ userId, userName, window: in
                           <p className="text-xs font-black text-slate-800 dark:text-slate-100">{dayLabel(session.date)}</p>
                           {session.taskTitle && (
                             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">{session.taskTitle}</p>
+                          )}
+                          {session.handoffNote && (
+                            <p className="text-[10px] italic text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">“{session.handoffNote}”</p>
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">

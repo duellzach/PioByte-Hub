@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, AppState, Role, Department, TaskStatus, TimeEntry, TimeEntryAudit, MemberProductivity } from '../types';
-import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
+import { Plus, Search, Mail, Trash2, Trophy, BarChart2, AlertCircle, X, Shield, Settings, Key, UserPlus, Edit3, Lock, Eye, EyeOff, Check, Clock, History, VolumeX, Volume2, ShieldCheck, ShieldOff, Award, Download, LayoutList, Archive, ArchiveRestore, Loader2, Target, Star } from 'lucide-react';
 import { api } from '../services/api';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { useTeamTime } from '../utils/timeFormat';
@@ -10,6 +10,8 @@ import { BadgeChip, resolveBadge } from './badgeStyles';
 import { onLiveBoard } from '../utils/tasks';
 import DateWindowPicker, { defaultWindow, describeWindow, type DateWindow } from './DateWindowPicker';
 import MemberProductivityModal from './MemberProductivityModal';
+import TeamProgress from './TeamProgress';
+import { pickFeaturedBadges, MAX_FEATURED_BADGES } from '../shared/featuredBadges';
 
 /** Sortable columns of the Team summary table, in render order. */
 type SummarySortKey = 'name' | 'department' | 'roles' | 'hours' | 'sessions' | 'completed' | 'effort' | 'worked' | 'active' | 'status';
@@ -50,6 +52,14 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [awardTarget, setAwardTarget] = useState<User | null>(null);
   const [awardBadgeId, setAwardBadgeId] = useState('');
   const [awardError, setAwardError] = useState('');
+  // Featured-badge choices saved this session, layered over state.users so the
+  // card updates without a full app refresh.
+  const [featuredOverrides, setFeaturedOverrides] = useState<Record<string, number[]>>({});
+  const [expandedBadges, setExpandedBadges] = useState<Record<string, boolean>>({});
+  const [featurePickerFor, setFeaturePickerFor] = useState<User | null>(null);
+  const [featureDraft, setFeatureDraft] = useState<number[]>([]);
+  const [featureError, setFeatureError] = useState('');
+  const [featureSaving, setFeatureSaving] = useState(false);
 
   useEffect(() => {
     api.hours.totalsByUser()
@@ -75,6 +85,30 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
     (badgesByUser[parseInt(userId)] || [])
       .map(b => resolveBadge(b, badgeDefinitions, settings.departments))
       .filter((b): b is NonNullable<typeof b> => b !== null);
+
+  const featuredIdsFor = (user: User) => featuredOverrides[user.id] ?? user.featuredBadgeIds ?? [];
+
+  const openFeaturePicker = (user: User) => {
+    const owned = new Set(badgesFor(user.id).map(b => Number(b.id)));
+    setFeatureDraft(featuredIdsFor(user).filter(id => owned.has(id)));
+    setFeatureError('');
+    setFeaturePickerFor(user);
+  };
+
+  const saveFeatured = async () => {
+    if (!featurePickerFor) return;
+    setFeatureSaving(true);
+    setFeatureError('');
+    try {
+      const res = await api.badges.setFeatured(parseInt(featurePickerFor.id), featureDraft);
+      setFeaturedOverrides(prev => ({ ...prev, [featurePickerFor.id]: res.featuredBadgeIds }));
+      setFeaturePickerFor(null);
+    } catch (e: any) {
+      setFeatureError(e?.message || 'Could not save featured badges.');
+    } finally {
+      setFeatureSaving(false);
+    }
+  };
 
   const handleAwardBadge = async () => {
     if (!awardTarget || !awardBadgeId) return;
@@ -119,6 +153,7 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
   const [perfCertHistory, setPerfCertHistory] = useState<any[]>([]);
   const [perfHeldCerts, setPerfHeldCerts] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   // The summary table answers "what has the team done LATELY", so it defaults
   // to the current season rather than all of history. Every number in the table
@@ -453,6 +488,13 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                           <LayoutList size={16} />
                           <span className="hidden sm:inline">Summary</span>
                         </button>
+                        <button
+                          onClick={() => setShowProgress(v => !v)}
+                          className={`flex items-center justify-center gap-2 px-4 md:px-6 py-3 md:py-5 font-black rounded-xl md:rounded-[32px] shadow-lg transition-all uppercase tracking-widest text-[10px] md:text-xs ${showProgress ? 'bg-teamColor text-white hover:opacity-90' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                        >
+                          <Target size={16} />
+                          <span className="hidden sm:inline">Progress</span>
+                        </button>
                         {archivedUsers.length > 0 && (
                           <button
                             onClick={() => setShowArchived(v => !v)}
@@ -506,6 +548,13 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                 )}
             </div>
         </div>
+
+        {isCoach && showProgress && (
+          <TeamProgress
+            isCoach={!!isCoach}
+            onOpenStudent={(id, name) => setDeepDiveUser({ id: String(id), name })}
+          />
+        )}
 
         {isCoach && showSummary && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-[32px] border-2 border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in duration-300">
@@ -739,19 +788,51 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
                             {(() => {
                               const userBadgeList = badgesFor(user.id);
                               if (userBadgeList.length === 0 && !canEditUsers) return null;
+                              const isMe = state.currentUser?.id === user.id;
+                              const featured = pickFeaturedBadges(userBadgeList, featuredIdsFor(user));
+                              const featuredSet = new Set(featured.map(b => b.id));
+                              const rest = userBadgeList.filter(b => !featuredSet.has(b.id));
+                              const showRest = !!expandedBadges[user.id];
                               return (
                                 <div>
                                   <p className="text-[9px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 md:mb-3 flex items-center gap-1.5">
                                     <Award size={10} /> Badges
+                                    {(isMe || isCoach) && userBadgeList.length > 0 && (
+                                      <button
+                                        onClick={() => openFeaturePicker(user)}
+                                        className="ml-auto flex items-center gap-1 text-teamColor hover:opacity-80 whitespace-nowrap"
+                                        title={`Choose up to ${MAX_FEATURED_BADGES} badges to feature`}
+                                      >
+                                        <Star size={10} /> Choose favorites
+                                      </button>
+                                    )}
                                   </p>
                                   <div className="flex flex-wrap gap-1 md:gap-2 items-center">
-                                    {userBadgeList.map(badge => (
+                                    {featured.map(badge => (
+                                      <span key={badge.id} className="relative inline-flex">
+                                        <BadgeChip
+                                          badge={badge}
+                                          size="md"
+                                          onRemove={canEditUsers ? () => handleRevokeBadge(user.id, badge.id) : undefined}
+                                        />
+                                        <Star size={9} className="absolute -top-1 -right-1 text-amber-400 fill-amber-400" />
+                                      </span>
+                                    ))}
+                                    {showRest && rest.map(badge => (
                                       <BadgeChip
                                         key={badge.id}
                                         badge={badge}
                                         onRemove={canEditUsers ? () => handleRevokeBadge(user.id, badge.id) : undefined}
                                       />
                                     ))}
+                                    {rest.length > 0 && (
+                                      <button
+                                        onClick={() => setExpandedBadges(prev => ({ ...prev, [user.id]: !showRest }))}
+                                        className="px-2 py-1 rounded-lg text-[9px] md:text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:text-teamColor"
+                                      >
+                                        {showRest ? 'Show less' : `+${rest.length} more`}
+                                      </button>
+                                    )}
                                     {userBadgeList.length === 0 && (
                                       <span className="text-[9px] md:text-[10px] text-slate-300 dark:text-slate-600 font-bold uppercase">None yet</span>
                                     )}
@@ -937,6 +1018,51 @@ const TeamManagement: React.FC<TeamProps> = ({ state, onAddUser, onUpdateUser, o
               </div>
           </div>
         )}
+
+        {featurePickerFor && (() => {
+          const list = badgesFor(featurePickerFor.id);
+          return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-6 shadow-2xl max-h-[85vh] flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Favorite Badges</h2>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
+                      Pick up to {MAX_FEATURED_BADGES} to show first · {featureDraft.length}/{MAX_FEATURED_BADGES}
+                    </p>
+                  </div>
+                  <button onClick={() => setFeaturePickerFor(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={18} /></button>
+                </div>
+                <div className="flex-1 overflow-auto space-y-1.5">
+                  {list.map(badge => {
+                    const id = Number(badge.id);
+                    const on = featureDraft.includes(id);
+                    const full = !on && featureDraft.length >= MAX_FEATURED_BADGES;
+                    return (
+                      <button
+                        key={badge.id}
+                        disabled={full}
+                        onClick={() => setFeatureDraft(d => on ? d.filter(x => x !== id) : [...d, id])}
+                        className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 transition-all text-left ${on ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-slate-100 dark:border-slate-700'} ${full ? 'opacity-40 cursor-not-allowed' : 'hover:border-amber-300'}`}
+                      >
+                        <BadgeChip badge={badge} size="md" />
+                        <Star size={16} className={on ? 'text-amber-400 fill-amber-400' : 'text-slate-300 dark:text-slate-600'} />
+                      </button>
+                    );
+                  })}
+                </div>
+                {featureError && <p className="text-xs font-bold text-red-500 mt-3">{featureError}</p>}
+                <button
+                  onClick={saveFeatured}
+                  disabled={featureSaving}
+                  className="mt-4 w-full py-3 bg-teamColor text-white font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {featureSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {awardTarget && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setAwardTarget(null)}>

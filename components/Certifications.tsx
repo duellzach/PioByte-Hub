@@ -4,7 +4,7 @@ import { User as UserType, Role } from '../types';
 import { api } from '../services/api';
 import { useTeamTime } from '../utils/timeFormat';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
-import { LEVELS, levelBadgeLabel, certificationTracks } from '../shared/certifications';
+import { LEVELS, levelBadgeLabel, certificationTracks, CERT_AUTHOR_ROLES, CERT_DELETE_ROLES, canAuthorCertIn } from '../shared/certifications';
 import { LINK_TYPES, linkIcon, normalizeUrl, ProjectLinkChip } from './ProjectLinks';
 
 interface CertificationsProps {
@@ -63,7 +63,14 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
   const isCaptain = currentUser?.roles.includes(Role.TeamCaptain);
   const isTrainer = currentUser?.roles.includes(Role.Trainer);
   const isCoachOrCaptain = isCoach || isCaptain;
-  const canManageCerts = isCoachOrCaptain;
+  // Coaches, Captains and Department Heads author certs; a Department Head
+  // only within their own department(s) or General. Deleting stays Coach/Captain.
+  const myRoles: string[] = currentUser?.roles || [];
+  const myDepts: string[] = (currentUser as any)?.departments || [];
+  const canManageCerts = myRoles.some(r => CERT_AUTHOR_ROLES.includes(r));
+  const canDeleteCerts = myRoles.some(r => CERT_DELETE_ROLES.includes(r));
+  const canEditCert = (cert: any) => canAuthorCertIn(myRoles, myDepts, cert?.department || null);
+  const isDeptHeadOnly = canManageCerts && !isCoachOrCaptain;
   const canSeeQueue = isCoach || isCaptain || isTrainer;
 
   const loadCertifications = async () => {
@@ -307,7 +314,8 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
     setCertForm({
       name: '', description: '', equipment: '', safetyGuide: '',
       checklistItems: [], newChecklistItem: '',
-      department: '', level: 1, links: [], newLinkLabel: '', newLinkUrl: '', newLinkType: 'doc',
+      // A Department Head starts in their own department.
+      department: isDeptHeadOnly ? (myDepts[0] || '') : '', level: 1, links: [], newLinkLabel: '', newLinkUrl: '', newLinkType: 'doc',
     });
   };
 
@@ -463,9 +471,11 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
             className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl outline-none focus:border-teamColor font-bold dark:text-white transition-all"
           >
             <option value="">General</option>
-            {settings.departments.map(d => (
-              <option key={d.name} value={d.name}>{d.name}</option>
-            ))}
+            {settings.departments
+              .filter(d => !isDeptHeadOnly || canAuthorCertIn(myRoles, myDepts, d.name))
+              .map(d => (
+                <option key={d.name} value={d.name}>{d.name}</option>
+              ))}
           </select>
         </div>
         <div>
@@ -804,7 +814,7 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {canManageCerts && (
+                  {canManageCerts && canEditCert(selectedCert) && (
                     <>
                       <button
                         onClick={() => openEditModal(selectedCert)}
@@ -813,13 +823,13 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
                       >
                         <Edit3 size={15} />
                       </button>
-                      <button
+                      {canDeleteCerts && <button
                         onClick={() => handleDeleteCert(selectedCert.id)}
                         className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
                         title="Delete"
                       >
                         <Trash2 size={15} />
-                      </button>
+                      </button>}
                     </>
                   )}
                   <button onClick={() => setSelectedCert(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-all dark:text-slate-400">

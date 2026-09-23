@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban } from 'lucide-react';
+import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban, ChevronDown, ChevronUp, CalendarClock, HelpCircle, CircleCheck, Circle } from 'lucide-react';
 import type { AvailableTask, GeneralTask } from '../types';
 import { PRIORITY_COLORS } from '../constants';
 
@@ -10,6 +10,8 @@ interface Props {
   assignedTasks: AvailableTask[];
   openTasks: AvailableTask[];
   generalTasks: GeneralTask[];
+  /** Resolves assignee ids to names for the task details. */
+  userNameFor?: (userId: number) => string;
   /** Currently selected board task / general task, so a re-open shows the truth. */
   selectedTaskId: number | null;
   selectedGeneralTaskId: number | null;
@@ -34,7 +36,7 @@ interface Props {
  * routinely carry tasks with near-identical titles.
  */
 const TaskPickerModal: React.FC<Props> = ({
-  title, subtitle, loading, assignedTasks, openTasks, generalTasks,
+  title, subtitle, loading, assignedTasks, openTasks, generalTasks, userNameFor,
   selectedTaskId, selectedGeneralTaskId, confirmLabel, dismissLabel,
   allowClear = false, onDismiss, onConfirm,
 }) => {
@@ -42,6 +44,7 @@ const TaskPickerModal: React.FC<Props> = ({
   const [generalTaskId, setGeneralTaskId] = useState<number | null>(selectedGeneralTaskId);
   const [query, setQuery] = useState('');
   const [board, setBoard] = useState('');
+  const [expanded, setExpanded] = useState<number | null>(null);
 
   // A task can live on more than one board at once, mirroring the Kanban
   // view: a department board shows every task tagged with that department
@@ -82,8 +85,8 @@ const TaskPickerModal: React.FC<Props> = ({
   const matches = (haystack: string[]) => !q || haystack.some(h => (h || '').toLowerCase().includes(q));
 
   const filtered = useMemo(() => ({
-    assigned: assignedTasks.filter(t => matches([t.title, boardLabelsFor(t)])),
-    open: openTasks.filter(t => (!board || boardKeysFor(t).includes(board)) && matches([t.title, boardLabelsFor(t)])),
+    assigned: assignedTasks.filter(t => matches([t.title, boardLabelsFor(t), t.description || ''])),
+    open: openTasks.filter(t => (!board || boardKeysFor(t).includes(board)) && matches([t.title, boardLabelsFor(t), t.description || ''])),
     general: generalTasks.filter(g => !board && matches([g.name, g.description || ''])),
   }), [assignedTasks, openTasks, generalTasks, q, board]);
 
@@ -99,43 +102,114 @@ const TaskPickerModal: React.FC<Props> = ({
     setTaskId(null);
   };
 
+  const dueInfo = (due?: string | null) => {
+    if (!due) return null;
+    const d = new Date(due.length === 10 ? `${due}T12:00:00` : due);
+    if (isNaN(d.getTime())) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const days = Math.round((day.getTime() - today.getTime()) / 86400000);
+    const label = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return {
+      label: days < 0 ? `Overdue · ${label}` : days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : `Due ${label}`,
+      tone: days < 0 ? 'text-red-600 dark:text-red-400' : days <= 2 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400',
+    };
+  };
+
   const TaskRow = ({ task, tone }: { task: AvailableTask; tone: 'blue' | 'orange' }) => {
     const selected = taskId === task.id;
+    const open = expanded === task.id;
     const ring = tone === 'blue'
       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
       : 'border-orange-500 bg-orange-50 dark:bg-orange-900/30';
     const hover = tone === 'blue'
       ? 'hover:border-blue-300 dark:hover:border-blue-700'
       : 'hover:border-orange-300 dark:hover:border-orange-700';
+    const due = dueInfo(task.dueDate);
+    const assigneeNames = userNameFor ? (task.assignees || []).map(userNameFor).filter(Boolean) : [];
+    const criteria = task.successCriteria || [];
+    const description = (task.description || '').trim();
+    const hasDetails = !!description || criteria.length > 0;
     return (
-      <button
-        onClick={() => pickTask(task.id)}
-        aria-pressed={selected}
-        className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+      <div
+        className={`rounded-xl border-2 transition-all ${
           selected ? ring : `border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 ${hover} hover:shadow-sm`
         }`}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
-            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5">
-              {boardLabelsFor(task)} • {task.status}
-            </p>
+        <button
+          onClick={() => pickTask(task.id)}
+          aria-pressed={selected}
+          className="w-full text-left p-3 pb-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
+              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                {boardLabelsFor(task)} • {task.status}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+                {task.priority}
+              </span>
+              {task.effort ? <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span> : null}
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
-              {task.priority}
-            </span>
-            {task.effort ? <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span> : null}
-          </div>
-        </div>
-        {selected && (
-          <div className={`mt-1.5 flex items-center gap-1 ${tone === 'blue' ? 'text-blue-600' : 'text-orange-600'}`}>
-            <CheckSquare size={11} />
-            <span className="text-[9px] font-black uppercase">Selected</span>
-          </div>
+          {description && !open && (
+            <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-1.5 line-clamp-2 whitespace-pre-line">{description}</p>
+          )}
+          {(due || assigneeNames.length > 0 || task.helpRequested) && (
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[9px] font-bold">
+              {due && <span className={`flex items-center gap-1 ${due.tone}`}><CalendarClock size={10} /> {due.label}</span>}
+              {assigneeNames.length > 0 && (
+                <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 min-w-0">
+                  <Users size={10} className="shrink-0" /> <span className="truncate">{assigneeNames.join(', ')}</span>
+                </span>
+              )}
+              {task.helpRequested && <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400"><HelpCircle size={10} /> Help wanted</span>}
+            </div>
+          )}
+          {selected && (
+            <div className={`mt-1.5 flex items-center gap-1 ${tone === 'blue' ? 'text-blue-600' : 'text-orange-600'}`}>
+              <CheckSquare size={11} />
+              <span className="text-[9px] font-black uppercase">Selected</span>
+            </div>
+          )}
+        </button>
+        {hasDetails && (
+          <>
+            {open && (
+              <div className="px-3 pb-2 space-y-2">
+                {description && (
+                  <p className="text-[11px] text-slate-700 dark:text-slate-200 whitespace-pre-line break-words">{description}</p>
+                )}
+                {criteria.length > 0 && (
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Success criteria</p>
+                    <ul className="space-y-0.5">
+                      {criteria.map(c => (
+                        <li key={c.id} className="flex items-start gap-1.5 text-[10px] text-slate-600 dark:text-slate-300">
+                          {c.completed
+                            ? <CircleCheck size={11} className="text-emerald-500 shrink-0 mt-px" />
+                            : <Circle size={11} className="text-slate-300 dark:text-slate-500 shrink-0 mt-px" />}
+                          <span className={c.completed ? 'line-through opacity-60' : ''}>{c.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => setExpanded(open ? null : task.id)}
+              aria-expanded={open}
+              className="w-full flex items-center justify-center gap-1 py-1 border-t border-slate-100 dark:border-slate-600 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 hover:text-teamColor"
+            >
+              {open ? <><ChevronUp size={11} /> Less</> : <><ChevronDown size={11} /> Details{criteria.length > 0 ? ` · ${criteria.filter(c => c.completed).length}/${criteria.length} criteria` : ''}</>}
+            </button>
+          </>
         )}
-      </button>
+      </div>
     );
   };
 

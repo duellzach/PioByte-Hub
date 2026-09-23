@@ -144,22 +144,34 @@ router.post("/time-entries/check-in", async (req, res) => {
 router.post("/time-entries/:id/check-out", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { userId, taskHandoffNote, markTaskComplete } = req.body;
+    const { taskHandoffNote, markTaskComplete } = req.body;
     const entry = await storage.getTimeEntry(id);
     if (!entry) return res.status(404).json({ error: "Time entry not found" });
+    // Only the member themselves, or a Coach/Captain, may close a session —
+    // otherwise anyone signed in could clock someone else out.
+    const actorId = req.userId!;
+    const isSelf = entry.userId === actorId;
+    if (!isSelf && !hasAnyRole(req.userRoles || [], COACH_CAPTAIN)) {
+      return res.status(403).json({ error: "You can only check yourself out" });
+    }
     if (entry.checkOutAt) return res.status(400).json({ error: "Already checked out" });
+    if (entry.status === "rejected") return res.status(400).json({ error: "That session was rejected" });
 
     const checkOutAt = new Date();
     const updateData: any = { checkOutAt, status: "pending_check_out" };
-    if (taskHandoffNote !== undefined) updateData.taskHandoffNote = taskHandoffNote;
+    // Checking out is allowed before the check-in is approved; the coach
+    // approves both halves later (see /confirm). The status stays in the
+    // approval queue either way.
+    const note = typeof taskHandoffNote === "string" ? taskHandoffNote.trim().slice(0, 4000) : "";
+    if (note) updateData.taskHandoffNote = note;
 
     const updated = await storage.updateTimeEntry(id, updateData);
     await storage.createTimeEntryAudit({
       entryId: id,
-      actorId: userId,
-      actionType: "check_out",
+      actorId,
+      actionType: isSelf ? "check_out" : "coach_check_out",
       previousValues: { checkOutAt: null },
-      newValues: { checkOutAt },
+      newValues: { checkOutAt, ...(note ? { taskHandoffNote: note } : {}) },
     });
     // Clear the roster's "here now" state when clocking out of an event.
     if (entry.kind !== "shop" && entry.calendarEventId) {
@@ -172,6 +184,21 @@ router.post("/time-entries/:id/check-out", async (req, res) => {
 
     if (entry.workingOnTaskId) {
       await creditContributor(entry.workingOnTaskId, entry.userId);
+      // Post the note on the task's own thread too, so whoever picks the task
+      // up next reads it where they already look. General tasks have no
+      // thread — their notes live on the time entry, surfaced in the deep dive.
+      if (note) {
+        const task = await storage.getTask(entry.workingOnTaskId);
+        if (task) {
+          const comments = Array.isArray(task.comments) ? task.comments : [];
+          await storage.updateTask(entry.workingOnTaskId, {
+            comments: [
+              ...comments,
+              { id: `handoff-${id}`, userId: entry.userId, text: `Handoff: ${note}`, timestamp: checkOutAt.getTime() },
+            ],
+          });
+        }
+      }
       if (markTaskComplete) {
         await storage.updateTask(entry.workingOnTaskId, {
           status: 'Complete',
@@ -207,6 +234,13 @@ router.post("/time-entries/:id/confirm", requireRoles(...COACH_CAPTAIN), async (
         newStatus = "checked_in";
       }
     } else if (confirmType === "check_out") {
+      if (!entry.checkOutAt) return res.status(400).json({ error: "They haven't checked out yet" });
+      // A student may check out before their check-in was approved; approving
+      // the check-out approves the whole session, check-in included.
+      if (!entry.checkInConfirmedBy) {
+        updates.checkInConfirmedBy = coachId;
+        updates.checkInConfirmedAt = new Date();
+      }
       updates.checkOutConfirmedBy = coachId;
       updates.checkOutConfirmedAt = new Date();
       newStatus = "completed";
@@ -225,7 +259,7 @@ router.post("/time-entries/:id/confirm", requireRoles(...COACH_CAPTAIN), async (
       actorId: coachId,
       actionType: `confirm_${confirmType}`,
       previousValues: { status: entry.status },
-      newValues: { status: newStatus, roundedMinutes },
+      newValues: { status: newStatus, roundedMinutes, ...(updates.checkInConfirmedBy && confirmType === "check_out" ? { checkInConfirmed: true } : {}) },
     });
     res.json(updated);
   } catch (error) {

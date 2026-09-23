@@ -210,6 +210,7 @@ initializeDatabase().then(() => {
       await storage.ensureCompetitionUnification();
       await storage.ensureCalendarFeedTokens();
       await storage.ensureRequirementsAndFundraising();
+      await storage.ensureRequirementChecklist();
       await storage.ensureArchiveColumns();
       await storage.ensureAttendanceColumns();
       await storage.ensureProjectLinksColumn();

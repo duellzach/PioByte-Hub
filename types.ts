@@ -46,6 +46,8 @@ export interface User {
   muted?: boolean;
   archived?: boolean;
   guestEventId?: number;
+  /** Up to three user_badges ids this member chose to show first. */
+  featuredBadgeIds?: number[];
 }
 
 export type BadgeKind = 'level' | 'custom';
@@ -210,6 +212,13 @@ export interface AvailableTask {
   departments: string[];
   /** True when this task lives only on its department board, not a project board. */
   deptOnly: boolean;
+  // Detail fields — the server sends the full task row; the picker shows these
+  // so students can choose on more than a title.
+  description?: string;
+  dueDate?: string | null;
+  assignees?: number[];
+  successCriteria?: { id: string; text: string; completed: boolean }[];
+  helpRequested?: boolean;
 }
 
 /** Minutes by hour category for one member/window, plus the summed `total`. */
@@ -246,11 +255,27 @@ export interface TaskContribution {
   isAssignee: boolean;
 }
 
+/** A student's check-out note, as the performance deep dive lists it. */
+export interface HandoffNote {
+  entryId: number;
+  date: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  status: string;
+  note: string;
+  taskId: number | null;
+  taskTitle: string | null;
+  projectName: string | null;
+  generalTaskId: number | null;
+  generalTaskName: string | null;
+}
+
 export interface ProductivityDeepDive {
   user: { id: number; name: string; username: string; departments: string[]; roles: string[] };
   window: { start: string | null; end: string | null };
   hours: CategoryTotals;
-  sessions: { id: number; date: string; kind: string; minutes: number; status: string; taskTitle: string | null; notes: string | null }[];
+  sessions: { id: number; date: string; kind: string; minutes: number; status: string; taskTitle: string | null; notes: string | null; handoffNote: string | null }[];
+  handoffNotes: HandoffNote[];
   byDay: { date: string; minutes: number }[];
   contributions: TaskContribution[];
   tasksCompleted: { id: number; title: string; projectName: string; effort: number | null; completedAt: string }[];

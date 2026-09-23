@@ -185,11 +185,32 @@ export async function getTeamProductivity(window: Window): Promise<MemberProduct
     });
 }
 
+export interface HandoffNote {
+  entryId: number;
+  /** Team-local YYYY-MM-DD of the check-out (check-in if never checked out). */
+  date: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  status: string;
+  note: string;
+  taskId: number | null;
+  taskTitle: string | null;
+  projectName: string | null;
+  generalTaskId: number | null;
+  generalTaskName: string | null;
+}
+
 export interface ProductivityDeepDive {
   user: { id: number; name: string; username: string; departments: string[]; roles: string[] };
   window: Window;
   hours: CategoryTotals;
-  sessions: { id: number; date: string; kind: string; minutes: number; status: string; taskTitle: string | null; notes: string | null }[];
+  sessions: { id: number; date: string; kind: string; minutes: number; status: string; taskTitle: string | null; notes: string | null; handoffNote: string | null }[];
+  /**
+   * Every check-out note the member wrote in the window, in ANY status. Read
+   * straight from time_entries rather than the ledger, which only carries
+   * approved sessions — a note must be visible while its session is pending.
+   */
+  handoffNotes: HandoffNote[];
   /** Minutes per team-local day — a sparkline of when the member actually shows up. */
   byDay: { date: string; minutes: number }[];
   contributions: TaskContribution[];
@@ -211,6 +232,32 @@ export async function getUserProductivity(userId: number, window: Window): Promi
   ]);
 
   const windowed = rows.filter((r) => inWindow(r.date, window));
+  // Look boards up across ALL tasks, archived boards included — a note written
+  // on a task whose board was later retired is still the student's record.
+  const projectNameByTaskId = new Map<number, string>();
+  {
+    const [allTasks, projects] = await Promise.all([storage.getTasks(), storage.getProjects()]);
+    const projectName = new Map(projects.map((p) => [p.id, p.name]));
+    for (const t of allTasks) projectNameByTaskId.set(t.id, projectName.get(t.projectId) ?? "");
+  }
+  const iso = (d: unknown) => (d ? new Date(d as string).toISOString() : null);
+  const handoffNotes: HandoffNote[] = entries
+    .filter((e: any) => e.userId === userId && typeof e.taskHandoffNote === "string" && e.taskHandoffNote.trim())
+    .map((e: any) => ({
+      entryId: e.id,
+      date: localDatePT(new Date(e.checkOutAt ?? e.checkInAt ?? e.createdAt), tz),
+      checkInAt: iso(e.checkInAt),
+      checkOutAt: iso(e.checkOutAt),
+      status: e.status,
+      note: e.taskHandoffNote.trim(),
+      taskId: e.workingOnTaskId ?? null,
+      taskTitle: e.workingOnTaskTitle ?? null,
+      projectName: e.workingOnTaskId ? projectNameByTaskId.get(e.workingOnTaskId) ?? null : null,
+      generalTaskId: e.workingOnGeneralTaskId ?? null,
+      generalTaskName: e.workingOnGeneralTaskName ?? null,
+    }))
+    .filter((n) => inWindow(n.date, window))
+    .sort((a, b) => (b.checkOutAt ?? b.checkInAt ?? "").localeCompare(a.checkOutAt ?? a.checkInAt ?? ""));
   const entryById = new Map(entries.map((e: any) => [e.id, e]));
 
   const byDayMap = new Map<string, number>();
@@ -238,8 +285,10 @@ export async function getUserProductivity(userId: number, window: Window): Promi
         status: entry?.status ?? "completed",
         taskTitle: entry?.workingOnTaskTitle ?? entry?.workingOnGeneralTaskName ?? null,
         notes: entry?.notes ?? null,
+        handoffNote: entry?.taskHandoffNote ?? null,
       };
     }),
+    handoffNotes,
     byDay: [...byDayMap.entries()].map(([date, minutes]) => ({ date, minutes })).sort((a, b) => a.date.localeCompare(b.date)),
     contributions: [...(contributionMap.get(userId)?.values() || [])].sort((a, b) => b.minutes - a.minutes),
     tasksCompleted: assigned

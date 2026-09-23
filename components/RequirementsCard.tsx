@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Target, DollarSign, Clock } from 'lucide-react';
+import { Target, DollarSign, Clock, ClipboardCheck, CheckSquare, Square } from 'lucide-react';
 import { api } from '../services/api';
 import { CategoryBadge } from './hourCategoryStyles';
 
-const fmtMoney = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const fmtHours = (mins: number) => {
+export const fmtMoney = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+export const fmtHours = (mins: number) => {
   const h = Math.floor(mins / 60), m = mins % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
 };
-const pct = (a: number, b: number) => (b <= 0 ? (a > 0 ? 100 : 0) : Math.min(100, Math.round((a / b) * 100)));
+export const pct = (a: number, b: number) => (b <= 0 ? (a > 0 ? 100 : 0) : Math.min(100, Math.round((a / b) * 100)));
 
-const Bar: React.FC<{ label: string; value: string; percent: number; done?: boolean }> = ({ label, value, percent, done }) => (
+export const Bar: React.FC<{ label: string; value: string; percent: number; done?: boolean }> = ({ label, value, percent, done }) => (
   <div className="space-y-1.5">
     <div className="flex items-baseline justify-between gap-2">
       <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate">{label}</span>
@@ -35,7 +35,8 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
   if (!loaded || !data) return null;
   const fundraisingOn = data.fundraising?.enabled;
   const hourReqs = (data.hours || []).filter((h: any) => (h.phases || []).length > 0);
-  if (!fundraisingOn && hourReqs.length === 0) return null; // nothing configured → hide
+  const checklist: any[] = data.checklist || [];
+  if (!fundraisingOn && hourReqs.length === 0 && checklist.length === 0) return null; // nothing configured → hide
 
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-4 ${className}`}>
@@ -48,6 +49,27 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto kanban-scroll space-y-3.5 -mr-1 pr-1">
+        {checklist.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <ClipboardCheck size={11} /> Checklist
+              <span className="ml-auto tabular-nums">{checklist.filter(c => c.completed).length}/{checklist.length}</span>
+            </div>
+            {/* Read-only: only a coach can tick these off. */}
+            {checklist.map((c: any) => (
+              <div key={c.id} className="flex items-start gap-2" title={c.completed ? 'Completed' : 'A coach will check this off once done'}>
+                {c.completed
+                  ? <CheckSquare size={15} className="text-emerald-500 shrink-0 mt-px" />
+                  : <Square size={15} className="text-slate-300 dark:text-slate-600 shrink-0 mt-px" />}
+                <div className="min-w-0">
+                  <p className={`text-xs font-bold ${c.completed ? 'text-slate-500 dark:text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>{c.label}</p>
+                  {c.description && <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {fundraisingOn && (() => {
           const f = data.fundraising;
           const p = pct(f.raisedCents, f.goalCents);

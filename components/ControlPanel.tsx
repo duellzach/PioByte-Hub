@@ -4,6 +4,7 @@ import { Settings, Save, RotateCcw, Loader2, Check, X, Plus, Trash2, Image, Aler
 import { useTeamSettings, TeamSettingsData, DEFAULT_TEAM_SETTINGS, DepartmentSetting, RoleSetting } from '../contexts/TeamSettingsContext';
 import { api } from '../services/api';
 import RequirementsSettings from './RequirementsSettings';
+import ChecklistSettings from './ChecklistSettings';
 import BadgeSettings from './BadgeSettings';
 import TrainerScopeSettings from './TrainerScopeSettings';
 import type { DepartmentChangeSet, DepartmentUsageMap } from '../shared/departments';
@@ -645,6 +646,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
 
       <SectionCard title="Requirements" subtitle="Fundraising goal and per-category hour requirements shown on each student's home dashboard.">
         <RequirementsSettings currentUserId={currentUserId} />
+      </SectionCard>
+
+      <SectionCard title="Membership Checklist" subtitle="One-off items every student must complete (e.g. Register with FIRST, Pay Club Dues). Coaches tick them off per student on the Team page → Progress.">
+        <ChecklistSettings isCoach={currentUserRoles.includes('Coach')} />
       </SectionCard>
 
       <SectionCard title="Departments" subtitle="Customize department names and colors. Renames and deletions are applied everywhere on Save.">
