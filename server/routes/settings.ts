@@ -64,6 +64,7 @@ const DEFAULT_DEPARTMENTS = [
 // hint: Structural change (rename/retype). Check callers of this entity.
 const DEFAULT_ROLES = [
   { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
+  { name: 'Mentor', tier: 'leadership', excludeFromCaps: true },
   { name: 'Team Captain', tier: 'leadership' },
   { name: 'SCRUM Master', tier: 'leadership' },
   { name: 'Department Head', tier: 'lead' },
@@ -105,6 +106,12 @@ router.put("/settings", async (req, res) => {
     // must leave the stored value untouched.
     if (data.requirements !== undefined) {
       try {
+        // A save that only knows the student set (no `mentor` key) must not
+        // wipe the coach/mentor set — carry the stored one forward.
+        if (data.requirements && typeof data.requirements === "object" && data.requirements.mentor === undefined) {
+          const current: any = await storage.getTeamSettings();
+          data.requirements = { ...data.requirements, mentor: current?.requirements?.mentor };
+        }
         data.requirements = sanitizeRequirements(data.requirements);
       } catch (e: any) {
         return res.status(400).json({ error: e.message });

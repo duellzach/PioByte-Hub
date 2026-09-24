@@ -43,6 +43,8 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
   }, []);
 
   if (!loaded || !data) return null;
+  // Class Members who aren't on the club have no requirements — no card.
+  if (data.track === 'none') return null;
   const fundraisingOn = data.fundraising?.enabled;
   const hourReqs = (data.hours || []).filter((h: any) => (h.phases || []).length > 0);
   const checklist: any[] = data.checklist || [];
@@ -54,7 +56,7 @@ const RequirementsCard: React.FC<{ className?: string }> = ({ className = '' }) 
         <div className="w-9 h-9 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Target size={18} /></div>
         <div>
           <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">My Requirements</h3>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Your season progress</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{data.track === 'mentor' ? 'Coach & mentor requirements' : 'Your season progress'}</p>
         </div>
       </div>
 

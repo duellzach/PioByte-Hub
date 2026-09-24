@@ -651,6 +651,7 @@ export const teamSettings = pgTable("team_settings", {
   // EVERY role they hold is flagged this way).
   roles: jsonb("roles").$type<{ name: string; tier: string; excludeFromCaps?: boolean }[]>().notNull().default([
     { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
+    { name: 'Mentor', tier: 'leadership', excludeFromCaps: true },
     { name: 'Team Captain', tier: 'leadership' },
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },
@@ -809,6 +810,8 @@ export const requirementChecklistItems = pgTable("requirement_checklist_items", 
   id: serial("id").primaryKey(),
   label: text("label").notNull(),
   description: text("description").notNull().default(""),
+  // Who the item applies to: 'member' (students) or 'mentor' (Coach/Mentor).
+  audience: text("audience").notNull().default("member"),
   sortOrder: integer("sort_order").notNull().default(0),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),

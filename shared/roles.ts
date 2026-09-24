@@ -42,3 +42,24 @@ export const hasAnyRole = (userRoles: readonly string[] = [], allowed: readonly 
  */
 export const isCapExemptRoles = (userRoles: readonly string[] = [], capExemptRoleNames: readonly string[] = []): boolean =>
   userRoles.length > 0 && capExemptRoleNames.length > 0 && userRoles.every((r) => capExemptRoleNames.includes(r));
+
+/** Adult volunteer who isn't a head coach. No extra permissions — it exists so
+ *  mentors follow the coach/mentor requirements rather than the student ones. */
+export const MENTOR_ROLE = 'Mentor';
+
+/** Roles that follow the coach/mentor requirement set. */
+export const MENTOR_TRACK_ROLES = ['Coach', MENTOR_ROLE];
+
+export type RequirementTrack = 'member' | 'mentor' | 'none';
+
+/**
+ * Which set of requirements (checklist, hours, fundraising) applies to a user.
+ * Coaches and Mentors get their own set. Class Members who aren't also on the
+ * club (every role they hold is Class Member) have none — they're in class
+ * only. Everyone else is a club member.
+ */
+export function requirementTrackFor(roles: readonly string[] = []): RequirementTrack {
+  if (roles.some((r) => MENTOR_TRACK_ROLES.includes(r))) return 'mentor';
+  if (roles.length === 0 || roles.every((r) => r === CLASS_MEMBER_ROLE)) return 'none';
+  return 'member';
+}

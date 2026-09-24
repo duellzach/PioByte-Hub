@@ -124,7 +124,7 @@ export const api = {
     team: () => apiRequest<any[]>('/requirements/team'),
     checklistItems: (includeArchived = false) =>
       apiRequest<any[]>(`/requirement-checklist${includeArchived ? '?includeArchived=true' : ''}`),
-    createChecklistItem: (data: { label: string; description?: string }) =>
+    createChecklistItem: (data: { label: string; description?: string; audience?: 'member' | 'mentor' }) =>
       apiRequest<any>('/requirement-checklist', { method: 'POST', body: JSON.stringify(data) }),
     updateChecklistItem: (id: number, data: { label?: string; description?: string; sortOrder?: number; archived?: boolean }) =>
       apiRequest<any>(`/requirement-checklist/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

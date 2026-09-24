@@ -49,6 +49,7 @@ export const DEFAULT_TEAM_SETTINGS: TeamSettingsData = {
   ],
   roles: [
     { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
+    { name: 'Mentor', tier: 'leadership', excludeFromCaps: true },
     { name: 'Team Captain', tier: 'leadership' },
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },

@@ -4,7 +4,7 @@ import { api } from '../services/api';
 
 interface Props { isCoach: boolean; }
 
-interface Item { id: number; label: string; description: string; sortOrder: number; archived: boolean; }
+interface Item { id: number; label: string; description: string; audience?: 'member' | 'mentor'; sortOrder: number; archived: boolean; }
 
 /**
  * Coach-defined membership checklist ("Register with FIRST", "Pay Club Dues",
@@ -18,6 +18,8 @@ const ChecklistSettings: React.FC<Props> = ({ isCoach }) => {
   const [editing, setEditing] = useState<{ id: number; label: string; description: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Students and Coaches/Mentors keep separate checklists.
+  const [audience, setAudience] = useState<'member' | 'mentor'>('member');
 
   const load = () =>
     api.requirements.checklistItems(isCoach)
@@ -36,8 +38,9 @@ const ChecklistSettings: React.FC<Props> = ({ isCoach }) => {
 
   if (!items) return <div className="flex justify-center py-6 text-slate-400"><Loader2 className="animate-spin" size={20} /></div>;
 
-  const active = items.filter(i => !i.archived);
-  const archived = items.filter(i => i.archived);
+  const mine = items.filter(i => (i.audience || 'member') === audience);
+  const active = mine.filter(i => !i.archived);
+  const archived = mine.filter(i => i.archived);
 
   const move = (idx: number, dir: -1 | 1) => {
     const a = active[idx], b = active[idx + dir];
@@ -55,6 +58,17 @@ const ChecklistSettings: React.FC<Props> = ({ isCoach }) => {
 
   return (
     <div className="space-y-3">
+      <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-700 rounded-xl">
+        {([['member', 'Students'], ['mentor', 'Coaches & Mentors']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => { setAudience(key); setEditing(null); }}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${audience === key ? 'bg-white dark:bg-slate-800 text-teamColor shadow-sm' : 'text-slate-500 dark:text-slate-300'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {!isCoach && (
         <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Only Coaches can change the checklist or tick items off.</p>
       )}
@@ -102,11 +116,11 @@ const ChecklistSettings: React.FC<Props> = ({ isCoach }) => {
 
       {isCoach && (
         <div className="flex flex-col sm:flex-row gap-2">
-          <input className={inputCls} value={label} placeholder="New item, e.g. Register with FIRST" onChange={e => setLabel(e.target.value)} />
+          <input className={inputCls} value={label} placeholder={audience === 'member' ? 'New item, e.g. Register with FIRST' : 'New item, e.g. Background check'} onChange={e => setLabel(e.target.value)} />
           <input className={inputCls} value={description} placeholder="Description (optional)" onChange={e => setDescription(e.target.value)} />
           <button
             disabled={busy || !label.trim()}
-            onClick={() => run(async () => { await api.requirements.createChecklistItem({ label, description }); setLabel(''); setDescription(''); })}
+            onClick={() => run(async () => { await api.requirements.createChecklistItem({ label, description, audience }); setLabel(''); setDescription(''); })}
             className="flex items-center justify-center gap-1 px-4 py-2 bg-teamColor text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 shrink-0"
           >
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add

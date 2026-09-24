@@ -5,6 +5,7 @@ import { isHourCategory } from "../../shared/hourCategories";
 import { getLedgerRows, getTeamTotals, getTotalsByUser, sumMinutes, totalsFromRows } from "../services/hoursLedger";
 import { localDatePT } from "../../utils/dates";
 import { getTeamTimezone } from "../services/teamTime";
+import { requirementTrackFor, type RequirementTrack } from "../../shared/roles";
 
 const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
 const router = Router();
@@ -134,10 +135,19 @@ const clampNonNegativeInt = (v: any, max = 10_000_000) => {
  * the requirement's areas", so this must never fabricate an empty array in
  * its place.
  */
-export function sanitizeRequirements(input: any): { fundraising: { enabled: boolean; goalCents: number }; hours: any[] } {
+export function sanitizeRequirements(input: any) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("requirements must be an object");
   }
+  // Top level is the student (club member) set; `mentor` is the separate set
+  // for Coaches and Mentors, same shape.
+  const mentorInput = input.mentor && typeof input.mentor === "object" && !Array.isArray(input.mentor)
+    ? input.mentor
+    : { fundraising: { enabled: false, goalCents: 0 }, hours: [] };
+  return { ...sanitizeTrack(input), mentor: sanitizeTrack(mentorInput) };
+}
+
+function sanitizeTrack(input: any): { fundraising: { enabled: boolean; goalCents: number }; hours: any[] } {
   const seenKeys = new Set<string>();
   const hours = (Array.isArray(input.hours) ? input.hours : [])
     .slice(0, MAX_REQUIREMENTS)
@@ -178,10 +188,15 @@ export function sanitizeRequirements(input: any): { fundraising: { enabled: bool
   };
 }
 
+const EMPTY_TRACK = { fundraising: { enabled: false, goalCents: 0 }, hours: [] };
+
 async function computeRequirements(userId: number) {
   const settings: any = await storage.getTeamSettings();
-  const req = settings.requirements || { fundraising: { enabled: false }, hours: [] };
   const user = await storage.getUser(userId);
+  const track: RequirementTrack = requirementTrackFor((user?.roles as string[]) || []);
+  const allReq = settings.requirements || EMPTY_TRACK;
+  // Class-only students have no club requirements at all.
+  const req = track === "none" ? EMPTY_TRACK : track === "mentor" ? (allReq.mentor || EMPTY_TRACK) : allReq;
   const overrides: any = (user as any)?.hourRequirementOverrides || {};
 
   // Fundraising
@@ -231,10 +246,11 @@ async function computeRequirements(userId: number) {
     });
 
   // Coach-ticked one-off items (register with FIRST, dues, handbook...).
-  const [items, done] = await Promise.all([
+  const [allItems, done] = await Promise.all([
     storage.getChecklistItems(),
     storage.getChecklistCompletions(userId),
   ]);
+  const items = track === "none" ? [] : allItems.filter((i) => (i.audience || "member") === track);
   const doneByItem = new Map(done.map((c) => [c.itemId, c]));
   const checklist = items.map((i) => ({
     id: i.id,
@@ -245,6 +261,7 @@ async function computeRequirements(userId: number) {
   }));
 
   return {
+    track,
     fundraising: { enabled: !!req.fundraising?.enabled, raisedCents, pendingCents, goalCents },
     hours,
     checklist,
@@ -277,6 +294,7 @@ router.post("/requirement-checklist", requireRoles("Coach"), async (req, res) =>
     res.status(201).json(await storage.createChecklistItem({
       label: label.slice(0, 120),
       description: String(req.body?.description ?? "").trim().slice(0, 500),
+      audience: req.body?.audience === "mentor" ? "mentor" : "member",
       sortOrder,
     }));
   } catch (error) {
@@ -288,7 +306,8 @@ router.post("/requirement-checklist", requireRoles("Coach"), async (req, res) =>
 router.put("/requirement-checklist/:id", requireRoles("Coach"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const patch: { label?: string; description?: string; sortOrder?: number; archived?: boolean } = {};
+    const patch: { label?: string; description?: string; audience?: string; sortOrder?: number; archived?: boolean } = {};
+    if (req.body?.audience === "member" || req.body?.audience === "mentor") patch.audience = req.body.audience;
     if (req.body?.label !== undefined) {
       const label = String(req.body.label).trim();
       if (!label) return res.status(400).json({ error: "label cannot be empty" });
@@ -326,14 +345,13 @@ router.put("/users/:id/checklist/:itemId", requireRoles("Coach"), async (req, re
 });
 
 // Every active member's requirement progress in one call — the coach's
-// "who's on track to be on the team" view. Coaches and non-members are left
-// out: requirements are for students.
+// "who's on track to be on the team" view. Students and coaches/mentors each
+// carry their own `track`; class-only students have none and are left out.
 router.get("/requirements/team", async (req, res) => {
   try {
     if (!isLeadership(req.userRoles)) return res.status(403).json({ error: "Not allowed" });
     const users = (await storage.getUsers()).filter((u: any) => {
-      const roles: string[] = (u.roles as string[]) || [];
-      return !u.archived && !roles.includes("Coach") && roles.length > 0;
+      return !u.archived && requirementTrackFor((u.roles as string[]) || []) !== "none";
     });
     const out = [];
     for (const u of users) {
@@ -342,6 +360,7 @@ router.get("/requirements/team", async (req, res) => {
         name: u.name,
         roles: (u.roles as string[]) || [],
         departments: (u.departments as string[]) || [],
+        track: requirementTrackFor((u.roles as string[]) || []),
         requirements: await computeRequirements(u.id),
       });
     }

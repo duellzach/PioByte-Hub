@@ -18,6 +18,7 @@ export enum Role {
   TeamMember = 'Team Member',
   ClassMember = 'Class Member',
   Coach = 'Coach',
+  Mentor = 'Mentor',
   Trainer = 'Trainer'
 }
 

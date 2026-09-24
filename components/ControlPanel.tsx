@@ -644,11 +644,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ currentUserRoles, currentUs
         </div>
       </SectionCard>
 
-      <SectionCard title="Requirements" subtitle="Fundraising goal and per-category hour requirements shown on each student's home dashboard.">
+      <SectionCard title="Requirements" subtitle="Fundraising goal and per-category hour requirements, set separately for students and for coaches & mentors. Shown on each person's home dashboard (not for class-only members).">
         <RequirementsSettings currentUserId={currentUserId} />
       </SectionCard>
 
-      <SectionCard title="Membership Checklist" subtitle="One-off items every student must complete (e.g. Register with FIRST, Pay Club Dues). Coaches tick them off per student on the Team page → Progress.">
+      <SectionCard title="Membership Checklist" subtitle="One-off items to complete, set separately for students (e.g. Register with FIRST, Pay Club Dues) and coaches & mentors (e.g. Background check). Coaches tick them off on the Team page → Progress.">
         <ChecklistSettings isCoach={currentUserRoles.includes('Coach')} />
       </SectionCard>
 

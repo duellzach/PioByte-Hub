@@ -2780,6 +2780,16 @@ export class DatabaseStorage implements IStorage {
       )
     `);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS user_checklist_completions_user_item ON user_checklist_completions (user_id, item_id)`);
+    await db.execute(sql`ALTER TABLE requirement_checklist_items ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'member'`);
+    // Offer the new Mentor role on existing teams — once, so a team that
+    // later deletes it in Control Panel doesn't get it back on every boot.
+    if (await this.claimMigration('add-mentor-role')) {
+      await db.execute(sql`
+        UPDATE team_settings
+        SET roles = roles || '[{"name":"Mentor","tier":"leadership","excludeFromCaps":true}]'::jsonb
+        WHERE NOT roles @> '[{"name":"Mentor"}]'::jsonb
+      `);
+    }
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS featured_badge_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   }
   async getChecklistItems(includeArchived = false) {
@@ -2787,11 +2797,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(requirementChecklistItems.sortOrder, requirementChecklistItems.id);
     return includeArchived ? rows : rows.filter((r) => !r.archived);
   }
-  async createChecklistItem(data: { label: string; description?: string; sortOrder?: number }) {
+  async createChecklistItem(data: { label: string; description?: string; audience?: string; sortOrder?: number }) {
     const [row] = await db.insert(requirementChecklistItems).values(data).returning();
     return row;
   }
-  async updateChecklistItem(id: number, data: { label?: string; description?: string; sortOrder?: number; archived?: boolean }) {
+  async updateChecklistItem(id: number, data: { label?: string; description?: string; audience?: string; sortOrder?: number; archived?: boolean }) {
     const [row] = await db.update(requirementChecklistItems).set(data).where(eq(requirementChecklistItems.id, id)).returning();
     return row;
   }
@@ -3085,6 +3095,7 @@ export class DatabaseStorage implements IStorage {
       ],
       roles: [
         { name: 'Coach', tier: 'leadership', excludeFromCaps: true },
+        { name: 'Mentor', tier: 'leadership', excludeFromCaps: true },
         { name: 'Team Captain', tier: 'leadership' },
         { name: 'SCRUM Master', tier: 'leadership' },
         { name: 'Department Head', tier: 'lead' },

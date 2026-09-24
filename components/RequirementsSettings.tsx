@@ -65,6 +65,9 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // Students and Coaches/Mentors each have their own requirement set; the
+  // coach/mentor one lives under `req.mentor` with the same shape.
+  const [track, setTrack] = useState<'member' | 'mentor'>('member');
 
   useEffect(() => {
     api.settings.get().then((s) => {
@@ -75,7 +78,15 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
 
   if (!req) return <div className="flex justify-center py-8 text-slate-400"><Loader2 className="animate-spin" size={22} /></div>;
 
-  const patch = (fn: (r: any) => void) => { const next = JSON.parse(JSON.stringify(req)); fn(next); setReq(next); setSaved(false); };
+  const emptyTrack = () => ({ fundraising: { enabled: false, goalCents: 0 }, hours: [] });
+  const patch = (fn: (r: any) => void) => {
+    const next = JSON.parse(JSON.stringify(req));
+    if (track === 'mentor' && !next.mentor) next.mentor = emptyTrack();
+    fn(track === 'mentor' ? next.mentor : next);
+    setReq(next);
+    setSaved(false);
+  };
+  const cur = track === 'mentor' ? (req.mentor || emptyTrack()) : req;
 
   const save = async () => {
     setError(''); setSaving(true);
@@ -92,7 +103,7 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
   };
   const removeCategory = (c: string) => { setCategories(categories.filter((x) => x !== c)); setSaved(false); };
 
-  const f = req.fundraising || { enabled: false, goalCents: 0 };
+  const f = cur.fundraising || { enabled: false, goalCents: 0 };
 
   return (
     <div className="space-y-6">
@@ -100,9 +111,24 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
         <div className="w-10 h-10 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Target size={20} /></div>
         <div>
           <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Requirements</h3>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">What students must meet this season</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            {track === 'member' ? 'What students must meet this season' : 'What coaches and mentors must meet this season'}
+          </p>
         </div>
       </div>
+
+      <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-700 rounded-xl">
+        {([['member', 'Students'], ['mentor', 'Coaches & Mentors']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTrack(key)}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${track === key ? 'bg-white dark:bg-slate-800 text-teamColor shadow-sm' : 'text-slate-500 dark:text-slate-300'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] font-bold text-slate-400 -mt-3">Class Members who aren't on the club have no requirements. Both sets save together.</p>
 
       {/* Fundraising */}
       <div className="bg-slate-50 dark:bg-slate-700/40 rounded-2xl p-5 space-y-3">
@@ -136,7 +162,7 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
 
       {/* Hour requirements */}
       <div className="space-y-3">
-        {(req.hours || []).map((h: any, hi: number) => (
+        {(cur.hours || []).map((h: any, hi: number) => (
           <div key={hi} className="bg-slate-50 dark:bg-slate-700/40 rounded-2xl p-5 space-y-3">
             <div className="flex items-center gap-3">
               <input type="checkbox" checked={h.enabled} onChange={(e) => patch((r) => { r.hours[hi].enabled = e.target.checked; })} className="w-4 h-4" style={{ accentColor: 'var(--team-color)' }} />
@@ -185,7 +211,7 @@ const RequirementsSettings: React.FC<Props> = ({ currentUserId }) => {
                   </div>
                   {h.combinePhases && (h.phases || []).length > 1 && (
                     <p className="text-[10px] font-bold text-slate-400 -mt-1">
-                      Students only need to meet the combined total ({(h.phases || []).reduce((s: number, p: any) => s + minToHours(p.requiredMinutes), 0)}h) across all phases below — each phase's own goal is no longer checked separately.
+                      {track === 'member' ? 'Students' : 'Coaches and mentors'} only need to meet the combined total ({(h.phases || []).reduce((s: number, p: any) => s + minToHours(p.requiredMinutes), 0)}h) across all phases below — each phase's own goal is no longer checked separately.
                     </p>
                   )}
                   {(h.phases || []).map((ph: any, pi: number) => {

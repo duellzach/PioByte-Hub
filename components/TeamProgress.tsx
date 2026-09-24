@@ -86,6 +86,8 @@ const TeamProgress: React.FC<Props> = ({ isCoach, onOpenStudent }) => {
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [sort, setSort] = useState<'name' | 'remaining'>('name');
   const [saving, setSaving] = useState<string | null>(null);
+  // Students and Coaches/Mentors have different requirements, so different columns.
+  const [track, setTrack] = useState<'member' | 'mentor'>('member');
 
   useEffect(() => {
     api.requirements.team()
@@ -94,14 +96,14 @@ const TeamProgress: React.FC<Props> = ({ isCoach, onOpenStudent }) => {
   }, []);
 
   const table = useMemo(() => {
-    const withGoals = (rows || []).map(r => {
+    const withGoals = (rows || []).filter(r => (r.track || 'member') === track).map(r => {
       const goals = goalsOf(r.requirements);
       return { ...r, goals, remaining: goals.filter(g => !g.done).length };
     });
     const filtered = onlyIncomplete ? withGoals.filter(r => r.remaining > 0) : withGoals;
     return [...filtered].sort((a, b) =>
       sort === 'remaining' ? b.remaining - a.remaining || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
-  }, [rows, onlyIncomplete, sort]);
+  }, [rows, onlyIncomplete, sort, track]);
 
   // Column set comes from the union across students (per-student overrides
   // can change a target, but not which goals exist).
@@ -146,7 +148,18 @@ const TeamProgress: React.FC<Props> = ({ isCoach, onOpenStudent }) => {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
+            {([['member', 'Students'], ['mentor', 'Coaches & Mentors']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTrack(key)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${track === key ? 'bg-white dark:bg-slate-800 text-teamColor shadow-sm' : 'text-slate-500 dark:text-slate-300'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">
             <input type="checkbox" checked={onlyIncomplete} onChange={e => setOnlyIncomplete(e.target.checked)} className="accent-teamColor" />
             Not yet complete
@@ -175,7 +188,7 @@ const TeamProgress: React.FC<Props> = ({ isCoach, onOpenStudent }) => {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60">
-                <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">Student</th>
+                <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">{track === 'member' ? 'Student' : 'Name'}</th>
                 <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                 {columns.map(c => (
                   <th key={c.key} className={`px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap ${c.kind === 'checklist' ? 'text-center' : ''}`}>{c.label}</th>
