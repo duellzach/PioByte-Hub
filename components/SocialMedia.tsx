@@ -190,7 +190,7 @@ const AccountsPanel: React.FC<{ status: SocialStatus; onChanged: (m?: string) =>
         <h2 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Meta isn’t set up yet</h2>
         <p className="text-sm text-slate-600 dark:text-slate-300">Publishing needs a Meta developer app. Follow <span className="font-bold">docs/social-media-setup.md</span>, then add these Replit Secrets and restart the app:</p>
         <ul className="text-xs font-mono text-slate-700 dark:text-slate-200 space-y-1 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl">
-          <li>META_APP_ID</li><li>META_APP_SECRET</li><li>META_TOKEN_KEY</li><li>APP_BASE_URL</li>
+          <li>META_APP_ID</li><li>META_APP_SECRET</li><li>META_TOKEN_KEY</li><li>META_LOGIN_CONFIG_ID</li><li>APP_BASE_URL</li>
         </ul>
         {status.redirectUri && <p className="text-xs text-slate-500 dark:text-slate-400">Redirect URI for the Meta app: <code className="font-mono text-slate-800 dark:text-slate-100 break-all">{status.redirectUri}</code></p>}
       </div>

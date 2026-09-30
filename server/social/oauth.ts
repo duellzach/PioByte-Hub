@@ -7,7 +7,7 @@
  *
  * Instagram publishing uses the Page token of the Page it's linked to.
  */
-import { graphGet, GRAPH_VERSION } from "./graph";
+import { GraphError, graphGet, GRAPH_VERSION } from "./graph";
 import { appBaseUrl } from "./signing";
 import { upsertAccount } from "./store";
 
@@ -30,13 +30,26 @@ export function redirectUri(): string {
   return `${appBaseUrl()}/api/social/meta/callback`;
 }
 
+/**
+ * Facebook Login for Business apps log in against a saved *configuration*
+ * (META_LOGIN_CONFIG_ID) that fixes the token type, assets and permissions —
+ * the team uses a never-expiring System User token, so publishing survives a
+ * coach leaving or changing their Facebook password. Without a configuration
+ * we fall back to asking for SCOPES directly (classic Facebook Login).
+ */
 export function buildLoginUrl(state: string): string {
   const url = new URL(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`);
   url.searchParams.set("client_id", process.env.META_APP_ID || "");
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("state", state);
-  url.searchParams.set("scope", SCOPES.join(","));
   url.searchParams.set("response_type", "code");
+  const configId = process.env.META_LOGIN_CONFIG_ID;
+  if (configId) {
+    url.searchParams.set("config_id", configId);
+    url.searchParams.set("override_default_response_type", "true");
+  } else {
+    url.searchParams.set("scope", SCOPES.join(","));
+  }
   return url.toString();
 }
 
@@ -51,16 +64,27 @@ interface PageInfo {
  *  coach granted. Returns what was connected. */
 export async function completeConnection(code: string, connectedBy: number): Promise<{ pages: number; instagram: number }> {
   const appParams = { client_id: process.env.META_APP_ID || "", client_secret: process.env.META_APP_SECRET || "" };
-  const short = await graphGet("oauth/access_token", { ...appParams, redirect_uri: redirectUri(), code });
-  const long = await graphGet("oauth/access_token", {
-    ...appParams,
-    grant_type: "fb_exchange_token",
-    fb_exchange_token: String(short.access_token),
-  });
+  const first = await graphGet("oauth/access_token", { ...appParams, redirect_uri: redirectUri(), code });
+  let token = String(first.access_token);
+  // A user token from the code is short-lived (~1h), and Page tokens derived
+  // from it would expire with it — swap it for a long-lived one. A System User
+  // token from a "never expires" configuration is already permanent and Meta
+  // may refuse the swap, so keep the original rather than failing the connect.
+  try {
+    const long = await graphGet("oauth/access_token", {
+      ...appParams,
+      grant_type: "fb_exchange_token",
+      fb_exchange_token: token,
+    });
+    if (long?.access_token) token = String(long.access_token);
+  } catch (e) {
+    if (e instanceof GraphError && e.isAuthError) throw e;
+    console.warn("Long-lived token exchange skipped:", (e as Error)?.message);
+  }
   const pagesRes = await graphGet(
     "me/accounts",
     { fields: "id,name,access_token,instagram_business_account{id,username}" },
-    String(long.access_token),
+    token,
   );
   const pages = (pagesRes.data || []) as PageInfo[];
 

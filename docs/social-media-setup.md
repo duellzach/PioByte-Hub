@@ -21,6 +21,24 @@ Students with the **Media Manager** role write Instagram/Facebook posts and pick
    - Meta may still ask you to finish **Business Verification** before it allows `instagram_content_publish`. If it does, start that early, because it can take a few business days.
 6. Copy the **App ID** and **App Secret** (App settings → Basic).
 
+### 2b. Login configuration (System User token)
+
+Under **Facebook Login for Business → Configurations**, create a configuration:
+- **Access token:** **System-user access token**, expiring **Never**. The token belongs to the business portfolio instead of one coach, so publishing keeps working if a coach leaves or changes their Facebook password.
+- **Assets:** Pages and Instagram accounts, both **required**.
+- **Permissions:**
+  - `business_management`
+  - `pages_show_list`
+  - `pages_read_engagement`
+  - `pages_manage_posts`
+  - `instagram_basic`
+  - `instagram_content_publish`
+  - `instagram_manage_contents` (optional, for future deletes)
+
+  A permission only appears in this list after it's added to one of the app's **Use cases**. The Instagram ones come from **Instagram API → API setup with Facebook login**, and `pages_manage_posts` comes from the Pages use case.
+
+Copy the **Configuration ID** into the `META_LOGIN_CONFIG_ID` secret.
+
 ## 3. Replit settings
 
 1. Open the **Object Storage** tool and create a bucket. Uploaded photos and videos live there, because the deployment's disk is wiped on every publish.
@@ -31,6 +49,7 @@ Students with the **Media Manager** role write Instagram/Facebook posts and pick
 | `META_APP_ID` | the App ID |
 | `META_APP_SECRET` | the App Secret |
 | `META_TOKEN_KEY` | output of `openssl rand -base64 32` (encrypts the stored Facebook token). **Don't lose or change it**; if you do, reconnect on the Accounts tab. |
+| `META_LOGIN_CONFIG_ID` | the **Configuration ID** from Facebook Login for Business → Configurations (see step 2b). Not secret. |
 | `APP_BASE_URL` | `https://<your-production-domain>` (no trailing slash). Meta downloads media from here, so it must be the public URL. |
 
 Optional settings:
