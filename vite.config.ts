@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => {
             target: 'http://localhost:3001',
             changeOrigin: true,
           },
+          '/privacy': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
           '/manifest.json': {
             target: 'http://localhost:3001',
             changeOrigin: true,

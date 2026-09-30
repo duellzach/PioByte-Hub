@@ -31,6 +31,7 @@ import eventSignupsRouter from "./routes/eventSignups";
 import requirementsRouter from "./routes/requirements";
 import productivityRouter from "./routes/productivity";
 import seasonsRouter from "./routes/seasons";
+import { privacyPolicy } from "./routes/privacy";
 import socialRouter from "./routes/social";
 import { ensureSocialTables, migrateMediaManagerRole } from "./social/store";
 import { startSocialWorker } from "./social/worker";
@@ -127,6 +128,10 @@ if (isProduction && !SESSION_SECRET) {
   console.error("FATAL: SESSION_SECRET is not set. Add it to your environment (Replit Secrets) before deploying.");
   process.exit(1);
 }
+
+// Public privacy policy (required by Meta for the Facebook/Instagram connection).
+// Registered before static files and the SPA fallback so it works in production.
+app.get("/privacy", privacyPolicy);
 
 // Dynamic manifest.json — always served before static files so it reflects current team settings
 app.get("/manifest.json", async (req, res) => {
