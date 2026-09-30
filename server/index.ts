@@ -31,6 +31,9 @@ import eventSignupsRouter from "./routes/eventSignups";
 import requirementsRouter from "./routes/requirements";
 import productivityRouter from "./routes/productivity";
 import seasonsRouter from "./routes/seasons";
+import socialRouter from "./routes/social";
+import { ensureSocialTables, migrateMediaManagerRole } from "./social/store";
+import { startSocialWorker } from "./social/worker";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +97,12 @@ async function initializeDatabase() {
     await storage.ensureSignupShiftIdColumn();
   } catch (e) {
     console.error("Event shifts migration failed — shift signup routes will error until this is fixed:", e);
+  }
+  // Same reason: the Social page's routes query these tables unconditionally.
+  try {
+    await ensureSocialTables();
+  } catch (e) {
+    console.error("Social media tables migration failed — the Social page will error until this is fixed:", e);
   }
 }
 
@@ -178,6 +187,7 @@ app.use("/api", eventSignupsRouter);
 app.use("/api", requirementsRouter);
 app.use("/api", productivityRouter);
 app.use("/api", seasonsRouter);
+app.use("/api", socialRouter);
 
 if (isProduction) {
   app.get("/{*splat}", (req, res) => {
@@ -241,6 +251,14 @@ initializeDatabase().then(() => {
     } catch (e) {
       console.warn("Certifications v2 migration skipped:", e);
     }
+    // Social media: add the Media Manager role to existing teams, then start
+    // the publisher that posts approved content at its scheduled time.
+    try {
+      await migrateMediaManagerRole();
+    } catch (e) {
+      console.warn("Media Manager role migration skipped:", e);
+    }
+    startSocialWorker();
     try {
       await storage.ensureScoutingSeasonsTables();
     } catch (e) {

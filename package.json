@@ -16,11 +16,11 @@
     "schema:push": "drizzle-kit push --config=db/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=db/drizzle.config.ts",
     "db:reset": "tsx server/reset.ts",
-    "db:diagnose-tz": "tsx server/diagnose-tz.ts",
     "db:diagnose-tz": "tsx server/diagnoseTimestamps.ts",
     "db:migrate-timestamptz": "tsx server/migrateTimestamptz.ts"
   },
   "dependencies": {
+    "@replit/object-storage": "^1.0.0",
     "@touch4it/ical-timezones": "^1.9.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -29,6 +29,7 @@
     "@types/pngjs": "^6.0.5",
     "autoprefixer": "^10.4.27",
     "bcryptjs": "^2.4.3",
+    "busboy": "^1.6.0",
     "compression": "^1.8.1",
     "concurrently": "^10.0.4",
     "cookie-parser": "^1.4.7",
@@ -90,6 +91,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/busboy": "^1.5.4",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/jsonwebtoken": "^9.0.10",

@@ -19,7 +19,8 @@ export enum Role {
   ClassMember = 'Class Member',
   Coach = 'Coach',
   Mentor = 'Mentor',
-  Trainer = 'Trainer'
+  Trainer = 'Trainer',
+  MediaManager = 'Media Manager'
 }
 
 export enum TaskStatus {

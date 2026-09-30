@@ -31,3 +31,6 @@ dist-ssr
 *.sln
 *.sw?
 public/tailwind.css
+
+# Local social-media uploads (dev only; production uses Replit Object Storage)
+.storage/

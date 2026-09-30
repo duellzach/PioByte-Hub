@@ -29,6 +29,7 @@ The backend is an Express API that communicates with a PostgreSQL database using
 - **Calendar**: A month-view and list-view calendar allows coaches/captains to manage events with recurrence, event types, and competition attendance toggles. Supports importing events from The Blue Alliance.
 - **Resources Page**: A searchable and filterable database of FRC-relevant external links.
 - **Announcements**: Real-time toast notifications for coach/captain announcements.
+- **Social Media Manager**: Students with the `Media Manager` role compose Instagram/Facebook posts (photos, carousels, Reels) and pick a time; a Coach approves or sends back with feedback; the server publishes at the scheduled time through the Meta Graph API. Code: `shared/social.ts` (rules/validator shared with the client), `server/social/` (Graph client, encrypted tokens, signed public media URLs, publisher worker), `server/routes/social.ts`, `components/SocialMedia.tsx`. The publisher is an in-process ticker (`server/social/worker.ts`) that claims work with `FOR UPDATE SKIP LOCKED` + a lease — fine on the single Reserved VM. Media is stored in Replit Object Storage in deployments (local `.storage/` in dev). One-time Meta setup: `docs/social-media-setup.md`.
 - **Coach Onboarding Tutorial**: A dismissible 8-step tutorial for new Coach-role users.
 - **General Features**: Real-time notifications, dark mode, PWA support with service worker caching, and client-side image compression.
 
