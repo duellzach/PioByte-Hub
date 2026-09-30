@@ -107,6 +107,14 @@ async function initializeDatabase() {
   }
 }
 
+// Last-resort safety net. Node exits on an unhandled promise rejection, and
+// on a single Reserved VM that means the whole site is down until it restarts
+// and re-runs the boot chain. One bad request must not do that — log it loudly
+// instead so it can be found in the deployment logs and fixed.
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION (server kept running):", reason);
+});
+
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
 

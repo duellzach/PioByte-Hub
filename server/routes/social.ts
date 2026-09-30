@@ -36,8 +36,11 @@ async function access(req: Request) {
 }
 
 function fail(res: Response, e: unknown) {
+  if (!(e instanceof svc.SocialError)) console.error("Social route error:", e);
+  // A second reply throws ERR_HTTP_HEADERS_SENT — from an event callback
+  // that is an unhandled rejection, which takes the whole server down.
+  if (res.headersSent) return;
   if (e instanceof svc.SocialError) return res.status(e.status).json({ error: e.message });
-  console.error("Social route error:", e);
   return res.status(500).json({ error: "Something went wrong" });
 }
 
@@ -175,12 +178,32 @@ router.post("/social/uploads", async (req, res) => {
   }
   const fields: Record<string, string> = {};
   let upload: Promise<{ tmp: string; bytes: number; head: Buffer; mime: string; truncated: boolean }> | null = null;
+  let tmpPath = "";
+  let failed = false;
+  let fileStream: NodeJS.ReadableStream & { destroy?: () => void } | null = null;
+  let outStream: fs.WriteStream | null = null;
+  // Exactly one response per upload. busboy can emit "error" AND "close" for
+  // the same request (e.g. a form cut off mid-upload); replying twice used to
+  // crash the server (see fail()).
+  const reply = (status: number, body: unknown) => {
+    if (res.headersSent) return;
+    res.status(status).json(body);
+  };
+  const discard = () => {
+    const p = tmpPath;
+    tmpPath = "";
+    if (p) fsp.rm(p, { force: true }).catch(() => {});
+  };
 
   bb.on("field", (name, val) => { fields[name] = val; });
   bb.on("file", (_name, stream, info) => {
-    const tmp = path.join(os.tmpdir(), `social-upload-${crypto.randomUUID()}`);
+    if (upload) { stream.resume(); return; } // limits.files already caps this; belt and braces
+    tmpPath = path.join(os.tmpdir(), `social-upload-${crypto.randomUUID()}`);
+    const tmp = tmpPath;
+    fileStream = stream;
     upload = new Promise((resolve, reject) => {
       const out = fs.createWriteStream(tmp);
+      outStream = out;
       let bytes = 0;
       let head = Buffer.alloc(0);
       let truncated = false;
@@ -192,22 +215,41 @@ router.post("/social/uploads", async (req, res) => {
       stream.pipe(out);
       out.on("finish", () => resolve({ tmp, bytes, head, mime: info.mimeType, truncated }));
       out.on("error", reject);
-      stream.on("error", reject);
+      stream.on("error", (e) => { out.destroy(); reject(e); });
     });
+    // If the request dies before "close", nothing awaits this promise — a bare
+    // rejection there would also be unhandled.
+    upload.catch(() => {});
+  });
+  bb.on("error", () => {
+    failed = true;
+    reply(400, { error: "The upload was interrupted. Try again." });
+    // Wait for the file stream to settle before deleting its temp file.
+    (upload ?? Promise.resolve()).catch(() => {}).finally(discard);
+  });
+  // The browser gave up (tab closed, connection lost) before we finished.
+  // The file stream then never ends or errors on its own, so tear it down
+  // and delete the partial file here rather than waiting on it.
+  req.on("close", () => {
+    if (req.complete) return;
+    failed = true;
+    req.unpipe(bb);
+    fileStream?.destroy?.();
+    outStream?.destroy();
+    discard();
   });
   bb.on("close", async () => {
-    if (!upload) return res.status(400).json({ error: "No file received." });
-    let tmp = "";
+    if (failed) return;
     try {
+      if (!upload) return reply(400, { error: "No file received." });
       const f = await upload;
-      tmp = f.tmp;
       const sniffed = sniff(f.head);
       const kind = sniffed === "image/jpeg" ? "image" : sniffed === "video" ? "video" : null;
-      if (!kind) return res.status(400).json({ error: "Only JPEG photos and MP4/MOV videos can be uploaded." });
+      if (!kind) return reply(400, { error: "Only JPEG photos and MP4/MOV videos can be uploaded." });
       const contentType = kind === "image" ? "image/jpeg" : f.mime === "video/quicktime" ? "video/quicktime" : "video/mp4";
       const max = kind === "image" ? LIMITS.imageMaxBytes : LIMITS.videoMaxBytes;
       if (f.truncated || f.bytes > max) {
-        return res.status(413).json({ error: `That ${kind} is larger than ${Math.round(max / 1024 / 1024)} MB.` });
+        return reply(413, { error: `That ${kind} is larger than ${Math.round(max / 1024 / 1024)} MB.` });
       }
       const int = (v?: string) => {
         const n = v ? Math.round(Number(v)) : NaN;
@@ -215,8 +257,8 @@ router.post("/social/uploads", async (req, res) => {
       };
       const ext = kind === "image" ? "jpg" : contentType === "video/quicktime" ? "mov" : "mp4";
       const storageKey = `${crypto.randomUUID()}.${ext}`;
-      await mediaStore().put(storageKey, tmp);
-      tmp = "";
+      await mediaStore().put(storageKey, f.tmp);
+      tmpPath = ""; // the store owns the file now
       const [item] = await db.insert(socialMediaItems).values({
         uploaderId: req.userId!,
         kind,
@@ -227,17 +269,16 @@ router.post("/social/uploads", async (req, res) => {
         height: int(fields.height),
         durationSec: int(fields.durationSec),
       }).returning();
-      res.status(201).json({
+      reply(201, {
         id: item.id, kind, contentType, bytes: item.bytes, width: item.width, height: item.height,
         durationSec: item.durationSec, url: signedMediaUrl(storageKey, UI_MEDIA_TTL_SEC),
       });
     } catch (e) {
       fail(res, e);
     } finally {
-      if (tmp) fsp.rm(tmp, { force: true }).catch(() => {});
+      discard();
     }
   });
-  bb.on("error", () => { if (!res.headersSent) res.status(400).json({ error: "Upload failed." }); });
   req.pipe(bb);
 });
 
