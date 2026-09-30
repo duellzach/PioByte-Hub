@@ -30,6 +30,10 @@ const PUBLIC: Array<{ method: string; test: (path: string) => boolean }> = [
   // (Google/Apple/Outlook) that never carry a session cookie. The feed token
   // itself is the credential; see server/routes/calendarFeed.ts.
   { method: "GET", test: (p) => /^\/calendar\/feed\/[^/]+\.ics$/i.test(p) },
+  // Social post media, fetched by Meta's servers while publishing. The signed,
+  // expiring query string is the credential; see server/social/signing.ts.
+  { method: "GET", test: (p) => /^\/social\/media\/[^/]+$/.test(p) },
+  { method: "HEAD", test: (p) => /^\/social\/media\/[^/]+$/.test(p) },
 ];
 
 function isPublic(method: string, path: string): boolean {

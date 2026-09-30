@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, BellRing, BellOff, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen, Settings, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Kanban, Users, LogOut, Home as HomeIcon, Cloud, CloudOff, Menu, X, Clock, TrendingUp, Activity, AlertTriangle, Flag, Crosshair, Moon, Sun, Bell, BellRing, BellOff, Trash2, Plus, ShieldCheck, CalendarDays, BookOpen, Settings, DollarSign, Megaphone } from 'lucide-react';
 import { getPushStatus, enablePush, disablePush, type PushStatus } from '../services/push';
 import { api } from '../services/api';
 import TeamLogo from './TeamLogo';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { useTeamTime } from '../utils/timeFormat';
+import { hasAnyRole } from '../shared/roles';
+import { SOCIAL_SUBMIT_ROLES } from '../shared/social';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -58,6 +60,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
   const isCoachOrCaptain = user?.roles?.includes('Coach') || user?.roles?.includes('Team Captain');
   const isCoach = user?.roles?.includes('Coach') ?? false;
   const isGuest = user?.roles?.includes('Guest');
+  const canUseSocial = !isGuest && hasAnyRole((user?.roles as string[]) || [], SOCIAL_SUBMIT_ROLES);
 
   useEffect(() => {
     getPushStatus().then(setPushStatus).catch(() => {});
@@ -197,6 +200,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, notificationsCount, onL
           {!isGuest && <NavItem to="/certifications" icon={<ShieldCheck size={16} />} label="CERTIFICATIONS" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/calendar" icon={<CalendarDays size={16} />} label="CALENDAR" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {!isGuest && <NavItem to="/resources" icon={<BookOpen size={16} />} label="RESOURCES" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
+          {canUseSocial && <NavItem to="/social" icon={<Megaphone size={16} />} label="SOCIAL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {isCoach && <NavItem to="/fundraising" icon={<DollarSign size={16} />} label="FUNDRAISING" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />}
           {isCoachOrCaptain && (
             <NavItem to="/control-panel" icon={<Settings size={16} />} label="CONTROL PANEL" collapsed={collapsed} onClick={() => setMobileMenuOpen(false)} />

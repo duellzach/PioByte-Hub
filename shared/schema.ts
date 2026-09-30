@@ -656,6 +656,7 @@ export const teamSettings = pgTable("team_settings", {
     { name: 'SCRUM Master', tier: 'leadership' },
     { name: 'Department Head', tier: 'lead' },
     { name: 'Trainer', tier: 'lead' },
+    { name: 'Media Manager', tier: 'member' },
     { name: 'Team Member', tier: 'member' },
     { name: 'Class Member', tier: 'member' },
   ]),
@@ -829,3 +830,96 @@ export const userChecklistCompletions = pgTable("user_checklist_completions", {
 
 export type RequirementChecklistItem = typeof requirementChecklistItems.$inferSelect;
 export type UserChecklistCompletion = typeof userChecklistCompletions.$inferSelect;
+
+// ---- Social media manager ----------------------------------------------------
+// Media Managers compose Instagram/Facebook posts; a Coach approves; the server
+// publishes at scheduled_at (server/social/worker.ts). Rules and statuses live
+// in shared/social.ts. Existing databases get these tables from
+// server/social/store.ts#ensureSocialTables — keep the two in step.
+
+/** A connected Facebook Page or Instagram professional account. The Page
+ *  access token is AES-GCM encrypted (server/social/tokens.ts) and is never
+ *  sent to the client. */
+export const socialAccounts = pgTable("social_accounts", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),              // 'facebook' | 'instagram'
+  externalId: text("external_id").notNull(),         // Page id / IG user id
+  name: text("name").notNull(),
+  tokenEnc: text("token_enc").notNull(),
+  connectedBy: integer("connected_by").references(() => users.id, { onDelete: "set null" }),
+  needsReconnect: boolean("needs_reconnect").notNull().default(false),
+  lastError: text("last_error"),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  platformExternal: uniqueIndex("social_accounts_platform_external_idx").on(t.platform, t.externalId),
+}));
+
+export const socialPosts = pgTable("social_posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  caption: text("caption").notNull().default(""),
+  platforms: jsonb("platforms").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("draft"),
+  // null = "as soon as it's approved".
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  approvedBy: integer("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+/** An uploaded photo/video. Uploaded before the post is saved, so post_id is
+ *  null until the composer attaches it. Bytes live in object storage. */
+export const socialMediaItems = pgTable("social_media_items", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => socialPosts.id, { onDelete: "cascade" }),
+  uploaderId: integer("uploader_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+  kind: text("kind").notNull(),                      // 'image' | 'video'
+  storageKey: text("storage_key").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  bytes: integer("bytes").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  durationSec: integer("duration_sec"),
+  altText: text("alt_text").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+/** One platform of one post — the unit the publisher claims and advances. */
+export const socialTargets = pgTable("social_targets", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
+  // Null once the account is disconnected — the target's history stays.
+  accountId: integer("account_id").references(() => socialAccounts.id, { onDelete: "set null" }),
+  platform: text("platform").notNull(),
+  status: text("status").notNull().default("queued"),
+  // IG: { children?: string[]; container?: string; polls?: number; startedAt?: string }
+  containers: jsonb("containers").$type<Record<string, unknown>>().notNull().default({}),
+  externalId: text("external_id"),
+  permalink: text("permalink"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  lastError: text("last_error"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+/** Append-only history: who submitted, approved, sent back (with the coach's
+ *  comment), and what the publisher did. */
+export const socialPostEvents = pgTable("social_post_events", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
+  actorId: integer("actor_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export type SocialAccount = typeof socialAccounts.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type SocialMediaItem = typeof socialMediaItems.$inferSelect;
+export type SocialTarget = typeof socialTargets.$inferSelect;
+export type SocialPostEvent = typeof socialPostEvents.$inferSelect;

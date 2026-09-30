@@ -11,6 +11,8 @@ import { onLiveBoard } from './utils/tasks';
 import { Database, Zap, X, Bell, ShieldAlert, AlertTriangle, KeyRound, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import TeamLogo from './components/TeamLogo';
 import { TeamSettingsContext, TeamSettingsData, DEFAULT_TEAM_SETTINGS } from './contexts/TeamSettingsContext';
+import { hasAnyRole } from './shared/roles';
+import { SOCIAL_SUBMIT_ROLES } from './shared/social';
 
 const ControlPanel = lazy(() => import('./components/ControlPanel'));
 
@@ -24,6 +26,7 @@ const Certifications = lazy(() => import('./components/Certifications'));
 const Calendar = lazy(() => import('./components/Calendar'));
 const Resources = lazy(() => import('./components/Resources'));
 const Fundraising = lazy(() => import('./components/Fundraising'));
+const SocialMedia = lazy(() => import('./components/SocialMedia'));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -674,6 +677,11 @@ const App: React.FC = () => {
                 (isGuest || !(state.currentUser?.roles as string[] || []).includes('Coach'))
                   ? <Navigate to="/" replace />
                   : <Fundraising currentUser={state.currentUser} users={state.users} />
+              } />
+              <Route path="/social" element={
+                (isGuest || !hasAnyRole(state.currentUser?.roles as string[] || [], SOCIAL_SUBMIT_ROLES))
+                  ? <Navigate to="/" replace />
+                  : <SocialMedia currentUser={state.currentUser} />
               } />
               <Route path="/control-panel" element={isGuest ? <Navigate to="/scout" replace /> :
                 <ControlPanel

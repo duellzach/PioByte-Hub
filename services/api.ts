@@ -43,6 +43,78 @@ function rangeQuery(range?: { start?: string | null; end?: string | null }): str
   return qs ? `?${qs}` : '';
 }
 
+// ---- Social media manager ----------------------------------------------------
+
+export interface SocialMediaDto {
+  id: number;
+  kind: 'image' | 'video';
+  contentType: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  durationSec: number | null;
+  url: string;
+}
+
+export interface SocialTargetDto {
+  id: number;
+  platform: 'instagram' | 'facebook';
+  status: string;
+  permalink: string | null;
+  lastError: string | null;
+  attempts: number;
+  nextAttemptAt: string | null;
+  publishedAt: string | null;
+}
+
+export interface SocialPostDto {
+  id: number;
+  authorId: number;
+  authorName: string;
+  caption: string;
+  platforms: ('instagram' | 'facebook')[];
+  status: string;
+  scheduledAt: string | null;
+  approvedBy: number | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  feedback: { comment: string; by: string | null; at: string } | null;
+  media: SocialMediaDto[];
+  targets: SocialTargetDto[];
+}
+
+export interface SocialPostDetailDto extends SocialPostDto {
+  events: { id: number; action: string; comment: string | null; at: string; actorName: string | null }[];
+}
+
+export interface SocialAccountDto {
+  id: number;
+  platform: 'instagram' | 'facebook';
+  externalId: string;
+  name: string;
+  needsReconnect: boolean;
+  lastError: string | null;
+  lastCheckedAt: string | null;
+  createdAt: string;
+}
+
+export interface SocialStatus {
+  canSubmit: boolean;
+  isCoach: boolean;
+  metaConfigured: boolean;
+  redirectUri?: string;
+  accounts: SocialAccountDto[];
+}
+
+export interface SocialPostInput {
+  caption?: string;
+  platforms?: string[];
+  scheduledAt?: string | null;
+  mediaIds?: number[];
+}
+
 export const api = {
   push: {
     vapidPublicKey: () => apiRequest<{ publicKey: string; enabled: boolean }>('/push/vapid-public-key'),
@@ -468,5 +540,44 @@ export const api = {
       apiRequest<GeneralTask>(`/general-tasks/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, updatedBy }) }),
     delete: (id: number, deletedBy: number) =>
       apiRequest<void>(`/general-tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ deletedBy }) }),
+  },
+  social: {
+    status: () => apiRequest<SocialStatus>('/social/status'),
+    list: (view: 'mine' | 'queue' | 'calendar') => apiRequest<SocialPostDto[]>(`/social/posts?view=${view}`),
+    get: (id: number) => apiRequest<SocialPostDetailDto>(`/social/posts/${id}`),
+    create: (data: SocialPostInput & { submit?: boolean }) =>
+      apiRequest<{ id: number }>('/social/posts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: SocialPostInput & { submit?: boolean }) =>
+      apiRequest<{ ok: boolean }>(`/social/posts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    withdraw: (id: number) => apiRequest<{ ok: boolean }>(`/social/posts/${id}/withdraw`, { method: 'POST' }),
+    cancel: (id: number) => apiRequest<{ ok: boolean }>(`/social/posts/${id}/cancel`, { method: 'POST' }),
+    approve: (id: number, scheduledAt: string | null) =>
+      apiRequest<{ ok: boolean }>(`/social/posts/${id}/approve`, { method: 'POST', body: JSON.stringify({ scheduledAt }) }),
+    sendBack: (id: number, comment: string) =>
+      apiRequest<{ ok: boolean }>(`/social/posts/${id}/send-back`, { method: 'POST', body: JSON.stringify({ comment }) }),
+    unschedule: (id: number) => apiRequest<{ ok: boolean }>(`/social/posts/${id}/unschedule`, { method: 'POST' }),
+    retryTarget: (id: number) => apiRequest<{ ok: boolean }>(`/social/targets/${id}/retry`, { method: 'POST' }),
+    disconnect: (accountId: number) => apiRequest<void>(`/social/accounts/${accountId}`, { method: 'DELETE' }),
+    /** Multipart upload with progress (XHR — fetch can't report upload progress). */
+    upload: (file: Blob, meta: { width?: number; height?: number; durationSec?: number; filename: string }, onProgress?: (fraction: number) => void) =>
+      new Promise<SocialMediaDto>((resolve, reject) => {
+        const form = new FormData();
+        if (meta.width) form.append('width', String(meta.width));
+        if (meta.height) form.append('height', String(meta.height));
+        if (meta.durationSec) form.append('durationSec', String(meta.durationSec));
+        form.append('file', file, meta.filename);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}/social/uploads`);
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+        xhr.onload = () => {
+          let body: any = null;
+          try { body = JSON.parse(xhr.responseText); } catch {}
+          if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+          else reject(new Error(body?.error || `Upload failed (${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error('Upload failed — check your connection.'));
+        xhr.send(form);
+      }),
   },
 };
