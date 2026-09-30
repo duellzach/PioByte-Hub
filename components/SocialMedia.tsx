@@ -234,7 +234,55 @@ const AccountsPanel: React.FC<{ status: SocialStatus; onChanged: (m?: string) =>
           ))}
         </div>
       </div>
+      <TokenConnect onChanged={onChanged} />
       <p className="text-[11px] text-slate-400 font-bold px-2">Tokens are encrypted on the server and never sent to browsers. Coaches get a notification if a connection stops working.</p>
+    </div>
+  );
+};
+
+/** Coach pastes a System User token generated in Meta Business Settings —
+ *  the dependable route for a business connecting its own Page (no popup). */
+const TokenConnect: React.FC<{ onChanged: (m?: string) => void }> = ({ onChanged }) => {
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.social.connectWithToken(token);
+      setToken('');
+      onChanged(`Connected ${r.pages} Facebook Page${r.pages === 1 ? '' : 's'}${r.instagram ? ` and ${r.instagram} Instagram account${r.instagram === 1 ? '' : 's'}` : ''}.`);
+    } catch (e: any) {
+      setError(e?.message || 'Could not connect with that token.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`${card} p-6 space-y-3`}>
+      <div>
+        <h2 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Connect with a system user token</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">
+          In Meta Business Settings → Users → System users, generate a token for PioByte Hub (never expires) and paste it here. The Page and its linked Instagram account are connected automatically. See docs/social-media-setup.md.
+        </p>
+      </div>
+      <form onSubmit={(e) => { e.preventDefault(); if (token.trim()) submit(); }} className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Paste system user access token"
+          aria-label="System user access token"
+          className="flex-1 min-w-0 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-bold outline-none focus:border-teamColor dark:text-white"
+        />
+        <button type="submit" disabled={busy || !token.trim()} className={btnPrimary}>
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />} Connect
+        </button>
+      </form>
+      {error && <p className="text-red-500 text-xs font-bold">{error}</p>}
     </div>
   );
 };

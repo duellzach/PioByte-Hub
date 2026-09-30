@@ -558,6 +558,8 @@ export const api = {
     unschedule: (id: number) => apiRequest<{ ok: boolean }>(`/social/posts/${id}/unschedule`, { method: 'POST' }),
     retryTarget: (id: number) => apiRequest<{ ok: boolean }>(`/social/targets/${id}/retry`, { method: 'POST' }),
     disconnect: (accountId: number) => apiRequest<void>(`/social/accounts/${accountId}`, { method: 'DELETE' }),
+    connectWithToken: (token: string) =>
+      apiRequest<{ pages: number; instagram: number }>('/social/accounts/token', { method: 'POST', body: JSON.stringify({ token }) }),
     /** Multipart upload with progress (XHR — fetch can't report upload progress). */
     upload: (file: Blob, meta: { width?: number; height?: number; durationSec?: number; filename: string }, onProgress?: (fraction: number) => void) =>
       new Promise<SocialMediaDto>((resolve, reject) => {

@@ -39,6 +39,25 @@ Under **Facebook Login for Business → Configurations**, create a configuration
 
 Copy the **Configuration ID** into the `META_LOGIN_CONFIG_ID` secret.
 
+### 2c. Recommended: a System User token from Business Settings
+
+Using the configuration above, the login popup can fail with a generic "Sorry, something went wrong", because Meta aims popup-issued system user tokens at Tech Provider apps. For a team connecting its own Page, generate the token directly instead:
+
+1. **Business Settings** (business.facebook.com/settings) → **Accounts → Apps → Add → Connect an app ID**, and enter the PioByte Hub app ID.
+2. **Users → System users → Add**: name it "PioByte Publisher", role **Admin**.
+3. With that system user selected, **Assign assets**:
+   - **Pages** → the team Page → **Full control** (Everything)
+   - **Instagram accounts** → the team account → **Full control**
+   - **Apps** → PioByte Hub → **Full control**
+4. **Generate new token** → app **PioByte Hub**, expiration **Never**, and check:
+   - `business_management`
+   - `pages_show_list`
+   - `pages_read_engagement`
+   - `pages_manage_posts`
+   - `instagram_basic`
+   - `instagram_content_publish`
+5. Copy the token (Meta shows it only once). In PioByte, go to **Social → Accounts → Connect with a system user token**, paste it and click **Connect**. Don't save the token anywhere else.
+
 ## 3. Replit settings
 
 1. Open the **Object Storage** tool and create a bucket. Uploaded photos and videos live there, because the deployment's disk is wiped on every publish.

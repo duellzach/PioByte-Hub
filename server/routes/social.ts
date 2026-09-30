@@ -12,8 +12,9 @@ import { socialMediaItems, socialPosts, type SocialPost } from "../../shared/sch
 import { LIMITS, SOCIAL_APPROVE_ROLES, SOCIAL_SUBMIT_ROLES } from "../../shared/social";
 import { isSafeKey, mediaStore } from "../social/mediaStore";
 import { signedMediaUrl, verifyMediaSignature } from "../social/signing";
-import { buildLoginUrl, completeConnection, metaConfigured, redirectUri } from "../social/oauth";
+import { buildLoginUrl, completeConnection, connectWithSystemUserToken, metaConfigured, redirectUri } from "../social/oauth";
 import { tokenKeyConfigured } from "../social/tokens";
+import { GraphError } from "../social/graph";
 import {
   eventsFor, latestFeedback, listAccounts, listPostRows, mediaFor, publicAccount, targetsFor, userNames, type PostView,
 } from "../social/store";
@@ -118,6 +119,22 @@ router.delete("/social/accounts/:id", async (req, res) => {
 });
 
 // ---- Meta connection (Coach) -------------------------------------------------------
+
+/** Paste-in System User token (Business Settings → System users → Generate
+ *  token). The token arrives in the body and is never logged or echoed. */
+router.post("/social/accounts/token", async (req, res) => {
+  try {
+    if (!(await access(req)).isCoach) return res.status(403).json({ error: "Coaches only" });
+    if (!tokenKeyConfigured()) return res.status(400).json({ error: "META_TOKEN_KEY isn't set on the server yet." });
+    const result = await connectWithSystemUserToken(String(req.body?.token || ""), req.userId!);
+    res.json(result);
+  } catch (e: any) {
+    if (e instanceof GraphError) {
+      return res.status(400).json({ error: e.isAuthError ? "Meta rejected that token — it may be incomplete, expired, or revoked. Generate a new one." : `Meta said: ${e.message}` });
+    }
+    fail(res, e);
+  }
+});
 
 router.get("/social/meta/connect", async (req, res) => {
   try {
