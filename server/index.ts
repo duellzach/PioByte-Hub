@@ -33,7 +33,7 @@ import productivityRouter from "./routes/productivity";
 import seasonsRouter from "./routes/seasons";
 import { privacyPolicy } from "./routes/privacy";
 import socialRouter from "./routes/social";
-import { ensureSocialTables, migrateMediaManagerRole } from "./social/store";
+import { ensurePreTrafficSchema, runBootMigrations } from "./bootMigrations";
 import { startSocialWorker } from "./social/worker";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -89,22 +89,8 @@ async function initializeDatabase() {
     console.warn("Auto-seed skipped:", e);
   }
 
-  // Must exist before the server accepts any traffic — calendar/upcoming
-  // routes query event_shifts and event_signups.shift_id unconditionally,
-  // so running this in the app.listen() callback (like most other ensure*
-  // migrations) would let early requests 500 against missing objects.
-  try {
-    await storage.ensureEventShiftsTable();
-    await storage.ensureSignupShiftIdColumn();
-  } catch (e) {
-    console.error("Event shifts migration failed — shift signup routes will error until this is fixed:", e);
-  }
-  // Same reason: the Social page's routes query these tables unconditionally.
-  try {
-    await ensureSocialTables();
-  } catch (e) {
-    console.error("Social media tables migration failed — the Social page will error until this is fixed:", e);
-  }
+  // Tables that routes query unconditionally must exist before traffic.
+  await ensurePreTrafficSchema();
 }
 
 // Last-resort safety net. Node exits on an unhandled promise rejection, and
@@ -214,95 +200,23 @@ const PORT = isProduction ? 5000 : 3001;
 initializeDatabase().then(() => {
   app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on port ${PORT}`);
+    // Idempotent schema/data maintenance — shared with `npm run db:ensure`,
+    // which the post-merge hook runs so the workspace database always matches
+    // what production creates at boot (see server/bootMigrations.ts).
+    await runBootMigrations();
     try {
-      // Must succeed before any claimMigration() call below can work — the
-      // one-shot data migrations (competition unification, outreach hours
-      // backfill, stuck check-in cleanup) all depend on this table existing.
-      await storage.ensureSchemaMigrationsTable();
-    } catch (e) {
-      console.error("schema_migrations table creation failed — one-shot migrations below cannot run safely:", e);
-    }
-    try {
-      await storage.migrateApiKeyColumns();
-      await storage.ensureTeamTimezoneColumn();
-      await storage.migrateCalendarTypes();
-      await storage.ensurePushSubscriptionsTable();
-      await storage.ensureRecurringTasksTable();
-      await storage.ensureEventParticipationTables();
-      await storage.ensureInviteOnlyEvents();
-      await storage.ensureCompetitionUnification();
-      await storage.ensureCalendarFeedTokens();
-      await storage.ensureRequirementsAndFundraising();
-      await storage.ensureRequirementChecklist();
-      await storage.ensureArchiveColumns();
-      await storage.ensureAttendanceColumns();
-      await storage.ensureProjectLinksColumn();
-      await storage.ensureTaskSegments();
-      await storage.ensureCertificationLevelsAndBadges();
-      await storage.ensureCalendarCommentsColumn();
-      await storage.ensureRecurrenceDaysColumn();
-      await storage.ensureBacklogStatusDefault();
       await getTeamTimezone(); // warm the cache and surface any DB issue at boot
-      // Generate any due recurring tasks now, then re-check hourly. The guarded
-      // UPDATE inside makes this safe to run on every instance under autoscale.
-      storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));
-      setInterval(() => {
-        storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation error:", e));
-      }, 60 * 60 * 1000);
     } catch (e) {
-      console.warn("Boot migration chain failed:", e);
+      console.warn("Team timezone warm-up failed:", e);
     }
-    // Certifications v2 one-shots, in their own block so a failure here can't
-    // abort the chain above. Order matters: the role rename must land before
-    // scopes are seeded from it, and the columns must exist before badges are
-    // backfilled against them. Each is claimMigration-guarded and runs once.
-    try {
-      await storage.migrateTrainerRoleRename();
-      await storage.seedTrainerScopes();
-      await storage.backfillLevelBadges();
-      await storage.migrateCoachCapExempt();
-    } catch (e) {
-      console.warn("Certifications v2 migration skipped:", e);
-    }
-    // Social media: add the Media Manager role to existing teams, then start
-    // the publisher that posts approved content at its scheduled time.
-    try {
-      await migrateMediaManagerRole();
-    } catch (e) {
-      console.warn("Media Manager role migration skipped:", e);
-    }
+    // Generate any due recurring tasks now, then re-check hourly. The guarded
+    // UPDATE inside makes this safe to run on every instance under autoscale.
+    storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation skipped:", e));
+    setInterval(() => {
+      storage.generateDueRecurringTasks().catch((e) => console.warn("Recurring generation error:", e));
+    }, 60 * 60 * 1000);
+    // The publisher that posts approved social content at its scheduled time.
     startSocialWorker();
-    try {
-      await storage.ensureScoutingSeasonsTables();
-    } catch (e) {
-      console.warn("Scouting seasons migration skipped:", e);
-    }
-    try {
-      await storage.backfillNexusEventKeys();
-    } catch (e) {
-      console.warn("Nexus key backfill skipped:", e);
-    }
-    try {
-      await storage.backfillOutreachHours();
-    } catch (e) {
-      console.warn("Outreach hours backfill skipped:", e);
-    }
-    // Must run after the backfills above are confirmed gated, and before the
-    // unique index below — the index would otherwise trip on the very rows
-    // this cleanup is about to remove.
-    try {
-      await storage.cleanupStuckCompetitionEntries();
-    } catch (e) {
-      console.warn("Stuck competition check-in cleanup skipped:", e);
-    }
-    try {
-      await storage.ensureCompetitionEntryUniqueIndex();
-    } catch (e) {
-      // Failure here means duplicate competition rows exist in the database —
-      // possibly double-counted completed entries inflating someone's hours.
-      // Needs investigation, not a silent skip.
-      console.error("Competition unique index NOT created — duplicate rows likely exist:", e);
-    }
     try {
       const allUsers = await storage.getUsers();
       if (allUsers.length > 0) {
