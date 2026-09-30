@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban, ChevronDown, ChevronUp, CalendarClock, HelpCircle, CircleCheck, Circle } from 'lucide-react';
+import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban, CalendarClock, HelpCircle, CircleCheck, Circle, MoreHorizontal, ArrowLeft, Link2, MessageSquare, ExternalLink } from 'lucide-react';
 import type { AvailableTask, GeneralTask } from '../types';
 import { PRIORITY_COLORS } from '../constants';
 
@@ -44,7 +44,8 @@ const TaskPickerModal: React.FC<Props> = ({
   const [generalTaskId, setGeneralTaskId] = useState<number | null>(selectedGeneralTaskId);
   const [query, setQuery] = useState('');
   const [board, setBoard] = useState('');
-  const [expanded, setExpanded] = useState<number | null>(null);
+  // The task whose full details are open (the ⋯ button on a row).
+  const [detailTask, setDetailTask] = useState<AvailableTask | null>(null);
 
   // A task can live on more than one board at once, mirroring the Kanban
   // view: a department board shows every task tagged with that department
@@ -118,7 +119,6 @@ const TaskPickerModal: React.FC<Props> = ({
 
   const TaskRow = ({ task, tone }: { task: AvailableTask; tone: 'blue' | 'orange' }) => {
     const selected = taskId === task.id;
-    const open = expanded === task.id;
     const ring = tone === 'blue'
       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
       : 'border-orange-500 bg-orange-50 dark:bg-orange-900/30';
@@ -129,41 +129,39 @@ const TaskPickerModal: React.FC<Props> = ({
     const assigneeNames = userNameFor ? (task.assignees || []).map(userNameFor).filter(Boolean) : [];
     const criteria = task.successCriteria || [];
     const description = (task.description || '').trim();
-    const hasDetails = !!description || criteria.length > 0;
     return (
       <div
-        className={`rounded-xl border-2 transition-all ${
+        className={`relative rounded-xl border-2 transition-all ${
           selected ? ring : `border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-700 ${hover} hover:shadow-sm`
         }`}
       >
         <button
           onClick={() => pickTask(task.id)}
           aria-pressed={selected}
-          className="w-full text-left p-3 pb-2"
+          className="w-full text-left p-3 pr-11"
         >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
-              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5">
-                {boardLabelsFor(task)} • {task.status}
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
-                {task.priority}
-              </span>
-              {task.effort ? <span className="text-[7px] font-black text-slate-400 dark:text-slate-500">{task.effort}pt</span> : null}
-            </div>
-          </div>
-          {description && !open && (
+          <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight line-clamp-2">{task.title}</p>
+          <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5 flex items-center gap-1.5">
+            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+              {task.priority}
+            </span>
+            {task.effort ? <span>{task.effort}pt •</span> : null}
+            <span className="truncate">{boardLabelsFor(task)} • {task.status}</span>
+          </p>
+          {description && (
             <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-1.5 line-clamp-2 whitespace-pre-line">{description}</p>
           )}
-          {(due || assigneeNames.length > 0 || task.helpRequested) && (
+          {(due || assigneeNames.length > 0 || task.helpRequested || criteria.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[9px] font-bold">
               {due && <span className={`flex items-center gap-1 ${due.tone}`}><CalendarClock size={10} /> {due.label}</span>}
               {assigneeNames.length > 0 && (
                 <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 min-w-0">
                   <Users size={10} className="shrink-0" /> <span className="truncate">{assigneeNames.join(', ')}</span>
+                </span>
+              )}
+              {criteria.length > 0 && (
+                <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <CircleCheck size={10} /> {criteria.filter(c => c.completed).length}/{criteria.length}
                 </span>
               )}
               {task.helpRequested && <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400"><HelpCircle size={10} /> Help wanted</span>}
@@ -176,38 +174,114 @@ const TaskPickerModal: React.FC<Props> = ({
             </div>
           )}
         </button>
-        {hasDetails && (
-          <>
-            {open && (
-              <div className="px-3 pb-2 space-y-2">
-                {description && (
-                  <p className="text-[11px] text-slate-700 dark:text-slate-200 whitespace-pre-line break-words">{description}</p>
-                )}
-                {criteria.length > 0 && (
-                  <div>
-                    <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Success criteria</p>
-                    <ul className="space-y-0.5">
-                      {criteria.map(c => (
-                        <li key={c.id} className="flex items-start gap-1.5 text-[10px] text-slate-600 dark:text-slate-300">
-                          {c.completed
-                            ? <CircleCheck size={11} className="text-emerald-500 shrink-0 mt-px" />
-                            : <Circle size={11} className="text-slate-300 dark:text-slate-500 shrink-0 mt-px" />}
-                          <span className={c.completed ? 'line-through opacity-60' : ''}>{c.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            <button
-              onClick={() => setExpanded(open ? null : task.id)}
-              aria-expanded={open}
-              className="w-full flex items-center justify-center gap-1 py-1 border-t border-slate-100 dark:border-slate-600 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 hover:text-teamColor"
-            >
-              {open ? <><ChevronUp size={11} /> Less</> : <><ChevronDown size={11} /> Details{criteria.length > 0 ? ` · ${criteria.filter(c => c.completed).length}/${criteria.length} criteria` : ''}</>}
-            </button>
-          </>
+        {/* A sibling, not nested — a button inside the row button is invalid
+            HTML and would also select the task. */}
+        <button
+          onClick={() => setDetailTask(task)}
+          aria-label={`View full details for ${task.title}`}
+          title="View full task"
+          className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-400 hover:text-teamColor hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+    );
+  };
+
+  const TaskDetails = ({ task }: { task: AvailableTask }) => {
+    const due = dueInfo(task.dueDate);
+    const fmtDay = (d?: string | null) => {
+      if (!d) return null;
+      const dt = new Date(d.length === 10 ? `${d}T12:00:00` : d);
+      return isNaN(dt.getTime()) ? null : dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const names = (ids?: (number | string)[]) => (userNameFor ? (ids || []).map(id => userNameFor(Number(id))).filter(Boolean) : []);
+    const assignees = names(task.assignees);
+    const contributors = names(task.contributors).filter(n => !assignees.includes(n));
+    const criteria = task.successCriteria || [];
+    const links = (task.attachments || []).filter(a => a?.url);
+    const comments = [...(task.comments || [])].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+    const description = (task.description || '').trim();
+    const Label = ({ children }: { children: React.ReactNode }) => (
+      <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{children}</p>
+    );
+    return (
+      <div className="flex-1 overflow-auto px-5 space-y-4">
+        <div>
+          <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">{task.title}</h3>
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1">{boardLabelsFor(task)}</p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <span className="text-[8px] font-black px-2 py-0.5 rounded uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{task.status}</span>
+            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>{task.priority}</span>
+            {task.effort ? <span className="text-[8px] font-black px-2 py-0.5 rounded uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{task.effort} pts</span> : null}
+            {task.helpRequested && <span className="text-[8px] font-black px-2 py-0.5 rounded uppercase bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">Help wanted</span>}
+          </div>
+        </div>
+
+        <div>
+          <Label>Description</Label>
+          {description
+            ? <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-line break-words">{description}</p>
+            : <p className="text-xs italic text-slate-400">No description.</p>}
+        </div>
+
+        {criteria.length > 0 && (
+          <div>
+            <Label>Success criteria · {criteria.filter(c => c.completed).length}/{criteria.length}</Label>
+            <ul className="space-y-1">
+              {criteria.map(c => (
+                <li key={c.id} className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                  {c.completed
+                    ? <CircleCheck size={12} className="text-emerald-500 shrink-0 mt-px" />
+                    : <Circle size={12} className="text-slate-300 dark:text-slate-500 shrink-0 mt-px" />}
+                  <span className={c.completed ? 'line-through opacity-60' : ''}>{c.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {(task.startDate || task.dueDate) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Start</Label><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{fmtDay(task.startDate) || '—'}</p></div>
+            <div><Label>Due</Label><p className={`text-[11px] font-bold ${due?.tone ?? 'text-slate-700 dark:text-slate-200'}`}>{due?.label || '—'}</p></div>
+          </div>
+        )}
+
+        {(assignees.length > 0 || contributors.length > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Assigned</Label><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{assignees.join(', ') || '—'}</p></div>
+            {contributors.length > 0 && <div><Label>Contributors</Label><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{contributors.join(', ')}</p></div>}
+          </div>
+        )}
+
+        {links.length > 0 && (
+          <div>
+            <Label>Links</Label>
+            <div className="space-y-1">
+              {links.map(a => (
+                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[11px] font-bold text-teamColor hover:underline break-all">
+                  <Link2 size={11} className="shrink-0" /> {a.label || a.url} <ExternalLink size={10} className="shrink-0" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {comments.length > 0 && (
+          <div className="pb-2">
+            <Label>Recent comments</Label>
+            <div className="space-y-2">
+              {comments.map(c => (
+                <div key={c.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50">
+                  <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <MessageSquare size={9} /> {userNameFor ? userNameFor(Number(c.userId)) : 'Member'} · {new Date(c.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="text-[11px] text-slate-700 dark:text-slate-200 whitespace-pre-line break-words mt-0.5">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );
@@ -226,7 +300,7 @@ const TaskPickerModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {hasAnything && !loading && (
+        {!detailTask && hasAnything && !loading && (
           <div className="px-5 pb-3 space-y-2">
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -265,7 +339,9 @@ const TaskPickerModal: React.FC<Props> = ({
           </div>
         )}
 
-        {loading ? (
+        {detailTask ? (
+          <TaskDetails task={detailTask} />
+        ) : loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={28} className="animate-spin text-teamColor" />
           </div>
@@ -331,6 +407,22 @@ const TaskPickerModal: React.FC<Props> = ({
           </div>
         )}
 
+        {detailTask ? (
+          <div className="p-5 pt-4 flex gap-2.5">
+            <button
+              onClick={() => setDetailTask(null)}
+              className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs uppercase tracking-widest flex items-center justify-center gap-1.5"
+            >
+              <ArrowLeft size={14} /> Back
+            </button>
+            <button
+              onClick={() => { setTaskId(detailTask.id); setGeneralTaskId(null); setDetailTask(null); }}
+              className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              <Check size={14} /> {taskId === detailTask.id ? 'Selected' : 'Select task'}
+            </button>
+          </div>
+        ) : (
         <div className="p-5 pt-4 flex gap-2.5">
           {allowClear && (
             <button
@@ -355,6 +447,7 @@ const TaskPickerModal: React.FC<Props> = ({
             <Check size={14} /> {confirmLabel}
           </button>
         </div>
+        )}
       </div>
     </div>
   );
