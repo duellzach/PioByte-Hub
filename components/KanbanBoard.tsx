@@ -87,10 +87,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     if (accessibleProjects.length === 0) return;
     const isDeptBoardKey = activeBoardKey.startsWith('dept:');
     const matchedProject = accessibleProjects.find(p => p.id === activeBoardKey);
-    if (!activeBoardKey || (!isDeptBoardKey && !matchedProject)) {
+    // A remembered dept board whose department was renamed/removed in the
+    // Control Panel would otherwise stick as an empty board forever.
+    const staleDept = isDeptBoardKey && !deptNames.includes(activeBoardKey.slice(5));
+    if (!activeBoardKey || staleDept || (!isDeptBoardKey && !matchedProject)) {
       selectBoard(firstAccessibleProject);
     }
-  }, [accessibleProjects, activeBoardKey, firstAccessibleProject]);
+  }, [accessibleProjects, activeBoardKey, firstAccessibleProject, deptNames]);
 
   const activeProject = useMemo(() => {
     if (activeBoardKey.startsWith('dept:')) return undefined;
@@ -115,6 +118,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     }
     return tasks;
   }, [state.tasks, state.projects, activeBoardKey, deptFilter, isDeptBoard, activeDept]);
+
+  // A new task starts on the board it was created from, so it shows up where
+  // the creator is looking. Previously a dept-board task started with no
+  // department, which made TaskModal's save quietly drop "Dept Board Only" and
+  // land the task on the first project in the list instead.
+  const newTaskDefaults = useMemo((): Pick<Task, 'projectId' | 'departments' | 'deptOnly'> => {
+    if (isDeptBoard && activeDept) {
+      // Dept-only tasks still need a project; prefer one owned by this department.
+      const open = accessibleProjects.filter(p => !p.archived);
+      const home = open.find(p => p.department === activeDept) || open[0];
+      return { projectId: home?.id || '', departments: [activeDept], deptOnly: true };
+    }
+    const sector = deptFilter !== 'All' ? deptFilter : (activeProject?.department as Department | undefined);
+    return { projectId: activeBoardKey, departments: sector ? [sector] : [], deptOnly: false };
+  }, [isDeptBoard, activeDept, accessibleProjects, deptFilter, activeProject, activeBoardKey]);
 
   const helpWantedTasks = useMemo(() => {
     return state.tasks.filter(t => t.helpRequested && !state.projects.find(p => p.id === t.projectId)?.archived);
@@ -605,13 +623,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         <TaskModal 
           task={selectedTask || {
             id: Math.random().toString(36).substr(2, 9),
-            projectId: isDeptBoard ? (accessibleProjects.find(p => !p.archived)?.id || '') : activeBoardKey,
+            projectId: newTaskDefaults.projectId,
             title: '',
             description: '',
             status: TaskStatus.Backlog,
             priority: Priority.Medium,
             effort: 1,
-            departments: [],
+            departments: newTaskDefaults.departments,
             assignees: [],
             successCriteria: [],
             attachments: [],
@@ -620,7 +638,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
             startDate: todayLocalStr(),
             dueDate: todayLocalStr(),
             dependencies: [],
-            deptOnly: isDeptBoard,
+            deptOnly: newTaskDefaults.deptOnly,
             contributors: [],
             createdAt: Date.now()
           }}

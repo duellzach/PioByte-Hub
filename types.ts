@@ -221,6 +221,10 @@ export interface AvailableTask {
   assignees?: number[];
   successCriteria?: { id: string; text: string; completed: boolean }[];
   helpRequested?: boolean;
+  startDate?: string | null;
+  contributors?: number[];
+  attachments?: Attachment[];
+  comments?: { id: string; userId: string | number; text: string; timestamp: number }[];
 }
 
 /** Minutes by hour category for one member/window, plus the summed `total`. */
