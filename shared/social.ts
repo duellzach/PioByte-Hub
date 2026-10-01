@@ -197,3 +197,31 @@ export function describeShape(platform: SocialPlatform, media: Pick<MediaInfo, '
   if (media[0].kind === 'video') return platform === 'instagram' ? 'Reel' : 'Video';
   return 'Photo';
 }
+
+// ---- Notification links ------------------------------------------------------
+// Social notifications carry a `[social:<tab>:<postId>]` prefix (same idea as
+// `[event:ID]` / `[broadcast:ID]`) so the Home feed can link straight to the
+// post: a coach's "submitted for review" opens it in the Review tab.
+
+export type SocialTab = 'review' | 'mine' | 'calendar' | 'accounts';
+export interface SocialLink { tab: SocialTab; postId?: number }
+
+export function socialNotificationMessage(link: SocialLink, text: string): string {
+  return `[social:${link.tab}:${link.postId ?? 0}] ${text}`;
+}
+
+export function socialLinkPath(link: SocialLink): string {
+  return `/social?tab=${link.tab}${link.postId ? `&post=${link.postId}` : ''}`;
+}
+
+/** Parse a social notification. Messages sent before links existed are
+ *  recognised by their wording and point at the right tab without a post. */
+export function parseSocialNotification(message: string): (SocialLink & { text: string }) | null {
+  const m = message.match(/^\[social:(review|mine|calendar|accounts):(\d+)\]\s*/);
+  if (m) return { tab: m[1] as SocialTab, postId: Number(m[2]) || undefined, text: message.slice(m[0].length) };
+  if (/submitted a social post for review/.test(message)) return { tab: 'review', text: message };
+  if (/social post|asked for changes to|A coach approved/.test(message)) return { tab: 'mine', text: message };
+  if (/connection .*stopped working/.test(message)) return { tab: 'accounts', text: message };
+  if (/failed to publish/.test(message)) return { tab: 'calendar', text: message };
+  return null;
+}

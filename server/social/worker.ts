@@ -151,7 +151,7 @@ async function finish(c: Claimed, status: "published" | "failed", patch: Partial
       [...(await coachIds()), c.post.authorId],
       c.post.approvedBy ?? c.post.authorId,
       `A scheduled post failed to publish to ${label}: ${patch.lastError ?? "unknown error"}`,
-      { includeSender: true },
+      { includeSender: true, link: { tab: "calendar", postId: c.post.id } },
     );
   }
   await rollup(c.post);
@@ -168,7 +168,7 @@ async function rollup(post: SocialPost): Promise<void> {
     .returning({ id: socialPosts.id });
   if (rows.length && next !== "failed") {
     const msg = next === "published" ? "Your social post is live! 🎉" : "Your social post went out, but not to every account. A coach can retry the rest.";
-    await notify([post.authorId], post.approvedBy ?? post.authorId, msg, { includeSender: true });
+    await notify([post.authorId], post.approvedBy ?? post.authorId, msg, { includeSender: true, link: { tab: "mine", postId: post.id } });
   }
 }
 
@@ -179,7 +179,7 @@ async function handleError(c: Claimed, err: unknown, retryStatus: TargetStatus):
   if (err instanceof GraphError && err.isAuthError) {
     if (c.target.accountId && (await markNeedsReconnect(c.target.accountId, message))) {
       await notify(await coachIds(), c.post.approvedBy ?? c.post.authorId,
-        `The ${label} connection stopped working. Reconnect it on the Social page's Accounts tab.`, { includeSender: true });
+        `The ${label} connection stopped working. Reconnect it on the Social page's Accounts tab.`, { includeSender: true, link: { tab: "accounts" } });
     }
     return finish(c, "failed", { lastError: `The ${label} account needs to be reconnected. (${message})` });
   }
@@ -351,7 +351,7 @@ async function dailyMaintenance(): Promise<void> {
         if (coaches.length) {
           await notify(coaches, a.connectedBy ?? coaches[0],
             `The ${a.platform === "instagram" ? "Instagram" : "Facebook"} connection (${a.name}) stopped working. Reconnect it on the Social page.`,
-            { includeSender: true });
+            { includeSender: true, link: { tab: "accounts" } });
         }
       }
     }

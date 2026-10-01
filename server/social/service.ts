@@ -12,8 +12,8 @@ import { storage } from "../storage";
 import { sendPushToUsers } from "../push";
 import { socialAccounts, socialMediaItems, socialPosts, socialTargets, type SocialPost } from "../../shared/schema";
 import {
-  AUTHOR_EDITABLE, SOCIAL_PLATFORMS, canTransition, validatePost,
-  type PostStatus, type SocialPlatform,
+  AUTHOR_EDITABLE, SOCIAL_PLATFORMS, canTransition, socialLinkPath, socialNotificationMessage, validatePost,
+  type PostStatus, type SocialLink, type SocialPlatform,
 } from "../../shared/social";
 import { addEvent, coachIds } from "./store";
 
@@ -37,15 +37,17 @@ export async function notify(
   toUserIds: number[],
   fromUserId: number,
   message: string,
-  opts: { includeSender?: boolean } = {},
+  opts: { includeSender?: boolean; link?: SocialLink } = {},
 ): Promise<void> {
   // A person isn't told about their own action (a coach approving their own
   // post) — except for publisher events, which `fromUserId` merely attributes.
   const ids = [...new Set(toUserIds)].filter((id) => opts.includeSender || id !== fromUserId);
   if (ids.length === 0) return;
   try {
-    await Promise.all(ids.map((toUserId) => storage.createNotification({ toUserId, fromUserId, message } as any)));
-    await sendPushToUsers(ids, { title: "Social media • PioByte Hub", body: message, url: "/#/social", tag: `social-${Date.now()}` });
+    const link = opts.link ?? { tab: "mine" as const };
+    const stored = socialNotificationMessage(link, message);
+    await Promise.all(ids.map((toUserId) => storage.createNotification({ toUserId, fromUserId, message: stored } as any)));
+    await sendPushToUsers(ids, { title: "Social media • PioByte Hub", body: message, url: `/#${socialLinkPath(link)}`, tag: `social-${Date.now()}` });
   } catch (e) {
     console.warn("Social notification failed:", e);
   }
@@ -198,7 +200,7 @@ export async function withdrawPost(actorId: number, id: number): Promise<void> {
 async function notifyCoachesOfSubmission(postId: number, authorId: number) {
   const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, postId));
   const author = await storage.getUser(authorId);
-  await notify(await coachIds(), authorId, `${author?.name || "A Media Manager"} submitted a social post for review: ${snippet(post)}`);
+  await notify(await coachIds(), authorId, `${author?.name || "A Media Manager"} submitted a social post for review: ${snippet(post)}`, { link: { tab: "review", postId } });
 }
 
 // ---- Coach actions --------------------------------------------------------------------
@@ -233,7 +235,7 @@ export async function approvePost(coachId: number, id: number, scheduledAtInput?
     caption = post.caption;
   });
   const whenText = when && (when as Date).getTime() > Date.now() + 60_000 ? "and scheduled" : "and is publishing now";
-  await notify([authorId], coachId, `A coach approved ${snippet({ caption })} ${whenText}.`);
+  await notify([authorId], coachId, `A coach approved ${snippet({ caption })} ${whenText}.`, { link: { tab: "mine", postId: id } });
   // Kick the publisher rather than waiting for the next tick.
   import("./worker").then((w) => w.pokeWorker()).catch(() => {});
 }
@@ -252,7 +254,7 @@ export async function sendBackPost(coachId: number, id: number, comment: string)
     authorId = post.authorId;
     caption = post.caption;
   });
-  await notify([authorId], coachId, `A coach asked for changes to ${snippet({ caption })}: ${text}`);
+  await notify([authorId], coachId, `A coach asked for changes to ${snippet({ caption })}: ${text}`, { link: { tab: "mine", postId: id } });
 }
 
 /** Take an approved post off the schedule; it goes back to the review queue. */

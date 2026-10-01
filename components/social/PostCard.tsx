@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, CornerUpLeft, Pencil, Undo2, X, Loader2, ExternalLink, RotateCcw, History, CalendarClock, AlertTriangle } from 'lucide-react';
 import { api, type SocialPostDto, type SocialPostDetailDto } from '../../services/api';
 import { pacificDateTime } from '../../utils/dates';
@@ -15,6 +15,8 @@ interface Props {
   currentUserId: number;
   onChanged: (message?: string) => void;
   onEdit?: (post: SocialPostDto) => void;
+  /** Opened from a notification: scroll here and outline the card. */
+  highlight?: boolean;
 }
 
 const EVENT_LABEL: Record<string, string> = {
@@ -56,7 +58,11 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
   );
 };
 
-const PostCard: React.FC<Props> = ({ post, context, isCoach, currentUserId, onChanged, onEdit }) => {
+const PostCard: React.FC<Props> = ({ post, context, isCoach, currentUserId, onChanged, onEdit, highlight }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlight) cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlight]);
   const { fmtDateTime, homeTz } = useTeamTime();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -81,7 +87,7 @@ const PostCard: React.FC<Props> = ({ post, context, isCoach, currentUserId, onCh
   const failedTargets = post.targets.filter((t) => t.status === 'failed');
 
   return (
-    <div className={`${card} p-4 sm:p-5`}>
+    <div ref={cardRef} className={`${card} p-4 sm:p-5 transition-shadow ${highlight ? 'ring-4 ring-teamColor/40 border-teamColor' : ''}`}>
       <div className="flex gap-4">
         {post.media.length > 0 ? (
           <button type="button" onClick={() => setDialog('details')} className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-2xl overflow-hidden" aria-label="View post">
@@ -231,7 +237,7 @@ const SendBackDialog: React.FC<{ busy: boolean; error: string; onClose: () => vo
   );
 };
 
-const DetailsDialog: React.FC<{ postId: number; onClose: () => void }> = ({ postId, onClose }) => {
+export const DetailsDialog: React.FC<{ postId: number; onClose: () => void }> = ({ postId, onClose }) => {
   const { fmtDateTime } = useTeamTime();
   const [detail, setDetail] = useState<SocialPostDetailDto | null>(null);
   const [error, setError] = useState('');

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PenSquare, Inbox, CalendarDays, Link2, FileText, Loader2, AlertTriangle, CheckCircle2, Unplug, RefreshCw } from 'lucide-react';
 import { api, type SocialPostDto, type SocialStatus } from '../services/api';
 import Composer from './social/Composer';
-import PostCard from './social/PostCard';
+import PostCard, { DetailsDialog } from './social/PostCard';
 import SocialCalendar from './social/SocialCalendar';
 import { PlatformIcon, platformName, card, btnPrimary, btnDanger } from './social/common';
 import { useTeamTime } from '../utils/timeFormat';
@@ -37,6 +37,13 @@ const SocialMedia: React.FC<Props> = ({ currentUser }) => {
   const TABS: Tab[] = ['compose', 'mine', 'review', 'calendar', 'accounts'];
   const requested = params.get('tab') as Tab;
   const tab: Tab = TABS.includes(requested) && (status?.isCoach || !['review', 'accounts'].includes(requested)) ? requested : 'mine';
+  // `post=ID` comes from a notification ("Review Post" / "View Post").
+  const linkedPostId = Number(params.get('post')) || null;
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  // Which tab `posts` was loaded for — right after a tab switch it can still
+  // hold the previous tab's list.
+  const [postsTab, setPostsTab] = useState<Tab | null>(null);
+  const [detailsId, setDetailsId] = useState<number | null>(null);
   const setTab = (t: Tab) => {
     setParams(t === 'mine' ? {} : { tab: t });
     if (t !== 'compose') setEditing(null);
@@ -53,7 +60,10 @@ const SocialMedia: React.FC<Props> = ({ currentUser }) => {
       const s = await api.social.status();
       setStatus(s);
       const view = tab === 'review' ? 'queue' : tab === 'calendar' ? 'calendar' : 'mine';
-      if (tab !== 'compose' && tab !== 'accounts') setPosts(await api.social.list(view));
+      if (tab !== 'compose' && tab !== 'accounts') {
+        setPosts(await api.social.list(view));
+        setPostsTab(tab);
+      }
       if (s.isCoach) setQueueCount((await api.social.list('queue')).length);
       setLoadError('');
     } catch (e: any) {
@@ -82,6 +92,30 @@ const SocialMedia: React.FC<Props> = ({ currentUser }) => {
     if (err || connected !== null) setParams({ tab: 'accounts' }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Decide against a FRESH list — what's on screen may predate another
+  // coach reviewing the post.
+  const [freshFor, setFreshFor] = useState<number | null>(null);
+  useEffect(() => {
+    if (linkedPostId) load(true).then(() => setFreshFor(linkedPostId));
+  }, [linkedPostId, load]);
+
+  // Once the linked tab has loaded: outline the post if it's in the list,
+  // otherwise (already reviewed, or on the calendar) open its details. Then
+  // drop `post` from the URL so a refresh doesn't repeat it.
+  useEffect(() => {
+    if (!linkedPostId || loading || !status || freshFor !== linkedPostId) return;
+    if ((tab === 'mine' || tab === 'review') && postsTab !== tab) return;
+    const inList = (tab === 'mine' || tab === 'review') && posts.some((p) => p.id === linkedPostId);
+    if (inList) setHighlightId(linkedPostId);
+    else {
+      setDetailsId(linkedPostId);
+      if (tab === 'review') flash('That post has already been reviewed.');
+    }
+    setFreshFor(null);
+    setParams(tab === 'mine' ? {} : { tab }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedPostId, loading, status, tab, posts, postsTab, freshFor]);
 
   const changed = (message?: string) => {
     if (message) flash(message);
@@ -142,6 +176,7 @@ const SocialMedia: React.FC<Props> = ({ currentUser }) => {
               </div>
             ) : posts.filter((p) => tab === 'review' || p.status !== 'canceled').map((p) => (
               <PostCard key={p.id} post={p} context={tab === 'review' ? 'queue' : 'mine'} isCoach={isCoach} currentUserId={userId}
+                highlight={highlightId === p.id}
                 onChanged={changed} onEdit={(post) => { setEditing(post); setTab('compose'); }} />
             ))}
           </div>
@@ -154,6 +189,8 @@ const SocialMedia: React.FC<Props> = ({ currentUser }) => {
       )}
 
       {tab === 'accounts' && status && isCoach && <AccountsPanel status={status} onChanged={changed} />}
+
+      {detailsId !== null && <DetailsDialog postId={detailsId} onClose={() => setDetailsId(null)} />}
 
       {toast && (
         <div role="status" className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-2 max-w-[calc(100%-2rem)] ${toast.tone === 'ok' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'}`}>
