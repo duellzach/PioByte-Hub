@@ -145,8 +145,10 @@ router.put("/users/:id", async (req, res) => {
       if (!current) return res.status(404).json({ error: "User not found" });
       return res.json(sanitizeUser(current));
     }
+    const wasArchived = updateData.archived === true ? !!(await storage.getUser(id))?.archived : true;
     const user = await storage.updateUser(id, updateData);
     if (!user) return res.status(404).json({ error: "User not found" });
+    if (!wasArchived) await storage.unassignArchivedMember(id, req.userId!);
     res.json(sanitizeUser(user));
   } catch (error) {
     console.error("Error updating user:", error);
@@ -159,8 +161,14 @@ router.patch("/users/:id/archive", requireRoles(...COACH_CAPTAIN), async (req, r
     const id = parseInt(req.params.id);
     if (req.userId === id) return res.status(400).json({ error: "You cannot archive your own account" });
     const { archived } = req.body;
+    const before = await storage.getUser(id);
     const user = await storage.updateUser(id, { archived: !!archived });
     if (!user) return res.status(404).json({ error: "User not found" });
+    // Only on the transition into archived — re-archiving must not re-comment.
+    if (archived && before && !before.archived) {
+      const unassigned = await storage.unassignArchivedMember(id, req.userId!);
+      return res.json({ ...sanitizeUser(user), unassignedFromTasks: unassigned });
+    }
     res.json(sanitizeUser(user));
   } catch (error) {
     console.error("Error archiving user:", error);

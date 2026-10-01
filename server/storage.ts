@@ -355,6 +355,35 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  /**
+   * A member was just archived (they've left the team): take them off every
+   * task that isn't Complete, and leave a "@username was archived" comment
+   * plus a history entry on each so the rest of the team sees why. Completed
+   * tasks keep them — that's the record of who did the work. Returns how many
+   * tasks changed. Callers run this only on the not-archived → archived
+   * transition, so it never double-comments.
+   */
+  async unassignArchivedMember(userId: number, actorId: number): Promise<number> {
+    const member = await this.getUser(userId);
+    if (!member) return 0;
+    return db.transaction(async (tx) => {
+      const open = await tx.select().from(tasks).where(and(
+        sql`${tasks.assignees} @> ${JSON.stringify([userId])}::jsonb`,
+        sql`${tasks.status} <> 'Complete'`,
+      )).for("update");
+      const now = Date.now();
+      for (const t of open) {
+        const id = `${now}-archived-${userId}-${t.id}`;
+        await tx.update(tasks).set({
+          assignees: ((t.assignees as number[]) || []).filter((a) => a !== userId),
+          comments: [...((t.comments as any[]) || []), { id, userId: actorId, text: `@${member.username} was archived`, timestamp: now }],
+          history: [...((t.history as any[]) || []), { id, userId: actorId, action: `${member.name} unassigned (archived)`, timestamp: now }],
+        }).where(eq(tasks.id, t.id));
+      }
+      return open.length;
+    });
+  }
+
   async deleteUser(id: number): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
   }
