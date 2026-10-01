@@ -664,9 +664,11 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
                         Examine Task
                       </button>
                     )}
+                    {/* Acknowledge only clears — for invites too. Opening the
+                        event is View Event's job (which also clears). */}
                     {!n.read && (
-                      <button 
-                        onClick={() => isInvite ? openInvite() : onClearNotification(String(n.id))}
+                      <button
+                        onClick={() => onClearNotification(String(n.id))}
                         className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-300"
                       >
                         Acknowledge
