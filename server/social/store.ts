@@ -154,8 +154,8 @@ export async function addEvent(postId: number, actorId: number | null, action: s
 }
 
 export async function coachIds(): Promise<number[]> {
-  const rows = await db.select({ id: users.id, roles: users.roles }).from(users);
-  return rows.filter((u) => (u.roles as string[]).includes("Coach")).map((u) => u.id);
+  const rows = await db.select({ id: users.id, roles: users.roles, archived: users.archived }).from(users);
+  return rows.filter((u) => !u.archived && (u.roles as string[]).includes("Coach")).map((u) => u.id);
 }
 
 export async function userNames(ids: number[]): Promise<Map<number, string>> {

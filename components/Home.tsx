@@ -277,10 +277,10 @@ const Home: React.FC<HomeProps> = ({ state, onTaskClick, onClearNotification, on
 
   const filteredMentionUsers = useMemo(() => {
     if (mentionFilter === null) return [];
-    return state.users.filter(u => 
+    return state.users.filter(u => !u.archived && (
       u.username.toLowerCase().includes(mentionFilter) || 
       u.name.toLowerCase().includes(mentionFilter)
-    ).slice(0, 5);
+    )).slice(0, 5);
   }, [mentionFilter, state.users]);
 
   const handleAddComment = () => {

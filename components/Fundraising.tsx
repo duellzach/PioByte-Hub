@@ -94,7 +94,7 @@ const Fundraising: React.FC<FundraisingProps> = ({ currentUser, users }) => {
           {isLeadership && (
             <select value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })} className="col-span-2 p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-bold outline-none focus:border-teamColor dark:text-white">
               <option value="">— Credit which student? —</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {users.filter((u) => !u.archived).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           )}
           <div className="relative">

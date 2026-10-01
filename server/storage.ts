@@ -1393,6 +1393,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         sql`coalesce(${trainerScopes.department}, '') = coalesce(${cert.department}, '')`,
         sql`${trainerScopes.maxLevel} >= ${cert.level}`,
+        eq(users.archived, false), // a trainer who has left can't sign anyone off
       ));
 
     const coaches = await db.select({
@@ -1400,7 +1401,7 @@ export class DatabaseStorage implements IStorage {
       name: users.name,
       username: users.username,
       roles: users.roles,
-    }).from(users).where(sql`${users.roles} @> '["Coach"]'::jsonb`);
+    }).from(users).where(and(sql`${users.roles} @> '["Coach"]'::jsonb`, eq(users.archived, false)));
 
     const seen = new Set<number>();
     const out: any[] = [];

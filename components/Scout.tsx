@@ -3083,7 +3083,7 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
                         className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor transition-all font-bold text-sm dark:text-white"
                       >
                         <option value={0}>Select member...</option>
-                        {allUsers.map(u => (
+                        {allUsers.filter(u => !u.archived).map(u => (
                           <option key={u.id} value={u.id}>{u.name || u.username}</option>
                         ))}
                       </select>

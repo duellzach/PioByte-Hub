@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { pickableMembers } from '../shared/members';
 import { Project, User, Role, Attachment } from '../types';
 import { X, Settings, Archive, Eye, EyeOff, Users, Building2, UserPlus, UserCheck, Link2, Plus, Trash2 } from 'lucide-react';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
@@ -38,7 +39,9 @@ const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({
     setLinks(links.map(l => (l.id === id ? { ...l, ...patch } : l)));
   const removeLink = (id: string) => setLinks(links.filter(l => l.id !== id));
 
-  const eligibleScrumMasters = users.filter(u => 
+  // Archived members aren't offered — unless they're still on this board, so
+  // they can be removed.
+  const eligibleScrumMasters = pickableMembers(users, scrumMasters).filter(u => 
     u.roles.includes(Role.ScrumMaster) || 
     u.roles.includes(Role.Coach) || 
     u.roles.includes(Role.TeamCaptain) ||

@@ -30,7 +30,7 @@ router.post("/fullscreen-alerts", async (req, res) => {
     const allUsers = await storage.getUsers().catch(() => []);
     const label = alert.type === "safety" ? "⚠ Safety Alert" : alert.type === "urgent" ? "Urgent" : "Team Alert";
     sendPushToUsers(
-      allUsers.map((u) => u.id),
+      allUsers.filter((u) => !u.archived).map((u) => u.id),
       { title: label, body: alert.message || "New team alert", url: "/", tag: `alert-${alert.id}` },
     );
   } catch (error) {

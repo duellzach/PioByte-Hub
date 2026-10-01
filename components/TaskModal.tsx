@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { pickableMembers } from '../shared/members';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import { todayLocalStr, parseLocalDate } from '../utils/dates';
@@ -126,10 +127,15 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   }, [editedTask.requiredCertificationId]);
 
   const filteredUsersForAssignment = useMemo(() => {
-    let filtered = users;
+    // Archived members can't be newly assigned, but anyone already on the
+    // task stays listed so they can be taken off it.
+    let filtered = pickableMembers(users, editedTask.assignees);
     if (editedTask.departments.length > 0) {
-      filtered = filtered.filter(u => 
-        u.departments.some(d => editedTask.departments.includes(d))
+      // Narrow to the task's departments — but never hide someone already
+      // assigned (e.g. from another department), or they can't be removed.
+      filtered = filtered.filter(u =>
+        u.departments.some(d => editedTask.departments.includes(d)) ||
+        editedTask.assignees.includes(u.id)
       );
     }
     if (assigneeSearch.trim()) {
@@ -140,7 +146,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
       );
     }
     return filtered;
-  }, [users, editedTask.departments, assigneeSearch]);
+  }, [users, editedTask.departments, editedTask.assignees, assigneeSearch]);
 
   const candidateDeps = useMemo(() => {
     return allTasks.filter(t =>
@@ -269,10 +275,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
   const filteredMentionUsers = useMemo(() => {
     if (mentionFilter === null) return [];
-    return users.filter(u => 
+    return users.filter(u => !u.archived && (
       u.username.toLowerCase().includes(mentionFilter) || 
       u.name.toLowerCase().includes(mentionFilter)
-    ).slice(0, 5);
+    )).slice(0, 5);
   }, [mentionFilter, users]);
 
   const toggleHelp = () => {

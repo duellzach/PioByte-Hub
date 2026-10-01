@@ -126,7 +126,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
 
   const rosterUserIds = new Set(roster.map((s) => s.userId));
   const walkinCandidates = walkinSearch.trim().length > 1
-    ? allUsers.filter((u) => !rosterUserIds.has(u.id) && u.name.toLowerCase().includes(walkinSearch.toLowerCase()))
+    ? allUsers.filter((u) => !u.archived && !rosterUserIds.has(u.id) && u.name.toLowerCase().includes(walkinSearch.toLowerCase()))
     : [];
 
   const checkedIn  = roster.filter((s) => s.checkedInAt && !s.checkedOutAt);

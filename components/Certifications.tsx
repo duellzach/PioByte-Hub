@@ -995,7 +995,7 @@ const Certifications: React.FC<CertificationsProps> = ({ currentUser }) => {
                         >
                           <option value="">Select user...</option>
                           {allUsers
-                            .filter(u => !certifiedUsers.some(cu => cu.id === u.id))
+                            .filter(u => !u.archived && !certifiedUsers.some(cu => cu.id === u.id))
                             .map(u => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)
                           }
                         </select>

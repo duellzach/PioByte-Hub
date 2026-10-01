@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
+import { pickableMembers } from '../shared/members';
 
 interface SelectableUser {
   id: number | string;
   name: string;
   username: string;
+  archived?: boolean;
 }
 
 interface UserMultiSelectProps {
@@ -33,10 +35,12 @@ const UserMultiSelect: React.FC<UserMultiSelectProps> = ({
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return users;
+    // Archived members aren't offered, but stay visible while still selected.
+    const pickable = pickableMembers(users, selectedIds);
+    if (!search.trim()) return pickable;
     const q = search.toLowerCase();
-    return users.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
-  }, [users, search]);
+    return pickable.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
+  }, [users, selectedIds, search]);
 
   const toggle = (id: number | string) => {
     const isSelected = selectedIds.some((s) => String(s) === String(id));

@@ -52,7 +52,9 @@ async function applyInvites(eventId: number, eventTitle: string, invitees: numbe
   const before = new Set(await storage.getEventInviteeIds(eventId));
   const after = new Set(invitees.map((id) => parseInt(String(id))));
 
-  const added = [...after].filter((id) => !before.has(id));
+  // Never invite (or notify) someone who has left the team.
+  const archived = new Set((await storage.getUsers()).filter((u) => u.archived).map((u) => u.id));
+  const added = [...after].filter((id) => !before.has(id) && !archived.has(id));
   const removed = [...before].filter((id) => !after.has(id) && id !== actorId);
 
   await storage.inviteUsersToEvent(eventId, added, actorId);

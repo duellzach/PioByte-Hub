@@ -693,7 +693,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         <TaskImportExportModal
           project={{ id: activeProject.id, name: activeProject.name }}
           boardTasks={projectTasks}
-          users={state.users.map(u => ({ id: u.id, username: u.username }))}
+          users={state.users.filter(u => !u.archived).map(u => ({ id: u.id, username: u.username }))}
           onClose={() => setShowImportExportModal(false)}
           onImported={() => onDataChanged?.()}
         />
