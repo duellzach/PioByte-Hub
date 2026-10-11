@@ -4,6 +4,11 @@ import { requireRoles } from "../middleware/auth";
 import { COACH_CAPTAIN, getUserRoles, hasAnyRole } from "../helpers";
 import { liveCompetitionEvents, localDatePT } from "../../utils/dates";
 import { getTeamTimezone } from "../services/teamTime";
+import { AttendanceError, startCompetitionSession, changeCompetitionSession, competitionIdentity, lockAttendance, mirrorRoster } from "../services/competitionSessions";
+import { validReason } from "../services/competitionSessionRules";
+import { db } from "../db";
+import { timeEntries, timeEntryAudit } from "../../shared/schema";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -59,6 +64,7 @@ router.get("/competition-checkins", async (req, res) => {
     const userMap = new Map(allUsers.map((u: any) => [u.id, u.name || u.username]));
     const enriched = entries.map((e) => {
       const api = toApi(e);
+      if (eventId) api.eventId = parseInt(eventId as string);
       return {
         ...api,
         userName: userMap.get(e.userId) || `User ${e.userId}`,
@@ -76,30 +82,16 @@ router.post("/competition-checkins/check-in", async (req, res) => {
   try {
     const userId = parseInt(req.body.userId);
     const eventId = parseInt(req.body.eventId);
+    if (userId !== req.userId && !hasAnyRole(req.userRoles || [], COACH_CAPTAIN)) return res.status(403).json({error: "You can only check yourself in"});
     const event = await storage.getScoutEvent(eventId);
     const today = localDatePT(new Date(), await getTeamTimezone());
     if (!event || !liveCompetitionEvents([event], today).length) {
       return res.status(400).json({ error: "This competition is not active for attendance" });
     }
-    const open = await storage.getOpenTimeEntryForScoutEvent(userId, eventId);
-    if (open) {
-      return res.status(400).json({ error: "Already checked in to this event" });
-    }
-    const entry = await storage.createTimeEntry({
-      userId,
-      scoutEventId: eventId,
-      kind: "competition",
-      checkInAt: new Date(),
-      status: "checked_in",
-    } as any);
-    await storage.createTimeEntryAudit({
-      entryId: entry.id,
-      actorId: userId,
-      actionType: "check_in",
-      newValues: { status: "checked_in", checkInAt: entry.checkInAt },
-    });
-    res.status(201).json(toApi(entry));
+    const result = await startCompetitionSession({userId, actorId: req.userId!, scoutEventId: eventId, requestId: req.body.requestId});
+    res.status(result.created ? 201 : 200).json(toApi(result.entry));
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error checking in to competition:", error);
     res.status(500).json({ error: "Failed to check in" });
   }
@@ -110,17 +102,11 @@ router.post("/competition-checkins/:id/check-out", async (req, res) => {
     const id = parseInt(req.params.id);
     const prev = await storage.getTimeEntry(id);
     if (!prev) return res.status(404).json({ error: "Checkin not found" });
-    const checkOutAt = new Date();
-    const updated = await storage.updateTimeEntry(id, { checkOutAt, status: "pending_check_out" } as any);
-    await storage.createTimeEntryAudit({
-      entryId: id,
-      actorId: prev.userId,
-      actionType: "check_out",
-      previousValues: { status: prev.status },
-      newValues: { status: "pending_check_out", checkOutAt },
-    });
+    if (prev.userId !== req.userId && !hasAnyRole(req.userRoles || [], COACH_CAPTAIN)) return res.status(403).json({error: "You can only check yourself out"});
+    const updated = await changeCompetitionSession(id, req.userId!, "checkout");
     res.json(toApi(updated!));
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error checking out from competition:", error);
     res.status(500).json({ error: "Failed to check out" });
   }
@@ -129,25 +115,14 @@ router.post("/competition-checkins/:id/check-out", async (req, res) => {
 router.post("/competition-checkins/:id/approve", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { roundedMinutes } = req.body;
+    const { roundedMinutes, reason } = req.body;
     const coachId = req.userId!;
     const prev = await storage.getTimeEntry(id);
     if (!prev) return res.status(404).json({ error: "Checkin not found" });
-    const updated = await storage.updateTimeEntry(id, {
-      status: "completed",
-      roundedMinutes: roundedMinutes != null ? parseInt(roundedMinutes) : (prev.roundedMinutes ?? undefined),
-      checkOutConfirmedBy: coachId,
-      checkOutConfirmedAt: new Date(),
-    } as any);
-    await storage.createTimeEntryAudit({
-      entryId: id,
-      actorId: coachId,
-      actionType: "approve",
-      previousValues: { status: prev.status, roundedMinutes: prev.roundedMinutes },
-      newValues: { status: "completed", roundedMinutes: updated!.roundedMinutes, approvedBy: coachId },
-    });
+    const updated = await changeCompetitionSession(id, coachId, "approve", {roundedMinutes: roundedMinutes != null ? Number(roundedMinutes) : undefined, reason});
     res.json(toApi(updated!));
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error approving competition checkin:", error);
     res.status(500).json({ error: "Failed to approve checkin" });
   }
@@ -159,20 +134,10 @@ router.post("/competition-checkins/:id/reject", requireRoles(...COACH_CAPTAIN), 
     const coachId = req.userId!;
     const prev = await storage.getTimeEntry(id);
     if (!prev) return res.status(404).json({ error: "Checkin not found" });
-    const updated = await storage.updateTimeEntry(id, {
-      status: "rejected",
-      checkOutConfirmedBy: coachId,
-      checkOutConfirmedAt: new Date(),
-    } as any);
-    await storage.createTimeEntryAudit({
-      entryId: id,
-      actorId: coachId,
-      actionType: "reject",
-      previousValues: { status: prev.status },
-      newValues: { status: "rejected" },
-    });
+    const updated = await changeCompetitionSession(id, coachId, "reject");
     res.json(toApi(updated!));
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error rejecting competition checkin:", error);
     res.status(500).json({ error: "Failed to reject checkin" });
   }
@@ -185,27 +150,36 @@ router.post("/competition-checkins/manual-add", requireRoles(...COACH_CAPTAIN), 
       return res.status(400).json({ error: "userId, eventId, and minutes are required" });
     }
     const coachId = req.userId!;
+    const reason = validReason(notes);
+    if (!Number.isInteger(Number(minutes)) || Number(minutes) <= 0) return res.status(400).json({error: "Minutes must be a positive whole number"});
     const now = new Date();
-    const entry = await storage.createTimeEntry({
+    const entry = await db.transaction(async tx => {
+      await lockAttendance(tx, Number(userId));
+      const identity = await competitionIdentity(tx, {scoutEventId: Number(eventId)});
+      const [entry] = await tx.insert(timeEntries).values({
       userId: parseInt(userId),
-      scoutEventId: parseInt(eventId),
+      ...identity,
       kind: "competition",
       checkInAt: now,
       checkOutAt: now,
       status: "completed",
       roundedMinutes: parseInt(minutes),
-      notes: notes || "Manually added by coach",
+      notes: reason,
       checkOutConfirmedBy: coachId,
       checkOutConfirmedAt: now,
-    } as any);
-    await storage.createTimeEntryAudit({
+      }).returning();
+      await tx.insert(timeEntryAudit).values({
       entryId: entry.id,
       actorId: coachId,
       actionType: "manual_add",
       newValues: { status: "completed", roundedMinutes: entry.roundedMinutes, notes: entry.notes, userId: entry.userId },
+      });
+      // Exceptional credit is not a physical visit: do not overwrite presence.
+      return entry;
     });
     res.status(201).json(toApi(entry));
   } catch (error: any) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     if (error?.code === "23505") {
       return res.status(409).json({ error: "An entry already exists for this member at this exact time" });
     }
@@ -233,7 +207,8 @@ router.put("/competition-checkins/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const { actorId, ...data } = req.body;
     if (!actorId) return res.status(400).json({ error: "actorId is required" });
-    const actorRoles = await getUserRoles(parseInt(actorId));
+    if (parseInt(actorId) !== req.userId) return res.status(403).json({error: "Actor must be the signed-in member"});
+    const actorRoles = req.userRoles || [];
     const existing = await storage.getTimeEntry(id);
     if (!existing) return res.status(404).json({ error: "Checkin not found" });
     const isCoachOrCaptain = hasAnyRole(actorRoles, COACH_CAPTAIN);
@@ -272,6 +247,7 @@ router.delete("/competition-checkins/:id", requireRoles(...COACH_CAPTAIN), async
   try {
     const id = parseInt(req.params.id);
     const existing = await storage.getTimeEntry(id);
+    if ((await storage.getTimeEntryAudit(id)).some(a => a.actionType === "first_chance_correction")) throw new AttendanceError("Reviewed FIRST Chance history must be preserved");
     await storage.createTimeEntryAudit({
       entryId: id,
       actorId: req.userId!,
@@ -281,6 +257,7 @@ router.delete("/competition-checkins/:id", requireRoles(...COACH_CAPTAIN), async
     await storage.deleteTimeEntry(id);
     res.status(204).send();
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error deleting competition checkin:", error);
     res.status(500).json({ error: "Failed to delete checkin" });
   }

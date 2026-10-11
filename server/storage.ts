@@ -36,6 +36,7 @@ import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notifi
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import { isCapExemptRoles } from "../shared/roles";
+import { AttendanceError } from "./services/competitionSessionRules";
 import {
   type DepartmentChangeSet,
   type DepartmentPropagationCounts,
@@ -584,8 +585,9 @@ export class DatabaseStorage implements IStorage {
 
   // --- Competition time (kind='competition', scoutEventId set) ---
   async getTimeEntriesByScoutEvent(scoutEventId: number): Promise<TimeEntry[]> {
+    const calendars = await db.select({id: calendarEvents.id}).from(calendarEvents).where(eq(calendarEvents.scoutEventId, scoutEventId));
     return db.select().from(timeEntries)
-      .where(eq(timeEntries.scoutEventId, scoutEventId))
+      .where(or(eq(timeEntries.scoutEventId, scoutEventId), ...(calendars.length ? [inArray(timeEntries.calendarEventId, calendars.map(c => c.id))] : [])))
       .orderBy(desc(timeEntries.createdAt));
   }
   async getTimeEntriesByUserAndKind(userId: number, kind: string): Promise<TimeEntry[]> {
@@ -605,19 +607,39 @@ export class DatabaseStorage implements IStorage {
 
   async createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry> {
     const sanitized = sanitizeTimeEntry(entry);
-    const [newEntry] = await db.insert(timeEntries).values(sanitized).returning();
-    return newEntry;
+    return db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(96196, ${Number(entry.userId)})`);
+      if (!entry.checkOutAt && entry.status !== "completed" && entry.status !== "rejected") {
+        const open = await tx.select().from(timeEntries).where(and(eq(timeEntries.userId, Number(entry.userId)), isNull(timeEntries.checkOutAt)));
+        if (open.some(e => e.status !== "completed" && e.status !== "rejected")) throw new AttendanceError("This member already has an active time session");
+      }
+      const [newEntry] = await tx.insert(timeEntries).values(sanitized).returning();
+      return newEntry;
+    });
   }
 
   async updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
     const sanitized = sanitizeTimeEntry(entry);
     delete sanitized.id;
-    const [updated] = await db.update(timeEntries).set(sanitized).where(eq(timeEntries.id, id)).returning();
-    return updated;
+    return db.transaction(async tx => {
+      const [prev] = await tx.select().from(timeEntries).where(eq(timeEntries.id, id));
+      if (!prev) return undefined;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(96196, ${prev.userId})`);
+      if (prev.kind === "competition" && Object.keys(sanitized).some(k => k !== "notes")) throw new AttendanceError("Competition attendance must use the shared session workflow");
+      const [updated] = await tx.update(timeEntries).set(sanitized).where(eq(timeEntries.id, id)).returning();
+      return updated;
+    });
   }
 
   async deleteTimeEntry(id: number): Promise<void> {
-    await db.delete(timeEntries).where(eq(timeEntries.id, id));
+    await db.transaction(async tx => {
+      const [prev] = await tx.select().from(timeEntries).where(eq(timeEntries.id, id));
+      if (!prev) return;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(96196, ${prev.userId})`);
+      const audit = await tx.select({id: timeEntryAudit.id}).from(timeEntryAudit).where(and(eq(timeEntryAudit.entryId, id), eq(timeEntryAudit.actionType, "first_chance_correction"))).limit(1);
+      if (audit.length) throw new AttendanceError("Reviewed FIRST Chance history must be preserved; these records cannot be deleted");
+      await tx.delete(timeEntries).where(eq(timeEntries.id, id));
+    });
   }
 
   async getGeneralTasks(includeArchived = false): Promise<GeneralTask[]> {

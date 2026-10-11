@@ -1,10 +1,10 @@
 ---
-name: Schema changes need a boot-time ensure* migration, not just drizzle-kit push
-description: This project applies schema changes to existing databases via idempotent ensure* methods run at boot, not automatically. Read this before adding any new column/table.
+name: Managed schema changes supersede the legacy boot convention
+description: Avoid copying legacy startup DDL when adding schema fields to the managed database.
 ---
 
-Adding a column/table to the schema file alone does not update an existing (non-fresh) database in this project. The boot sequence only auto-applies the full schema when it detects a completely fresh database (no tables yet); on every other boot it just verifies connectivity — it does not diff and apply new columns/tables.
+New schema fields must be applied to the development database and then reach the managed production database through Publish. Do not add startup-time DDL or custom production migration scripts.
 
-**Why:** the completion-review gate for this project rejects work that adds a schema field without a corresponding boot-time migration, because after merge the deployed app would crash with "column/relation does not exist" until someone manually pushed the schema.
+**Why:** The older project convention used boot-time ensures, but the current managed-database instructions require Publish to own the production schema diff. A schema declaration alone still does not update development, and blindly pushing the entire legacy schema can propose destructive changes.
 
-**How to apply:** for any new column/table, pair the schema definition with an idempotent boot-time migration method (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`) invoked during server startup alongside the other existing boot-time migrations, so every environment (including a fresh deploy) self-heals. During development, also run the schema-push command once yourself so the current dev database picks up the change immediately — the boot-time migration is what makes it work everywhere else.
+**How to apply:** Read the database skill and its publish migration reference before schema work. Apply non-destructive development changes, verify them, then ask the user to publish without overwriting production data. Leave unrelated legacy ensures alone.

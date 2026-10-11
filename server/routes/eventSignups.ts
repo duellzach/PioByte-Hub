@@ -11,6 +11,7 @@ import { db } from "../db";
 import { timeEntries } from "../../shared/schema";
 import { and, eq } from "drizzle-orm";
 import type { EventSignup } from "../../shared/schema";
+import { AttendanceError, startCompetitionSession, changeCompetitionSession, competitionRosterSession } from "../services/competitionSessions";
 
 // Kept for roster-management gating (accept/decline/check-in/check-out),
 // which is a narrower privilege than "can see invite-only events" — see
@@ -31,6 +32,7 @@ async function syncEventTimeEntry(signup: EventSignup): Promise<void> {
   if (!event || !CLOCKABLE_TYPES.includes(event.type)) return;
 
   const kind = event.type;
+  if (kind === "competition") throw new AttendanceError("Use the shared competition session workflow");
   const checkInDate = new Date(checkedInAt as any);
 
   // Find an existing time entry already linked to this event + user
@@ -46,6 +48,7 @@ async function syncEventTimeEntry(signup: EventSignup): Promise<void> {
     const roundedMinutes = roundToQuarterHour(Math.max(rawMinutes, 0));
 
     if (existing) {
+      if (existing.status === "rejected") throw new AttendanceError("Rejected attendance cannot be restored by editing the roster");
       await storage.updateTimeEntry(existing.id, {
         checkInAt: checkInDate,
         checkOutAt: checkOutDate,
@@ -87,6 +90,7 @@ async function syncEventCheckInEntry(signup: EventSignup, coachId: number): Prom
 
   const event = await storage.getCalendarEvent(calendarEventId);
   if (!event || !CLOCKABLE_TYPES.includes(event.type)) return;
+  if (event.type === "competition") throw new AttendanceError("Use the shared competition session workflow");
 
   const alreadyOpen = await storage.getOpenTimeEntry(userId);
   if (alreadyOpen) return;
@@ -228,6 +232,8 @@ router.get("/calendar/:id/signups", async (req, res) => {
     }
     res.json(signups.map((s) => ({
       ...s,
+      attendanceKind: event.type,
+      attendanceStatus: entries.filter(e => e.calendarEventId === eventId && e.userId === s.userId && e.status !== "rejected").sort((a,b) => b.checkInAt.getTime() - a.checkInAt.getTime())[0]?.status || null,
       userName: userMap.get(s.userId) || `User ${s.userId}`,
       clockedMinutes: minutesByUser[s.userId] || 0,
       // Whether this person's sign-up is excluded from the event's capacity
@@ -281,12 +287,18 @@ router.post("/calendar/:id/checkin", requireRoles(...LEADERSHIP), async (req, re
     const { userId, time } = req.body;
     if (!userId) return res.status(400).json({ error: "userId required" });
     const parsedTime = time ? new Date(time) : undefined;
+    const event = await storage.getCalendarEvent(eventId);
+    if (event?.type === "competition") {
+      await startCompetitionSession({userId: parseInt(userId), actorId: req.userId!, calendarEventId: eventId, at: parsedTime, confirmed: true, requestId: req.body.requestId});
+      return res.json(await storage.getEventSignup(eventId, parseInt(userId)));
+    }
     const signup = await storage.upsertAndCheckIn(eventId, parseInt(userId), req.userId!, parsedTime);
     // Bridge to time_entries so the student sees this on their own time window
     // and can request check-out (see syncEventCheckInEntry for why this is needed).
     syncEventCheckInEntry(signup, req.userId!).catch((e) => console.error("syncEventCheckInEntry:", e));
     res.json(signup);
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error checking in:", error);
     res.status(500).json({ error: "Failed to check in" });
   }
@@ -298,12 +310,23 @@ router.post("/calendar/:id/checkout", requireRoles(...LEADERSHIP), async (req, r
     const { signupId, time } = req.body;
     if (!signupId) return res.status(400).json({ error: "signupId required" });
     const parsedTime = time ? new Date(time) : undefined;
+    const original = await storage.getEventSignupById(parseInt(signupId));
+    if (!original || original.calendarEventId !== parseInt(req.params.id)) return res.status(404).json({error: "Signup not found for this event"});
+    const event = await storage.getCalendarEvent(original.calendarEventId);
+    if (event?.type === "competition") {
+      if (!original.checkedInAt) return res.status(400).json({error: "Check in before checking out"});
+      const entry = await competitionRosterSession(original.calendarEventId, original.userId, new Date(original.checkedInAt));
+      await changeCompetitionSession(entry.id, req.userId!, "checkout", {at: parsedTime});
+      await changeCompetitionSession(entry.id, req.userId!, "approve");
+      return res.json(await storage.getEventSignupById(original.id));
+    }
     const signup = await storage.checkOutSignup(parseInt(signupId), parsedTime);
     if (!signup) return res.status(404).json({ error: "Signup not found" });
     // Bridge to time_entries so hours count toward totals
     syncEventTimeEntry(signup).catch((e) => console.error("syncEventTimeEntry checkout:", e));
     res.json(signup);
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error checking out:", error);
     res.status(500).json({ error: "Failed to check out" });
   }
@@ -316,12 +339,23 @@ router.patch("/signups/:id/attendance", requireRoles(...LEADERSHIP), async (req,
     const data: any = {};
     if (checkedInAt !== undefined) data.checkedInAt = checkedInAt ? new Date(checkedInAt) : null;
     if (checkedOutAt !== undefined) data.checkedOutAt = checkedOutAt ? new Date(checkedOutAt) : null;
+    const original = await storage.getEventSignupById(parseInt(req.params.id));
+    if (!original) return res.status(404).json({error: "Signup not found"});
+    const event = await storage.getCalendarEvent(original.calendarEventId);
+    if (event?.type === "competition") {
+      if (!original.checkedInAt) return res.status(409).json({error: "Check the member in before editing attendance"});
+      const entry = await competitionRosterSession(original.calendarEventId, original.userId, new Date(original.checkedInAt));
+      if (data.checkedInAt === null) return res.status(409).json({error: "Attendance history cannot be cleared. Reject the session in Time Tracking instead"});
+      await changeCompetitionSession(entry.id, req.userId!, "edit", {checkInAt: data.checkedInAt, checkOutAt: data.checkedOutAt, reason: req.body.reason});
+      return res.json(await storage.getEventSignupById(original.id));
+    }
     const signup = await storage.editSignupAttendance(parseInt(req.params.id), data);
     if (!signup) return res.status(404).json({ error: "Signup not found" });
     // Keep time_entries in sync when times are manually adjusted
     syncEventTimeEntry(signup).catch((e) => console.error("syncEventTimeEntry edit:", e));
     res.json(signup);
   } catch (error) {
+    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
     console.error("Error editing attendance:", error);
     res.status(500).json({ error: "Failed to edit attendance" });
   }

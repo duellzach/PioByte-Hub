@@ -59,6 +59,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attendanceError, setAttendanceError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -89,19 +90,25 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
 
   const doCheckin = async (userId: number) => {
     setActionBusy(userId);
+    setAttendanceError('');
     try { await api.events.checkin(eventId, userId); await load(); }
+    catch (error: any) { setAttendanceError(error.message || 'Could not check in'); }
     finally { setActionBusy(null); }
   };
 
   const doCheckout = async (signupId: number, userId: number) => {
     setActionBusy(userId);
+    setAttendanceError('');
     try { await api.events.checkout(eventId, signupId); await load(); }
+    catch (error: any) { setAttendanceError(error.message || 'Could not check out'); }
     finally { setActionBusy(null); }
   };
 
   const doWalkin = async (userId: number) => {
     setWalkinBusy(userId);
+    setAttendanceError('');
     try { await api.events.checkin(eventId, userId); setWalkinSearch(''); await load(); }
+    catch (error: any) { setAttendanceError(error.message || 'Could not check in'); }
     finally { setWalkinBusy(null); }
   };
 
@@ -118,9 +125,14 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
       ? (signup.checkedInAt || new Date().toISOString())
       : (signup.checkedOutAt || new Date().toISOString());
     const newIso = mergeTime(baseIso, editTarget.value);
-    const patch = editTarget.field === 'in' ? { checkedInAt: newIso } : { checkedOutAt: newIso };
+    const reason = signup.attendanceKind === 'competition' && signup.attendanceStatus === 'completed'
+      ? window.prompt('Explain why this approved competition attendance needs a time adjustment (at least 8 characters).') : undefined;
+    if (reason === null) { setEditTarget(null); return; }
+    const patch = { ...(editTarget.field === 'in' ? { checkedInAt: newIso } : { checkedOutAt: newIso }), ...(reason !== undefined ? {reason} : {}) };
     setEditSaving(true);
-    try { await api.events.editAttendance(editTarget.signupId, patch).catch(() => {}); await load(); }
+    setAttendanceError('');
+    try { await api.events.editAttendance(editTarget.signupId, patch); await load(); }
+    catch (error: any) { setAttendanceError(error.message || 'Attendance edit failed'); }
     finally { setEditSaving(false); setEditTarget(null); }
   };
 
@@ -163,6 +175,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[500] p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-xl max-h-[88vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {attendanceError && <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{attendanceError}</p>}
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">

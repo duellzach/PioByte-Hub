@@ -10,6 +10,7 @@ import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
 import { LEADERSHIP_ALL, hasAnyRole, CLASS_MEMBER_ROLE } from '../shared/roles';
 import { presentEntries as selectPresent, groupByCategory, untaskedCount as countUntasked, workingOnLabel } from '../utils/presence';
 import TaskPickerModal from './TaskPickerModal';
+import CompetitionAttendanceReview from './CompetitionAttendanceReview';
 
 /** An in-flight "what are you working on?" prompt — see `taskPicker` below. */
 interface TaskPickerSession {
@@ -31,6 +32,11 @@ const formatDuration = (minutes: number) => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+};
+const computedCompetitionMinutes = (session: any) => {
+  if (!session?.checkOutAt || !session?.checkInAt) return 0;
+  const duration = Math.max(0, Math.floor((new Date(session.checkOutAt).getTime() - new Date(session.checkInAt).getTime()) / 60000));
+  return Math.ceil(duration / 15) * 15;
 };
 
 const toLocalDateTimeString = (date: Date | number | string) => {
@@ -68,6 +74,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [compLoading, setCompLoading] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState<any | null>(null);
   const [approveMinutes, setApproveMinutes] = useState('');
+  const [approveReason, setApproveReason] = useState('');
   const compElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualAddForm, setManualAddForm] = useState({ userId: '', minutes: '60', notes: '' });
@@ -175,6 +182,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return state.timeEntries.find(e => 
       e.userId === state.currentUser?.id && 
       e.status !== 'completed' &&
+      (e.status as string) !== 'rejected' &&
       !e.checkOutAt
     );
   }, [state.timeEntries, state.currentUser]);
@@ -570,8 +578,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     if (!editingEntry) return;
     try {
       await api.timeEntries.update(parseInt(editingEntry.id), currentUserId, {
-        checkInAt: new Date(editForm.checkInAt).toISOString(),
-        checkOutAt: editForm.checkOutAt ? new Date(editForm.checkOutAt).toISOString() : undefined,
+        checkInAt: editForm.checkInAt !== toLocalDateTimeString(editingEntry.checkInAt) ? new Date(editForm.checkInAt).toISOString() : undefined,
+        checkOutAt: editForm.checkOutAt && editForm.checkOutAt !== (editingEntry.checkOutAt ? toLocalDateTimeString(editingEntry.checkOutAt) : '') ? new Date(editForm.checkOutAt).toISOString() : undefined,
         notes: editForm.notes,
       });
       setEditingEntry(null);
@@ -672,14 +680,18 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       } catch {}
     };
     loadEvents();
-  }, []);
+  }, [state.timeEntries]);
 
   const fetchCompCheckins = async (eventId: number) => {
     if (!eventId) return;
     try {
       const checkins = await api.competitionCheckins.listByEvent(eventId);
       setCompCheckins(checkins);
-      const mine = checkins.find((c: any) => c.userId === currentUserId && !c.checkOutAt);
+      const mine = checkins.find((c: any) =>
+        c.userId === currentUserId &&
+        (c.status === 'checked_in' || c.status === 'pending_check_in') &&
+        !c.checkOutAt
+      );
       setMyCompCheckin(mine || null);
     } catch {}
   };
@@ -693,7 +705,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   useEffect(() => {
     if (compElapsedRef.current) clearInterval(compElapsedRef.current);
-    if (!myCompCheckin) { setCompElapsed(''); return; }
+    if (!myCompCheckin || (myCompCheckin.status !== 'checked_in' && myCompCheckin.status !== 'pending_check_in')) { setCompElapsed(''); return; }
     const tick = () => {
       const ms = Date.now() - new Date(myCompCheckin.checkInAt).getTime();
       const totalMinutes = Math.floor(ms / 60000);
@@ -712,6 +724,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     try {
       await api.competitionCheckins.checkIn(currentUserId, selectedCompEventId);
       await fetchCompCheckins(selectedCompEventId);
+      onRefresh();
     } catch (e: any) {
       alert(e.message || 'Check-in failed');
     } finally {
@@ -720,12 +733,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const handleCompCheckOut = async () => {
-    const openCheckin = compCheckins.find((c: any) => c.userId === currentUserId && c.status === 'checked_in' && !c.checkOutAt);
+    const openCheckin = compCheckins.find((c: any) =>
+      c.userId === currentUserId &&
+      (c.status === 'checked_in' || c.status === 'pending_check_in') &&
+      !c.checkOutAt
+    );
     if (!openCheckin) return;
     setCompLoading(true);
     try {
       await api.competitionCheckins.checkOut(openCheckin.id);
       await fetchCompCheckins(selectedCompEventId!);
+      onRefresh();
     } catch (e: any) {
       alert(e.message || 'Check-out failed');
     } finally {
@@ -735,13 +753,19 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
   const handleCompApprove = async () => {
     if (!showApproveModal) return;
-    const mins = approveMinutes ? parseInt(approveMinutes) : undefined;
+    const mins = approveMinutes.trim() ? Number(approveMinutes) : undefined;
+    if (mins !== undefined && (!Number.isFinite(mins) || !Number.isInteger(mins) || mins < 0)) return;
+    const computedMinutes = computedCompetitionMinutes(showApproveModal);
+    const isOverride = mins !== undefined && mins !== computedMinutes;
+    if (isOverride && approveReason.trim().length < 8) return;
     try {
-      await api.competitionCheckins.approve(showApproveModal.id, currentUserId, mins);
+      await api.competitionCheckins.approve(showApproveModal.id, currentUserId, mins, isOverride ? approveReason.trim() : undefined);
       setShowApproveModal(null);
       setApproveMinutes('');
+      setApproveReason('');
       if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
       loadMyTotals();
+      onRefresh();
     } catch (e: any) {
       alert(e.message || 'Approve failed');
     }
@@ -752,6 +776,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     try {
       await api.competitionCheckins.delete(id, currentUserId);
       if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+      onRefresh();
     } catch (e: any) { alert(e.message || 'Delete failed'); }
   };
 
@@ -766,18 +791,20 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   };
 
   const handleManualAdd = async () => {
-    if (!manualAddForm.userId || !manualAddForm.minutes || !selectedCompEventId) return;
+    const manualMinutes = Number(manualAddForm.minutes);
+    if (!manualAddForm.userId || !Number.isFinite(manualMinutes) || !Number.isInteger(manualMinutes) || manualMinutes <= 0 || manualAddForm.notes.trim().length < 8 || !selectedCompEventId) return;
     try {
       await api.competitionCheckins.manualAdd(
         currentUserId,
         parseInt(manualAddForm.userId),
         selectedCompEventId,
-        parseInt(manualAddForm.minutes),
+        manualMinutes,
         manualAddForm.notes || undefined
       );
       setShowManualAdd(false);
       setManualAddForm({ userId: '', minutes: '60', notes: '' });
       await fetchCompCheckins(selectedCompEventId);
+      onRefresh();
     } catch (e: any) { alert(e.message || 'Manual add failed'); }
   };
 
@@ -974,7 +1001,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <div className="space-y-4">
               {(() => {
                 const myCheckins = compCheckins.filter((c: any) => c.userId === currentUserId);
-                const openCheckin = myCheckins.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
+                const openCheckin = myCheckins.find((c: any) => (c.status === 'checked_in' || c.status === 'pending_check_in') && !c.checkOutAt);
                 const pendingCheckin = myCheckins.find((c: any) => c.status === 'pending_approval');
                 const today = todayLocalStr();
                 const eventStarted = !selectedCompEvent?.startDate || selectedCompEvent.startDate <= today;
@@ -1003,7 +1030,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                               <Trophy size={15} />
                             </div>
                             <div>
-                              <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">At Competition</p>
+                              <p className="text-xs font-black text-violet-800 dark:text-violet-100 uppercase">{openCheckin.status === 'pending_check_in' ? 'Check-in pending' : 'At Competition'}</p>
                               <p className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">Since {formatTime(openCheckin.checkInAt)}</p>
                               {compElapsed && <p className="text-xs font-black text-violet-700 dark:text-violet-300 mt-0.5">{compElapsed} elapsed</p>}
                             </div>
@@ -1037,11 +1064,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                             </p>
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase ${
                               c.status === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
-                              c.status === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
+                              (c.status === 'pending_approval' || c.status === 'pending_check_in') ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
                               c.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
                               'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
                             }`}>
-                              {c.status === 'checked_in' ? 'Present' : c.status === 'pending_approval' ? 'Pending' : c.status}
+                              {c.status === 'checked_in' ? 'Present' : c.status === 'pending_check_in' ? 'Check-in pending' : c.status === 'pending_approval' ? 'Pending checkout' : c.status}
                             </span>
                           </div>
                         ))}
@@ -1057,16 +1084,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             const memberRows = activeUsers.map(user => {
               const uid = parseInt(user.id);
               const sessions = compCheckins.filter((c: any) => c.userId === uid);
-              const openSession = sessions.find((c: any) => c.status === 'checked_in' && !c.checkOutAt);
+              const openSession = sessions.find((c: any) => (c.status === 'checked_in' || c.status === 'pending_check_in') && !c.checkOutAt);
               const pendingSession = sessions.find((c: any) => c.status === 'pending_approval');
               const latestApproved = sessions.filter((c: any) => c.status === 'approved').sort(
                 (a: any, b: any) => new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime()
               )[0];
               const activeSession = openSession || pendingSession;
-              const displayStatus = openSession ? 'checked_in' : pendingSession ? 'pending_approval' : latestApproved ? 'approved' : 'not_checked_in';
+              const displayStatus = openSession ? openSession.status : pendingSession ? 'pending_approval' : latestApproved ? 'approved' : 'not_checked_in';
               return { user, uid, sessions, openSession, pendingSession, latestApproved, activeSession, displayStatus };
             });
-            const present = memberRows.filter(r => r.displayStatus === 'checked_in');
+            const present = memberRows.filter(r => r.displayStatus === 'checked_in' || r.displayStatus === 'pending_check_in');
             const pending = memberRows.filter(r => r.displayStatus === 'pending_approval');
             const approved = memberRows.filter(r => r.displayStatus === 'approved');
             const absent = memberRows.filter(r => r.displayStatus === 'not_checked_in');
@@ -1097,6 +1124,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <div className="flex items-center gap-2.5">
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${
                         displayStatus === 'checked_in' ? 'bg-violet-500 text-white' :
+                        displayStatus === 'pending_check_in' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' :
                         displayStatus === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
                         displayStatus === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
                         'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
@@ -1106,7 +1134,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                       <div>
                         <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{user.name || user.username}</p>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
-                          {openSession ? `Since ${formatTime(openSession.checkInAt)}` :
+                          {openSession ? `${openSession.status === 'pending_check_in' ? 'Check-in pending · ' : 'Since '}${formatTime(openSession.checkInAt)}` :
                            pendingSession ? `${formatTime(pendingSession.checkInAt)} → ${pendingSession.checkOutAt ? formatTime(pendingSession.checkOutAt) : '?'}` :
                            latestApproved ? `${formatDuration(latestApproved.roundedMinutes)} approved` :
                            'Not checked in'}
@@ -1116,11 +1144,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <div className="flex items-center gap-2">
                       <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
                         displayStatus === 'checked_in' ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' :
+                        displayStatus === 'pending_check_in' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' :
                         displayStatus === 'pending_approval' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' :
                         displayStatus === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
                         'bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
                       }`}>
                         {displayStatus === 'checked_in' ? 'Present' :
+                         displayStatus === 'pending_check_in' ? 'Check-in pending' :
                          displayStatus === 'pending_approval' ? 'Pending' :
                          displayStatus === 'approved' ? 'Approved' : 'Absent'}
                       </span>
@@ -1128,10 +1158,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                         <>
                           <button
                             onClick={() => {
-                              const dur = pendingSession.checkOutAt
-                                ? Math.ceil((new Date(pendingSession.checkOutAt).getTime() - new Date(pendingSession.checkInAt).getTime()) / 60000)
-                                : 0;
-                              setApproveMinutes(String(Math.ceil(dur / 15) * 15));
+                              setApproveMinutes(String(computedCompetitionMinutes(pendingSession)));
+                              setApproveReason('');
                               setShowApproveModal({ ...pendingSession, userName: user.name || user.username });
                             }}
                             className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
@@ -1143,6 +1171,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                               try {
                                 await api.competitionCheckins.reject(pendingSession.id, currentUserId);
                                 if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+                                onRefresh();
                               } catch (e: any) { alert(e.message || 'Reject failed'); }
                             }}
                             className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg font-bold text-[10px] uppercase hover:bg-red-200 dark:hover:bg-red-900/60 transition-all"
@@ -1157,6 +1186,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                             try {
                               await api.competitionCheckins.checkOut(openSession.id);
                               if (selectedCompEventId) await fetchCompCheckins(selectedCompEventId);
+                              onRefresh();
                             } catch {}
                           }}
                           className="flex items-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-lg font-bold text-[10px] uppercase hover:bg-orange-600 transition-all"
@@ -1196,6 +1226,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
+      {isCoach && <CompetitionAttendanceReview onMutation={onRefresh} />}
+
       {showApproveModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl border-t-8 border-green-500">
@@ -1207,19 +1239,31 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               <button onClick={() => setShowApproveModal(null)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
             </div>
             <div>
-              <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Approved Minutes (rounded to 15)</label>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Approved Minutes (rounded to 15; whole numbers only)</label>
               <input
                 type="number"
                 value={approveMinutes}
                 onChange={(e) => setApproveMinutes(e.target.value)}
                 step="15"
                 min="0"
+                inputMode="numeric"
                 className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-green-500 dark:text-white font-bold"
               />
             </div>
+            {(() => {
+              const computed = computedCompetitionMinutes(showApproveModal);
+              const isOverride = approveMinutes !== '' && Number(approveMinutes) !== computed;
+              return isOverride ? (
+                <div className="mt-4">
+                  <label htmlFor="competition-approval-reason" className="block text-[9px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest mb-2">Reason for overriding computed {computed} minutes · at least 8 characters <span aria-hidden="true">*</span></label>
+                  <textarea id="competition-approval-reason" value={approveReason} onChange={e => setApproveReason(e.target.value)} rows={2} required className="w-full rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-sm outline-none focus:border-amber-500 dark:border-amber-900 dark:bg-slate-700 dark:text-white" placeholder="Explain the evidence for the adjustment" />
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{approveReason.trim().length}/8 characters</p>
+                </div>
+              ) : <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Computed from the recorded duration: {computed} minutes.</p>;
+            })()}
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowApproveModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
-              <button onClick={handleCompApprove} className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl text-xs uppercase hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all">Approve</button>
+              <button onClick={handleCompApprove} disabled={(approveMinutes !== '' && (!Number.isFinite(Number(approveMinutes)) || !Number.isInteger(Number(approveMinutes)) || Number(approveMinutes) < 0)) || (approveMinutes !== '' && Number(approveMinutes) !== computedCompetitionMinutes(showApproveModal) && approveReason.trim().length < 8)} className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl text-xs uppercase hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all disabled:opacity-50">Approve</button>
             </div>
           </div>
         </div>
@@ -1255,27 +1299,31 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                   type="number"
                   value={manualAddForm.minutes}
                   onChange={(e) => setManualAddForm(f => ({ ...f, minutes: e.target.value }))}
-                  step="15"
-                  min="15"
+                  step="1"
+                  min="1"
+                  inputMode="numeric"
                   className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
                 />
+                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Enter whole minutes only.</p>
               </div>
               <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes (optional)</label>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes (required · at least 8 characters)</label>
                 <input
                   type="text"
+                  required
                   value={manualAddForm.notes}
                   onChange={(e) => setManualAddForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="e.g. arrived early setup"
+                  placeholder="Describe the attendance evidence"
                   className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
                 />
+                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{manualAddForm.notes.trim().length}/8 characters</p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowManualAdd(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
               <button
                 onClick={handleManualAdd}
-                disabled={!manualAddForm.userId || !manualAddForm.minutes}
+                disabled={!manualAddForm.userId || !Number.isInteger(Number(manualAddForm.minutes)) || Number(manualAddForm.minutes) <= 0 || manualAddForm.notes.trim().length < 8}
                 className="flex-1 py-3 bg-violet-600 text-white font-black rounded-xl text-xs uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50"
               >
                 Add Approved Time

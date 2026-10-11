@@ -184,10 +184,10 @@ export const api = {
     archive: (eventId: number, archived: boolean) =>
       apiRequest<any>(`/calendar/${eventId}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
     checkin: (eventId: number, userId: number, time?: string) =>
-      apiRequest<any>(`/calendar/${eventId}/checkin`, { method: 'POST', body: JSON.stringify({ userId, time }) }),
+      apiRequest<any>(`/calendar/${eventId}/checkin`, { method: 'POST', body: JSON.stringify({ userId, time, requestId: crypto.randomUUID() }) }),
     checkout: (eventId: number, signupId: number, time?: string) =>
       apiRequest<any>(`/calendar/${eventId}/checkout`, { method: 'POST', body: JSON.stringify({ signupId, time }) }),
-    editAttendance: (signupId: number, data: { checkedInAt?: string | null; checkedOutAt?: string | null }) =>
+    editAttendance: (signupId: number, data: { checkedInAt?: string | null; checkedOutAt?: string | null; reason?: string }) =>
       apiRequest<any>(`/signups/${signupId}/attendance`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   requirements: {
@@ -338,11 +338,11 @@ export const api = {
     listByEvent: (eventId: number) => apiRequest<any[]>(`/competition-checkins?eventId=${eventId}`),
     listByUser: (userId: number) => apiRequest<any[]>(`/competition-checkins?userId=${userId}`),
     checkIn: (userId: number, eventId: number) =>
-      apiRequest<any>('/competition-checkins/check-in', { method: 'POST', body: JSON.stringify({ userId, eventId }) }),
+      apiRequest<any>('/competition-checkins/check-in', { method: 'POST', body: JSON.stringify({ userId, eventId, requestId: crypto.randomUUID() }) }),
     checkOut: (id: number) =>
       apiRequest<any>(`/competition-checkins/${id}/check-out`, { method: 'POST', body: JSON.stringify({}) }),
-    approve: (id: number, coachId: number, roundedMinutes?: number) =>
-      apiRequest<any>(`/competition-checkins/${id}/approve`, { method: 'POST', body: JSON.stringify({ coachId, roundedMinutes }) }),
+    approve: (id: number, coachId: number, roundedMinutes?: number, reason?: string) =>
+      apiRequest<any>(`/competition-checkins/${id}/approve`, { method: 'POST', body: JSON.stringify({ coachId, roundedMinutes, reason }) }),
     reject: (id: number, coachId: number) =>
       apiRequest<any>(`/competition-checkins/${id}/reject`, { method: 'POST', body: JSON.stringify({ coachId }) }),
     manualAdd: (coachId: number, userId: number, eventId: number, minutes: number, notes?: string) =>
@@ -352,6 +352,16 @@ export const api = {
     delete: (id: number, actorId: number) =>
       apiRequest<void>(`/competition-checkins/${id}?actorId=${actorId}`, { method: 'DELETE' }),
     getAudit: (checkinId: number) => apiRequest<any[]>(`/competition-checkins/${checkinId}/audit`),
+  },
+  competitionAttendance: {
+    manage: () => apiRequest<any>('/competition-attendance/manage'),
+    link: (calendarEventId: number, scoutEventId: number) =>
+      apiRequest<any>('/competition-attendance/links', { method: 'PUT', body: JSON.stringify({ calendarEventId, scoutEventId }) }),
+    preview: () => apiRequest<any>('/competition-attendance/first-chance/preview'),
+    previewDecisions: (decisions: { departure: 'calendar' | 'scout'; switch: 'preserve' | 'merge'; zero: 'keep' | 'remove' }) =>
+      apiRequest<any>('/competition-attendance/first-chance/preview', { method: 'POST', body: JSON.stringify({ decisions }) }),
+    apply: (payload: { fingerprint: string; reason: string; confirmed: true; linkConfirmed: true; decisions: { departure: 'calendar' | 'scout'; switch: 'preserve' | 'merge'; zero: 'keep' | 'remove' } }) =>
+      apiRequest<any>('/competition-attendance/first-chance/apply', { method: 'POST', body: JSON.stringify(payload) }),
   },
   fullscreenAlerts: {
     list: (activeOnly = false) => apiRequest<any[]>(`/fullscreen-alerts${activeOnly ? '?active=true' : ''}`),
@@ -508,7 +518,7 @@ export const api = {
     getAll: () => apiRequest<any[]>('/time-entries'),
     get: (id: number) => apiRequest<any>(`/time-entries/${id}`),
     checkIn: (userId: number, opts?: { kind?: string; calendarEventId?: number }) =>
-      apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId, ...(opts || {}) }) }),
+      apiRequest<any>('/time-entries/check-in', { method: 'POST', body: JSON.stringify({ userId, requestId: crypto.randomUUID(), ...(opts || {}) }) }),
     checkOut: (id: number, userId: number, opts?: { taskHandoffNote?: string; markTaskComplete?: boolean }) =>
       apiRequest<any>(`/time-entries/${id}/check-out`, { method: 'POST', body: JSON.stringify({ userId, ...opts }) }),
     confirm: (id: number, coachId: number, confirmType: 'check_in' | 'check_out') =>

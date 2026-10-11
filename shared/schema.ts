@@ -131,10 +131,8 @@ export const timeEntries = pgTable("time_entries", {
   // clocked against.
   kind: text("kind").notNull().default("shop"),
   calendarEventId: integer("calendar_event_id").references(() => calendarEvents.id, { onDelete: "set null" }),
-  // Competition time ("kind" = "competition") is clocked against a scouting
-  // competition (scout_events), not a calendar event — the two are separate
-  // entities. Exactly one of calendarEventId/scoutEventId is set, or neither
-  // for plain shop time. See server/routes/competition.ts.
+  // Linked competitions set BOTH IDs on their single attendance session.
+  // Historical unlinked rows remain available for audited review.
   scoutEventId: integer("scout_event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (t) => ({
@@ -569,6 +567,7 @@ export const calendarEvents = pgTable("calendar_events", {
   startTime: text("start_time"),
   endTime: text("end_time"),
   type: text("type").notNull().default("shop"),
+  scoutEventId: integer("scout_event_id").references(() => scoutEvents.id, { onDelete: "set null" }),
   location: text("location").notNull().default(""),
   createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
