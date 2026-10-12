@@ -761,10 +761,9 @@ export const eventSignups = pgTable("event_signups", {
   id: serial("id").primaryKey(),
   calendarEventId: integer("calendar_event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  // Which shift of the event this sign-up is for, when the event has shifts
-  // defined. Null on events without shifts, and set back to null (rather than
-  // cascading the delete) if the shift itself is later removed, so the
-  // person's sign-up history on the event isn't lost.
+  // LEGACY — no longer written. Sign-ups used to hold a single shift here;
+  // they now hold any number in event_signup_shifts (backfilled from this
+  // column once). Kept so Publish never proposes dropping it.
   shiftId: integer("shift_id").references(() => eventShifts.id, { onDelete: "set null" }),
   status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted | invited
   approvedBy: integer("approved_by").references(() => users.id),
@@ -784,6 +783,26 @@ export const eventSignups = pgTable("event_signups", {
 
 export type EventSignup = typeof eventSignups.$inferSelect;
 export type InsertEventSignup = typeof eventSignups.$inferInsert;
+
+// The shifts a person signed up for on a shift-based event — one row per
+// (sign-up, shift), so someone can work several shifts of the same event.
+// Capacity, waitlisting and approval are per shift; the parent sign-up's
+// status is derived from these rows (see storage.syncSignupStatusFromShifts).
+// Supersedes event_signups.shift_id, which is kept only so existing rows
+// could be backfilled and Publish never proposes dropping the column.
+export const eventSignupShifts = pgTable("event_signup_shifts", {
+  id: serial("id").primaryKey(),
+  signupId: integer("signup_id").notNull().references(() => eventSignups.id, { onDelete: "cascade" }),
+  shiftId: integer("shift_id").notNull().references(() => eventShifts.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("requested"), // requested | accepted | declined | waitlisted
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  uniqSignupShift: uniqueIndex("event_signup_shifts_unique_idx").on(t.signupId, t.shiftId),
+}));
+
+export type EventSignupShift = typeof eventSignupShifts.$inferSelect;
 
 // Fundraising contributions (Epic C). Amounts in integer cents.
 export const fundraisingEntries = pgTable("fundraising_entries", {

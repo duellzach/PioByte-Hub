@@ -18,7 +18,8 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
   const [signupError, setSignupError] = useState<{ id: number; message: string } | null>(null);
-  const [shiftPicks, setShiftPicks] = useState<Record<number, number>>({});
+  // Shifts ticked for the next sign-up, per event.
+  const [shiftPicks, setShiftPicks] = useState<Record<number, number[]>>({});
 
   const load = async () => {
     try { setEvents(await api.events.myUpcoming()); }
@@ -27,13 +28,18 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
   };
   useEffect(() => { load(); }, []);
 
-  const signUp = async (id: number, shiftId?: number) => {
+  const signUp = async (id: number, shiftIds?: number[]) => {
     setBusy(id); setSignupError(null);
-    try { await api.events.signup(id, shiftId); await load(); }
+    try { await api.events.signup(id, shiftIds); setShiftPicks((p) => ({ ...p, [id]: [] })); await load(); }
     catch (err: any) { setSignupError({ id, message: err?.message || 'Failed to sign up' }); }
     finally { setBusy(null); }
   };
-  const withdraw = async (id: number) => { setBusy(id); try { await api.events.withdraw(id); await load(); } catch { /* */ } finally { setBusy(null); } };
+  const withdraw = async (id: number, shiftId?: number) => { setBusy(id); try { await api.events.withdraw(id, shiftId); await load(); } catch { /* */ } finally { setBusy(null); } };
+  const togglePick = (eventId: number, shiftId: number) =>
+    setShiftPicks((p) => {
+      const cur = p[eventId] || [];
+      return { ...p, [eventId]: cur.includes(shiftId) ? cur.filter((x) => x !== shiftId) : [...cur, shiftId] };
+    });
 
   if (!loaded || events.length === 0) return null;
 
@@ -78,11 +84,6 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
                     : `${e.capacity - e.acceptedCount} spot${e.capacity - e.acceptedCount === 1 ? '' : 's'} left`}
                 </p>
               )}
-              {e.shifts && e.shifts.length > 0 && e.myStatus && ACTIVE_SIGNUP_STATUSES.has(e.myStatus) && e.myShiftId != null && (
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mt-0.5">
-                  {e.shifts.find((s: any) => s.id === e.myShiftId)?.title || 'Shift'}
-                </p>
-              )}
               {e.myStatus === 'invited' && (
                 <p className="text-[9px] font-black text-violet-500 uppercase tracking-wide mt-0.5">Invited — sign up below</p>
               )}
@@ -90,31 +91,54 @@ const UpcomingCard: React.FC<{ className?: string }> = ({ className = '' }) => {
                 <p className="text-[9px] font-bold text-red-500 mt-0.5">{signupError.message}</p>
               )}
             </div>
-            {e.myStatus && ACTIVE_SIGNUP_STATUSES.has(e.myStatus) ? (
+            {e.shifts && e.shifts.length > 0 ? (
+              /* Shift events: each shift is its own sign-up — held shifts show
+                 their status (tap × to drop one), the rest can be ticked and
+                 signed up for together. */
+              <div className="w-full space-y-1">
+                {e.shifts.map((s: any) => {
+                  const held = (e.myShifts || []).find((m: any) => m.shiftId === s.id);
+                  const full = s.capacity != null && (s.acceptedCount ?? 0) >= s.capacity;
+                  return (
+                    <label key={s.id} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer min-w-0">
+                      <input
+                        type="checkbox"
+                        className="accent-teamColor flex-shrink-0"
+                        checked={!!held || (shiftPicks[e.id] || []).includes(s.id)}
+                        disabled={!!held || busy === e.id}
+                        onChange={() => togglePick(e.id, s.id)}
+                      />
+                      <span className="truncate flex-1">{s.title}</span>
+                      {held ? (
+                        <button
+                          type="button"
+                          onClick={(ev2) => { ev2.preventDefault(); withdraw(e.id, s.id); }}
+                          disabled={busy === e.id}
+                          title="Withdraw from this shift"
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide flex-shrink-0 ${held.status === 'accepted' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-200'}`}
+                        >
+                          {STATUS_LABEL[held.status] || held.status} ×
+                        </button>
+                      ) : s.capacity != null && (
+                        <span className={`text-[8px] font-black uppercase flex-shrink-0 ${full ? 'text-amber-500' : 'text-slate-400'}`}>{s.acceptedCount ?? 0}/{s.capacity}</span>
+                      )}
+                    </label>
+                  );
+                })}
+                {(shiftPicks[e.id] || []).length > 0 && (
+                  <button
+                    onClick={() => signUp(e.id, shiftPicks[e.id])}
+                    disabled={busy === e.id}
+                    className="w-full px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-teamColor text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {busy === e.id ? '…' : `Sign Up${shiftPicks[e.id].length > 1 ? ` (${shiftPicks[e.id].length})` : ''}`}
+                  </button>
+                )}
+              </div>
+            ) : e.myStatus && ACTIVE_SIGNUP_STATUSES.has(e.myStatus) ? (
               e.myStatus === 'accepted'
                 ? <span className="px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0 ml-auto"><Check size={11} /> In</span>
                 : <button onClick={() => withdraw(e.id)} disabled={busy === e.id} className="px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-200 flex-shrink-0 ml-auto">{busy === e.id ? '…' : STATUS_LABEL[e.myStatus]}</button>
-            ) : e.shifts && e.shifts.length > 0 ? (
-              <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
-                <select
-                  value={shiftPicks[e.id] ?? e.shifts.find((s: any) => s.capacity == null || (s.acceptedCount ?? 0) < s.capacity)?.id ?? e.shifts[0].id}
-                  onChange={(ev2) => setShiftPicks((p) => ({ ...p, [e.id]: parseInt(ev2.target.value) }))}
-                  className="text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-200 rounded-lg px-1.5 py-1.5 border-none outline-none"
-                >
-                  {e.shifts.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title}{s.capacity != null ? ` (${s.acceptedCount}/${s.capacity})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => signUp(e.id, shiftPicks[e.id] ?? e.shifts.find((s: any) => s.capacity == null || (s.acceptedCount ?? 0) < s.capacity)?.id ?? e.shifts[0].id)}
-                  disabled={busy === e.id}
-                  className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-teamColor text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {busy === e.id ? '…' : 'Sign Up'}
-                </button>
-              </div>
             ) : (
               <button onClick={() => signUp(e.id)} disabled={busy === e.id} className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-teamColor text-white hover:opacity-90 disabled:opacity-50 flex-shrink-0 ml-auto">{busy === e.id ? '…' : 'Sign Up'}</button>
             )}

@@ -14,9 +14,11 @@ export async function competitionIdentity(tx: Tx, ids: {calendarEventId?: number
   if (ids.calendarEventId) {
     const [calendar] = await tx.select().from(calendarEvents).where(eq(calendarEvents.id, ids.calendarEventId));
     if (!calendar || calendar.type !== "competition") throw new AttendanceError("Competition calendar event not found", 404);
-    if (!calendar.scoutEventId) throw new AttendanceError("A coach must link this calendar competition to its scouting event in Time Tracking before attendance can be recorded");
+    // Calendar events are the source of truth for competitions now; a link to
+    // a scouting event (Time Tracking → Coach Tools → Competition Review) is
+    // optional and only ties older scouting-event attendance to this event.
     if (ids.scoutEventId && calendar.scoutEventId !== ids.scoutEventId) throw new AttendanceError("These events are not linked");
-    return {calendarEventId: calendar.id, scoutEventId: calendar.scoutEventId};
+    return {calendarEventId: calendar.id, scoutEventId: calendar.scoutEventId ?? null};
   }
   if (!ids.scoutEventId) throw new AttendanceError("Competition event required", 400);
   const [scout] = await tx.select().from(scoutEvents).where(eq(scoutEvents.id, ids.scoutEventId));
@@ -26,7 +28,7 @@ export async function competitionIdentity(tx: Tx, ids: {calendarEventId?: number
   if (linked.length > 1) throw new AttendanceError("Multiple calendars link to this competition; coach review required");
   if (linked.length) return {calendarEventId: linked[0].id, scoutEventId: scout.id};
   const overlapping = calendars.some(c => !c.archived && scout.startDate && c.startDate <= (scout.endDate || scout.startDate) && (c.endDate || c.startDate) >= scout.startDate);
-  if (overlapping) throw new AttendanceError("A calendar competition overlaps these dates. A coach must explicitly link the events in Time Tracking first");
+  if (overlapping) throw new AttendanceError("A calendar competition overlaps these dates. A coach must explicitly link the events in Time Tracking → Coach Tools → Competition Review first");
   return {calendarEventId: null, scoutEventId: scout.id};
 }
 

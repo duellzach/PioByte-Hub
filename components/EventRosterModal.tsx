@@ -76,8 +76,17 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
     finally { setLoading(false); }
   };
 
-  const setShift = async (signupId: number, shiftId: number | null) => {
-    await api.events.setSignupShift(signupId, shiftId).catch(() => {});
+  // Shift events: decisions are per (person, shift) row, not per person.
+  const setShiftStatus = async (signupShiftId: number, status: string) => {
+    await api.events.setSignupShiftStatus(signupShiftId, status).catch(() => {});
+    await load();
+  };
+  const addToShift = async (signupId: number, shiftId: number) => {
+    await api.events.addSignupShift(signupId, shiftId).catch(() => {});
+    await load();
+  };
+  const removeFromShift = async (signupShiftId: number) => {
+    await api.events.removeSignupShift(signupShiftId).catch(() => {});
     await load();
   };
 
@@ -221,8 +230,14 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
               <p className="text-center text-xs text-slate-400 font-bold uppercase tracking-widest py-8">No sign-ups yet</p>
             ) : (
               (() => {
-                const renderRow = (s: any) => {
-                  const st = STATUS[s.status] || STATUS.requested;
+                // `shiftRow` is this person's sign-up for the shift being listed
+                // (shift events only) — its status and actions replace the
+                // person-level ones.
+                const renderRow = (s: any, shiftRow?: any) => {
+                  const st = STATUS[(shiftRow ?? s).status] || STATUS.requested;
+                  const decide = (status: string) => shiftRow ? setShiftStatus(shiftRow.id, status) : setStatus(s.id, status);
+                  const held = new Set((s.shifts || []).map((r: any) => r.shiftId));
+                  const addable = shifts.filter((sh) => !held.has(sh.id));
                   return (
                     <div key={s.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl">
                       <div className="flex-1 min-w-0">
@@ -239,27 +254,34 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                           Doesn't count toward cap
                         </span>
                       )}
-                      {isCoach && shifts.length > 0 && (
+                      {isCoach && addable.length > 0 && (
                         <select
-                          value={s.shiftId ?? ''}
-                          onChange={(e) => setShift(s.id, e.target.value ? parseInt(e.target.value) : null)}
+                          value=""
+                          onChange={(e) => e.target.value && addToShift(s.id, parseInt(e.target.value))}
+                          title="Add this person to another shift"
                           className="text-[10px] font-bold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-1.5 py-1 text-slate-600 dark:text-slate-300"
                         >
-                          <option value="">Unassigned</option>
-                          {shifts.map((sh) => <option key={sh.id} value={sh.id}>{sh.title}</option>)}
+                          <option value="">+ Shift</option>
+                          {addable.map((sh) => <option key={sh.id} value={sh.id}>{sh.title}</option>)}
                         </select>
                       )}
                       <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>
-                      {isCoach && s.status !== 'accepted' && (
-                        <button onClick={() => setStatus(s.id, 'accepted')} title="Accept"
+                      {isCoach && (shiftRow ?? s).status !== 'accepted' && (
+                        <button onClick={() => decide('accepted')} title="Accept"
                           className="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg">
                           <Check size={16} />
                         </button>
                       )}
-                      {isCoach && s.status !== 'declined' && (
-                        <button onClick={() => setStatus(s.id, 'declined')} title="Decline"
+                      {isCoach && (shiftRow ?? s).status !== 'declined' && (
+                        <button onClick={() => decide('declined')} title="Decline"
                           className="p-2 text-slate-400 hover:text-red-600 rounded-lg">
                           <Ban size={15} />
+                        </button>
+                      )}
+                      {isCoach && shiftRow && (
+                        <button onClick={() => removeFromShift(shiftRow.id)} title="Remove from this shift"
+                          className="p-2 text-slate-400 hover:text-red-600 rounded-lg">
+                          <X size={15} />
                         </button>
                       )}
                     </div>
@@ -267,14 +289,16 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                 };
 
                 if (shifts.length === 0) {
-                  return <div className="space-y-2">{roster.map(renderRow)}</div>;
+                  return <div className="space-y-2">{roster.map((s) => renderRow(s))}</div>;
                 }
 
-                const unassigned = roster.filter((s) => !s.shiftId);
+                const unassigned = roster.filter((s) => !(s.shifts || []).length);
                 return (
                   <div className="space-y-4">
                     {shifts.map((sh) => {
-                      const rows = roster.filter((s) => s.shiftId === sh.id);
+                      const rows = roster
+                        .map((s) => ({ s, row: (s.shifts || []).find((r: any) => r.shiftId === sh.id) }))
+                        .filter((x) => x.row);
                       const full = sh.capacity != null && sh.acceptedCount >= sh.capacity;
                       return (
                         <div key={sh.id}>
@@ -287,7 +311,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                           {rows.length === 0 ? (
                             <p className="text-[10px] text-slate-400 font-bold py-1.5">No sign-ups yet</p>
                           ) : (
-                            <div className="space-y-2">{rows.map(renderRow)}</div>
+                            <div className="space-y-2">{rows.map(({ s, row }) => renderRow(s, row))}</div>
                           )}
                         </div>
                       );
@@ -295,7 +319,7 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
                     {unassigned.length > 0 && (
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Unassigned</p>
-                        <div className="space-y-2">{unassigned.map(renderRow)}</div>
+                        <div className="space-y-2">{unassigned.map((s) => renderRow(s))}</div>
                       </div>
                     )}
                   </div>

@@ -173,12 +173,14 @@ export const api = {
       ),
   },
   events: {
-    signup: (eventId: number, shiftId?: number) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST', body: JSON.stringify({ shiftId }) }),
-    withdraw: (eventId: number) => apiRequest<void>(`/calendar/${eventId}/signup`, { method: 'DELETE' }),
+    signup: (eventId: number, shiftIds?: number[]) => apiRequest<any>(`/calendar/${eventId}/signup`, { method: 'POST', body: JSON.stringify({ shiftIds }) }),
+    withdraw: (eventId: number, shiftId?: number) => apiRequest<void>(`/calendar/${eventId}/signup${shiftId != null ? `?shiftId=${shiftId}` : ''}`, { method: 'DELETE' }),
     roster: (eventId: number) => apiRequest<any[]>(`/calendar/${eventId}/signups`),
     shifts: (eventId: number) => apiRequest<any[]>(`/calendar/${eventId}/shifts`),
     setSignupStatus: (signupId: number, status: string) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
-    setSignupShift: (signupId: number, shiftId: number | null) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ shiftId }) }),
+    setSignupShiftStatus: (signupShiftId: number, status: string) => apiRequest<any>(`/signup-shifts/${signupShiftId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    addSignupShift: (signupId: number, shiftId: number) => apiRequest<any>(`/signups/${signupId}/shifts`, { method: 'POST', body: JSON.stringify({ shiftId }) }),
+    removeSignupShift: (signupShiftId: number) => apiRequest<void>(`/signup-shifts/${signupShiftId}`, { method: 'DELETE' }),
     myUpcoming: () => apiRequest<any[]>('/me/upcoming'),
     clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
     archive: (eventId: number, archived: boolean) =>
@@ -337,16 +339,12 @@ export const api = {
   competitionCheckins: {
     listByEvent: (eventId: number) => apiRequest<any[]>(`/competition-checkins?eventId=${eventId}`),
     listByUser: (userId: number) => apiRequest<any[]>(`/competition-checkins?userId=${userId}`),
-    checkIn: (userId: number, eventId: number) =>
-      apiRequest<any>('/competition-checkins/check-in', { method: 'POST', body: JSON.stringify({ userId, eventId, requestId: crypto.randomUUID() }) }),
     checkOut: (id: number) =>
       apiRequest<any>(`/competition-checkins/${id}/check-out`, { method: 'POST', body: JSON.stringify({}) }),
     approve: (id: number, coachId: number, roundedMinutes?: number, reason?: string) =>
       apiRequest<any>(`/competition-checkins/${id}/approve`, { method: 'POST', body: JSON.stringify({ coachId, roundedMinutes, reason }) }),
     reject: (id: number, coachId: number) =>
       apiRequest<any>(`/competition-checkins/${id}/reject`, { method: 'POST', body: JSON.stringify({ coachId }) }),
-    manualAdd: (coachId: number, userId: number, eventId: number, minutes: number, notes?: string) =>
-      apiRequest<any>('/competition-checkins/manual-add', { method: 'POST', body: JSON.stringify({ coachId, userId, eventId, minutes, notes }) }),
     update: (id: number, actorId: number, data: any) =>
       apiRequest<any>(`/competition-checkins/${id}`, { method: 'PUT', body: JSON.stringify({ actorId, ...data }) }),
     delete: (id: number, actorId: number) =>

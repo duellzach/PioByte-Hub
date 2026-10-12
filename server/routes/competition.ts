@@ -1,14 +1,8 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
-import { COACH_CAPTAIN, getUserRoles, hasAnyRole } from "../helpers";
-import { liveCompetitionEvents, localDatePT } from "../../utils/dates";
-import { getTeamTimezone } from "../services/teamTime";
-import { AttendanceError, startCompetitionSession, changeCompetitionSession, competitionIdentity, lockAttendance, mirrorRoster } from "../services/competitionSessions";
-import { validReason } from "../services/competitionSessionRules";
-import { db } from "../db";
-import { timeEntries, timeEntryAudit } from "../../shared/schema";
-import { eq } from "drizzle-orm";
+import { COACH_CAPTAIN, hasAnyRole } from "../helpers";
+import { AttendanceError, changeCompetitionSession } from "../services/competitionSessions";
 
 const router = Router();
 
@@ -78,23 +72,14 @@ router.get("/competition-checkins", async (req, res) => {
   }
 });
 
-router.post("/competition-checkins/check-in", async (req, res) => {
-  try {
-    const userId = parseInt(req.body.userId);
-    const eventId = parseInt(req.body.eventId);
-    if (userId !== req.userId && !hasAnyRole(req.userRoles || [], COACH_CAPTAIN)) return res.status(403).json({error: "You can only check yourself in"});
-    const event = await storage.getScoutEvent(eventId);
-    const today = localDatePT(new Date(), await getTeamTimezone());
-    if (!event || !liveCompetitionEvents([event], today).length) {
-      return res.status(400).json({ error: "This competition is not active for attendance" });
-    }
-    const result = await startCompetitionSession({userId, actorId: req.userId!, scoutEventId: eventId, requestId: req.body.requestId});
-    res.status(result.created ? 201 : 200).json(toApi(result.entry));
-  } catch (error) {
-    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
-    console.error("Error checking in to competition:", error);
-    res.status(500).json({ error: "Failed to check in" });
-  }
+// Scouting-event check-in is retired: competitions are calendar events now,
+// and attendance is clocked against them from the Time Clock (which records
+// the same shared competition session). Existing scouting-event sessions can
+// still be checked out, approved, rejected, edited and audited below.
+export const SCOUT_CHECKIN_RETIRED = "Scouting-event check-in is retired — check in to the competition's calendar event from the Time Clock.";
+
+router.post("/competition-checkins/check-in", async (_req, res) => {
+  res.status(410).json({ error: SCOUT_CHECKIN_RETIRED });
 });
 
 router.post("/competition-checkins/:id/check-out", async (req, res) => {
@@ -143,49 +128,10 @@ router.post("/competition-checkins/:id/reject", requireRoles(...COACH_CAPTAIN), 
   }
 });
 
-router.post("/competition-checkins/manual-add", requireRoles(...COACH_CAPTAIN), async (req, res) => {
-  try {
-    const { userId, eventId, minutes, notes } = req.body;
-    if (!userId || !eventId || !minutes) {
-      return res.status(400).json({ error: "userId, eventId, and minutes are required" });
-    }
-    const coachId = req.userId!;
-    const reason = validReason(notes);
-    if (!Number.isInteger(Number(minutes)) || Number(minutes) <= 0) return res.status(400).json({error: "Minutes must be a positive whole number"});
-    const now = new Date();
-    const entry = await db.transaction(async tx => {
-      await lockAttendance(tx, Number(userId));
-      const identity = await competitionIdentity(tx, {scoutEventId: Number(eventId)});
-      const [entry] = await tx.insert(timeEntries).values({
-      userId: parseInt(userId),
-      ...identity,
-      kind: "competition",
-      checkInAt: now,
-      checkOutAt: now,
-      status: "completed",
-      roundedMinutes: parseInt(minutes),
-      notes: reason,
-      checkOutConfirmedBy: coachId,
-      checkOutConfirmedAt: now,
-      }).returning();
-      await tx.insert(timeEntryAudit).values({
-      entryId: entry.id,
-      actorId: coachId,
-      actionType: "manual_add",
-      newValues: { status: "completed", roundedMinutes: entry.roundedMinutes, notes: entry.notes, userId: entry.userId },
-      });
-      // Exceptional credit is not a physical visit: do not overwrite presence.
-      return entry;
-    });
-    res.status(201).json(toApi(entry));
-  } catch (error: any) {
-    if (error instanceof AttendanceError) return res.status(error.status).json({error: error.message});
-    if (error?.code === "23505") {
-      return res.status(409).json({ error: "An entry already exists for this member at this exact time" });
-    }
-    console.error("Error manually adding competition checkin:", error);
-    res.status(500).json({ error: "Failed to add manual checkin" });
-  }
+// Retired with scouting-event check-in: new competition credit goes on the
+// calendar event (Coach Tools → Bulk Add Time, or the event roster).
+router.post("/competition-checkins/manual-add", requireRoles(...COACH_CAPTAIN), async (_req, res) => {
+  res.status(410).json({ error: SCOUT_CHECKIN_RETIRED });
 });
 
 router.get("/competition-checkins/:id/audit", async (req, res) => {
