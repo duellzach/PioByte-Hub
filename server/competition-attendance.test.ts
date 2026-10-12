@@ -31,7 +31,7 @@ const admin = await pool.connect();
 let server: ReturnType<express.Express["listen"]> | undefined;
 let assertions = 0;
 function check(actual: unknown, expected: unknown, label: string) { assert.deepEqual(actual, expected, label); assertions++; }
-const tables = ["users", "calendar_events", "scout_events", "time_entries", "time_entry_audit", "event_signups", "time_entry_task_segments", "team_settings"];
+const tables = ["users", "calendar_events", "scout_events", "time_entries", "time_entry_audit", "event_signups", "event_signup_shifts", "time_entry_task_segments", "team_settings"];
 
 try {
   await admin.query(`CREATE SCHEMA "${schema}"`);
@@ -42,7 +42,7 @@ try {
   }
   // admin remains checked out and is used only for schema teardown.
   (pool as any).options.options = `-c search_path=${schema}`;
-  await db.insert(users).values([1,7,32,37,42,57,100,101,102,103,104,105,106].map(id => ({id, username: `fixture_${id}`, name: `Fixture ${id}`, password: "not-a-login-hash", roles: id === 1 ? ["Coach"] : ["Team Member"]})));
+  await db.insert(users).values([1,7,32,37,42,57,100,101,102,103,104,105,106,107].map(id => ({id, username: `fixture_${id}`, name: `Fixture ${id}`, password: "not-a-login-hash", roles: id === 1 ? ["Coach"] : ["Team Member"]})));
   await db.insert(teamSettings).values({id: 1, timezone: "America/Los_Angeles"});
   const today = localDatePT(new Date(), "America/Los_Angeles");
   await db.insert(scoutEvents).values([
@@ -70,13 +70,18 @@ try {
     const result = await fetch(`http://127.0.0.1:${port}/api${path}`, {method, headers: {"Content-Type":"application/json",Cookie:cookie}, ...(body ? {body:JSON.stringify(body)} : {})});
     return {status:result.status,body:result.status===204?null:await result.json()};
   }
+  // Scouting-event check-in is retired as a route, but older scouting-event
+  // sessions still exist; this seeds one through the shared session service.
+  async function legacyScoutCheckIn(userId: number, requestId?: string) {
+    return {status:201, body:(await startCompetitionSession({userId,actorId:userId,scoutEventId:700,requestId})).entry as any};
+  }
 
   // Calendar-first and scouting-first: same record and same roster in both orders.
   const calendarFirst = await request("/time-entries/check-in","POST",{userId:100,kind:"competition",calendarEventId:700,requestId:"calendar-first-100"},100);
-  const scoutSecond = await request("/competition-checkins/check-in","POST",{userId:100,eventId:700,requestId:"scout-second-100"},100);
+  const scoutSecond = await legacyScoutCheckIn(100,"scout-second-100");
   check(calendarFirst.status,201,"calendar first succeeds");
   check(scoutSecond.body.id,calendarFirst.body.id,"scouting reuses the calendar session");
-  const scoutFirst = await request("/competition-checkins/check-in","POST",{userId:101,eventId:700},101);
+  const scoutFirst = await legacyScoutCheckIn(101);
   const calendarSecond = await request("/time-entries/check-in","POST",{userId:101,kind:"competition",calendarEventId:700},101);
   check(calendarSecond.body.id,scoutFirst.body.id,"calendar reuses scouting session");
   const roster = await request("/calendar/700/signups");
@@ -91,9 +96,13 @@ try {
     storage.createTimeEntry({userId:103,kind:"shop",checkInAt:new Date(),status:"pending_check_in"}),
   ]);
   check(otherKind.filter(r=>r.status==="fulfilled").length,1,"general and competition check-in serialize together");
-  check((await request("/time-entries/check-in","POST",{userId:104,kind:"competition",calendarEventId:701},104)).status,409,"unlinked calendar fails explicitly");
-  check((await request("/competition-checkins/check-in","POST",{userId:104,eventId:701},104)).status,409,"overlapping unlinked scouting event fails explicitly");
-  check((await request("/competition-checkins/check-in","POST",{userId:105,eventId:700},104)).status,403,"cannot check someone else in");
+  const unlinked = await request("/time-entries/check-in","POST",{userId:107,kind:"competition",calendarEventId:701},107);
+  check(unlinked.status,201,"an unlinked calendar competition accepts check-in");
+  check(unlinked.body.scoutEventId,null,"unlinked calendar session carries no scouting identity");
+  check((await request("/calendar/701/signups")).body.some((s:any)=>s.userId===107),true,"unlinked calendar check-in appears on its roster");
+  check((await request("/competition-checkins/check-in","POST",{userId:104,eventId:700},104)).status,410,"scouting-event check-in is retired");
+  await assert.rejects(startCompetitionSession({userId:104,actorId:104,scoutEventId:701}),(e:any)=>e.status===409); assertions++;
+  check((await request("/time-entries/check-in","POST",{userId:105,kind:"competition",calendarEventId:700},104)).status,403,"cannot check someone else in");
   check((await request(`/competition-checkins/${calendarFirst.body.id}/check-out`,"POST",{},104)).status,403,"cannot check someone else out");
   const checkout = await request(`/competition-checkins/${calendarFirst.body.id}/check-out`,"POST",{},100);
   check(checkout.body.status,"pending_approval","competition checkout shares pending approval state");
@@ -112,7 +121,7 @@ try {
   const stillPresent = (await request("/calendar/700/signups")).body.find((s:any)=>s.userId===100);
   check(new Date(stillPresent.checkedInAt).getTime(),nextVisit.entry.checkInAt.getTime(),"editing the first visit preserves the later roster check-in");
   check(stillPresent.checkedOutAt,null,"editing the first visit does not mark the currently present member absent");
-  const pendingEarlier = await request("/competition-checkins/check-in","POST",{userId:105,eventId:700},105);
+  const pendingEarlier = await legacyScoutCheckIn(105);
   await request(`/competition-checkins/${pendingEarlier.body.id}/check-out`,"POST",{},105);
   const laterOpen = await request("/time-entries/check-in","POST",{userId:105,kind:"competition",calendarEventId:700},105);
   check((await request(`/competition-checkins/${pendingEarlier.body.id}/reject`,"POST",{})).body.status,"rejected","earlier pending visit is rejected with a later visit open");
@@ -121,7 +130,7 @@ try {
   check(stillPresentAfterReject.checkedOutAt,null,"rejecting the first visit does not clear present-member attendance");
   const approvalEarlier = await request("/time-entries/check-in","POST",{userId:106,kind:"competition",calendarEventId:700},106);
   await request(`/time-entries/${approvalEarlier.body.id}/check-out`,"POST",{},106);
-  const approvalLater = await request("/competition-checkins/check-in","POST",{userId:106,eventId:700},106);
+  const approvalLater = await legacyScoutCheckIn(106);
   check((await request(`/competition-checkins/${approvalEarlier.body.id}/approve`,"POST",{})).status,200,"earlier pending visit may be approved after the next visit starts");
   const stillPresentAfterApproval = (await request("/calendar/700/signups")).body.find((s:any)=>s.userId===106);
   check(stillPresentAfterApproval.checkedOutAt,null,"earlier approval does not close the later roster attendance");
@@ -141,8 +150,7 @@ try {
   await changeCompetitionSession(override.entry.id,104,"checkout");
   check((await request(`/competition-checkins/${override.entry.id}/approve`,"POST",{roundedMinutes:15})).status,400,"manual credit requires a reason");
   check((await request(`/competition-checkins/${override.entry.id}/approve`,"POST",{roundedMinutes:15,reason:"Verified exceptional credit"})).status,200,"explained adjustment is auditable");
-  check((await request("/competition-checkins/manual-add","POST",{userId:105,eventId:700,minutes:15})).status,400,"manual addition requires an explanation");
-  check((await request("/competition-checkins/manual-add","POST",{userId:105,eventId:700,minutes:15.5,notes:"Coach verified exceptional credit"})).status,400,"manual credit does not silently truncate decimal minutes");
+  check((await request("/competition-checkins/manual-add","POST",{userId:105,eventId:700,minutes:15,notes:"Coach verified exceptional credit"})).status,410,"scouting-event manual add is retired");
   check((await request("/competition-attendance/links","PUT",{calendarEventId:701,scoutEventId:700})).status,409,"one scouting identity cannot be linked to two calendars");
   const testSession = await storage.getTimeEntry(scoutFirst.body.id);
   check((await request(`/time-entries/${testSession!.id}`,"PUT",{checkOutAt:"invalid date",notes:"Coach verified departure change"})).status,400,"invalid attendance dates fail explicitly");

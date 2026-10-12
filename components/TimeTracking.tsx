@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, TimeEntry, TimeEntryAudit, Role, AvailableTask, GeneralTask, TimeEntryWithTaskInfo } from '../types';
-import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Flag, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive, Repeat, Shuffle } from 'lucide-react';
+import { Clock, LogIn, LogOut, Check, X, Edit3, History, AlertCircle, ChevronDown, ChevronUp, Users, Plus, Trash2, Trophy, MapPin, Briefcase, ListChecks, CheckSquare, Square, Loader2, Pencil, Archive, Repeat, Shuffle } from 'lucide-react';
 import { api } from '../services/api';
-import { liveCompetitionEvents, todayLocalStr, isClassCheckInWindowOpen, isSchoolDay } from '../utils/dates';
+import { liveCompetitionEvents, isClassCheckInWindowOpen, isSchoolDay } from '../utils/dates';
 import { useTeamTime } from '../utils/timeFormat';
 import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
@@ -62,6 +62,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [editForm, setEditForm] = useState({ checkInAt: '', checkOutAt: '', notes: '' });
   const [showHistory, setShowHistory] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [showCompReview, setShowCompReview] = useState(false);
   const [showNotCheckedIn, setShowNotCheckedIn] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
 
@@ -76,8 +77,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [approveMinutes, setApproveMinutes] = useState('');
   const [approveReason, setApproveReason] = useState('');
   const compElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [showManualAdd, setShowManualAdd] = useState(false);
-  const [manualAddForm, setManualAddForm] = useState({ userId: '', minutes: '60', notes: '' });
   const [compAuditModal, setCompAuditModal] = useState<{ checkinId: number; userName: string } | null>(null);
   const [compAuditLogs, setCompAuditLogs] = useState<any[]>([]);
   const [compAuditLoading, setCompAuditLoading] = useState(false);
@@ -718,20 +717,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     return () => { if (compElapsedRef.current) clearInterval(compElapsedRef.current); };
   }, [myCompCheckin]);
 
-  const handleCompCheckIn = async () => {
-    if (!selectedCompEventId) return;
-    setCompLoading(true);
-    try {
-      await api.competitionCheckins.checkIn(currentUserId, selectedCompEventId);
-      await fetchCompCheckins(selectedCompEventId);
-      onRefresh();
-    } catch (e: any) {
-      alert(e.message || 'Check-in failed');
-    } finally {
-      setCompLoading(false);
-    }
-  };
-
   const handleCompCheckOut = async () => {
     const openCheckin = compCheckins.find((c: any) =>
       c.userId === currentUserId &&
@@ -790,25 +775,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     finally { setCompAuditLoading(false); }
   };
 
-  const handleManualAdd = async () => {
-    const manualMinutes = Number(manualAddForm.minutes);
-    if (!manualAddForm.userId || !Number.isFinite(manualMinutes) || !Number.isInteger(manualMinutes) || manualMinutes <= 0 || manualAddForm.notes.trim().length < 8 || !selectedCompEventId) return;
-    try {
-      await api.competitionCheckins.manualAdd(
-        currentUserId,
-        parseInt(manualAddForm.userId),
-        selectedCompEventId,
-        manualMinutes,
-        manualAddForm.notes || undefined
-      );
-      setShowManualAdd(false);
-      setManualAddForm({ userId: '', minutes: '60', notes: '' });
-      await fetchCompCheckins(selectedCompEventId);
-      onRefresh();
-    } catch (e: any) { alert(e.message || 'Manual add failed'); }
-  };
-
   const selectedCompEvent = compEvents.find(e => e.id === selectedCompEventId);
+  const hasLegacyCompSession = compCheckins.some((c: any) =>
+    c.userId === currentUserId && !['approved', 'rejected'].includes(c.status));
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -960,7 +929,10 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         )}
       </div>
 
-      {compEvents.length > 0 && (
+      {/* Scouting-event check-in is retired (competitions are calendar events
+          now). This card remains so coaches can resolve existing scouting-event
+          sessions, and so a member still in one can check out of it. */}
+      {compEvents.length > 0 && (isCoach || hasLegacyCompSession) && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 border-l-4 border-l-violet-400 p-4 md:p-5">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -968,7 +940,7 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               className="flex items-center gap-2 text-left flex-1 min-w-0"
             >
               <Trophy size={15} className="text-violet-500 flex-shrink-0" />
-              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Competition Attendance</h3>
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Scouting Event Attendance (Legacy)</h3>
               {compAttendanceCollapsed
                 ? <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
                 : <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />}
@@ -1003,25 +975,8 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                 const myCheckins = compCheckins.filter((c: any) => c.userId === currentUserId);
                 const openCheckin = myCheckins.find((c: any) => (c.status === 'checked_in' || c.status === 'pending_check_in') && !c.checkOutAt);
                 const pendingCheckin = myCheckins.find((c: any) => c.status === 'pending_approval');
-                const today = todayLocalStr();
-                const eventStarted = !selectedCompEvent?.startDate || selectedCompEvent.startDate <= today;
-                const canCheckIn = !openCheckin && !pendingCheckin && eventStarted;
                 return (
                   <>
-                    {!eventStarted && !openCheckin && !pendingCheckin && (
-                      <div className="w-full py-4 text-center bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase">Event starts {selectedCompEvent?.startDate}</p>
-                      </div>
-                    )}
-                    {canCheckIn && (
-                      <button
-                        onClick={handleCompCheckIn}
-                        disabled={compLoading}
-                        className="w-full flex items-center justify-center gap-3 py-4 md:py-5 bg-violet-600 text-white font-black rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
-                      >
-                        <Flag size={18} /> Check In to Competition
-                      </button>
-                    )}
                     {openCheckin && (
                       <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl p-4">
                         <div className="flex items-center justify-between">
@@ -1107,12 +1062,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
                     <span className="text-green-600 dark:text-green-400">{approved.length} approved</span>
                     <span className="text-slate-400">{absent.length} absent</span>
                   </div>
-                  <button
-                    onClick={() => setShowManualAdd(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
-                  >
-                    <Plus size={12} /> Manual Add
-                  </button>
                 </div>
 
                 {memberRows.length === 0 && (
@@ -1226,8 +1175,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {isCoach && <CompetitionAttendanceReview onMutation={onRefresh} />}
-
       {showApproveModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl border-t-8 border-green-500">
@@ -1264,70 +1211,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowApproveModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
               <button onClick={handleCompApprove} disabled={(approveMinutes !== '' && (!Number.isFinite(Number(approveMinutes)) || !Number.isInteger(Number(approveMinutes)) || Number(approveMinutes) < 0)) || (approveMinutes !== '' && Number(approveMinutes) !== computedCompetitionMinutes(showApproveModal) && approveReason.trim().length < 8)} className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl text-xs uppercase hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all disabled:opacity-50">Approve</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showManualAdd && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl border-t-8 border-violet-500">
-            <div className="flex justify-between items-start mb-5">
-              <div>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">Manual Add Time</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedCompEvent?.name}</p>
-              </div>
-              <button onClick={() => setShowManualAdd(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:text-red-600 transition-colors"><X size={16} /></button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Member</label>
-                <select
-                  value={manualAddForm.userId}
-                  onChange={(e) => setManualAddForm(f => ({ ...f, userId: e.target.value }))}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
-                >
-                  <option value="">Select member...</option>
-                  {activeUsers.filter(u => u.id !== String(currentUserId)).map(u => (
-                    <option key={u.id} value={u.id}>{u.name || u.username}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Minutes</label>
-                <input
-                  type="number"
-                  value={manualAddForm.minutes}
-                  onChange={(e) => setManualAddForm(f => ({ ...f, minutes: e.target.value }))}
-                  step="1"
-                  min="1"
-                  inputMode="numeric"
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
-                />
-                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Enter whole minutes only.</p>
-              </div>
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Notes (required · at least 8 characters)</label>
-                <input
-                  type="text"
-                  required
-                  value={manualAddForm.notes}
-                  onChange={(e) => setManualAddForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Describe the attendance evidence"
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-violet-500 dark:text-white font-bold"
-                />
-                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{manualAddForm.notes.trim().length}/8 characters</p>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowManualAdd(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-xl text-xs uppercase hover:bg-slate-200 transition-all">Cancel</button>
-              <button
-                onClick={handleManualAdd}
-                disabled={!manualAddForm.userId || !Number.isInteger(Number(manualAddForm.minutes)) || Number(manualAddForm.minutes) <= 0 || manualAddForm.notes.trim().length < 8}
-                className="flex-1 py-3 bg-violet-600 text-white font-black rounded-xl text-xs uppercase hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50"
-              >
-                Add Approved Time
-              </button>
             </div>
           </div>
         </div>
@@ -1624,6 +1507,14 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               </button>
               {isCoach && (
                 <button
+                  onClick={() => setShowCompReview(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs uppercase hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:text-violet-700 dark:hover:text-violet-300 transition-all"
+                >
+                  <Trophy size={13} /> Competition Review
+                </button>
+              )}
+              {isCoach && (
+                <button
                   onClick={() => setShowBulkAdd(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all"
                 >
@@ -1632,6 +1523,17 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
               )}
             </div>
           </div>
+
+          {/* Links calendar competitions to scouting events and reviews
+              competition credit that was recorded against both. */}
+          {isCoach && showCompReview && (
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex justify-end mb-2">
+                <button onClick={() => setShowCompReview(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Close"><X size={14} /></button>
+              </div>
+              <CompetitionAttendanceReview onMutation={onRefresh} />
+            </div>
+          )}
 
           {isCoach && showBulkAdd && (
             <div className="space-y-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">

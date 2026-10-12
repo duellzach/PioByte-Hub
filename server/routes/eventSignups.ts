@@ -151,33 +151,42 @@ router.post("/calendar/:id/signup", async (req, res) => {
       if (!invitees.includes(req.userId!)) return res.status(404).json({ error: "Event not found" });
     }
 
-    // Shift-based events require picking a specific shift instead of
-    // signing up for the event as a whole — capacity/waitlisting is then
-    // computed per shift, not per event.
-    const shifts = await storage.getEventShifts(eventId);
-    let shift: import("../../shared/schema").EventShift | undefined;
-    if (shifts.length > 0) {
-      const shiftId = req.body?.shiftId != null ? parseInt(req.body.shiftId) : NaN;
-      if (Number.isNaN(shiftId)) return res.status(400).json({ error: "Select a shift to sign up for" });
-      shift = shifts.find((s) => s.id === shiftId);
-      if (!shift) return res.status(400).json({ error: "Invalid shift for this event" });
-    }
-
     // A cap-exempt user (e.g. a Coach) is always accepted immediately,
     // regardless of whether the event/shift has a cap or how full it is.
     // Everyone else keeps the existing capacity → waitlist behavior.
-    let status = "requested";
-    const cap = shift ? shift.capacity : ((event as any).capacity as number | null);
     const requester = await storage.getUser(req.userId!);
     const exemptRoles = await getCapExemptRoleNames();
     const requesterExempt = isCapExemptRoles((requester as any)?.roles || [], exemptRoles);
-    if (requesterExempt) {
-      status = "accepted";
-    } else if (cap != null) {
-      const accepted = await storage.countAcceptedSignups(eventId, exemptRoles, shift?.id);
-      if (accepted >= cap) status = "waitlisted";
+    const statusFor = async (cap: number | null, shiftId?: number) => {
+      if (requesterExempt) return "accepted";
+      if (cap != null && (await storage.countAcceptedSignups(eventId, exemptRoles, shiftId)) >= cap) return "waitlisted";
+      return "requested";
+    };
+
+    // Shift-based events take one or more specific shifts instead of the
+    // event as a whole — capacity, waitlisting and approval are then per
+    // shift. Shifts the person already holds are left untouched, so this
+    // only ever adds shifts (withdraw them one at a time via DELETE).
+    const shifts = await storage.getEventShifts(eventId);
+    if (shifts.length > 0) {
+      const raw = Array.isArray(req.body?.shiftIds) ? req.body.shiftIds : req.body?.shiftId != null ? [req.body.shiftId] : [];
+      const shiftIds = [...new Set(raw.map((v: any) => parseInt(v)))] as number[];
+      if (shiftIds.length === 0 || shiftIds.some((id) => Number.isNaN(id))) return res.status(400).json({ error: "Select at least one shift to sign up for" });
+      const picked = shiftIds.map((id) => shifts.find((s) => s.id === id));
+      if (picked.some((s) => !s)) return res.status(400).json({ error: "Invalid shift for this event" });
+
+      const signup = await storage.getOrCreateEventSignup(eventId, req.userId!, "requested");
+      const held = new Set((await storage.getSignupShifts(signup.id)).map((r) => r.shiftId));
+      for (const shift of picked) {
+        if (held.has(shift!.id)) continue;
+        await storage.addSignupShift(signup.id, shift!.id, await statusFor(shift!.capacity, shift!.id));
+      }
+      const synced = await storage.syncSignupStatusFromShifts(signup.id);
+      return res.status(201).json({ ...synced, shifts: await storage.getSignupShifts(signup.id) });
     }
-    const signup = await storage.upsertEventSignup(eventId, req.userId!, status, shift?.id ?? null);
+
+    const status = await statusFor((event as any).capacity as number | null);
+    const signup = await storage.upsertEventSignup(eventId, req.userId!, status);
     res.status(201).json(signup);
   } catch (error) {
     console.error("Error signing up for event:", error);
@@ -185,10 +194,25 @@ router.post("/calendar/:id/signup", async (req, res) => {
   }
 });
 
-// Student withdraws their own sign-up.
+// Student withdraws their own sign-up — from one shift (?shiftId=) or the
+// whole event. Dropping their last shift withdraws them from the event.
 router.delete("/calendar/:id/signup", async (req, res) => {
   try {
-    await storage.deleteEventSignup(parseInt(req.params.id), req.userId!);
+    const eventId = parseInt(req.params.id);
+    if (req.query.shiftId != null) {
+      const signup = await storage.getEventSignup(eventId, req.userId!);
+      if (signup) {
+        const rows = await storage.getSignupShifts(signup.id);
+        const row = rows.find((r) => r.shiftId === parseInt(req.query.shiftId as string));
+        if (row && rows.length > 1) {
+          await storage.removeSignupShift(row.id);
+          await storage.syncSignupStatusFromShifts(signup.id);
+          return res.status(204).send();
+        }
+        if (!row) return res.status(204).send();
+      }
+    }
+    await storage.deleteEventSignup(eventId, req.userId!);
     res.status(204).send();
   } catch (error) {
     console.error("Error withdrawing sign-up:", error);
@@ -222,6 +246,7 @@ router.get("/calendar/:id/signups", async (req, res) => {
     const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
     const rolesMap = new Map(allUsers.map((u) => [u.id, (u as any).roles || []]));
     const exemptRoles = await getCapExemptRoleNames();
+    const shiftRows = await storage.getEventSignupShifts(eventId);
     // Clocked minutes per user for this event (approved time entries).
     const entries = await storage.getTimeEntries();
     const minutesByUser: Record<number, number> = {};
@@ -236,6 +261,8 @@ router.get("/calendar/:id/signups", async (req, res) => {
       attendanceStatus: entries.filter(e => e.calendarEventId === eventId && e.userId === s.userId && e.status !== "rejected").sort((a,b) => b.checkInAt.getTime() - a.checkInAt.getTime())[0]?.status || null,
       userName: userMap.get(s.userId) || `User ${s.userId}`,
       clockedMinutes: minutesByUser[s.userId] || 0,
+      // The shifts this person signed up for, each with its own status.
+      shifts: shiftRows.filter((r) => r.signupId === s.id).map((r) => ({ id: r.id, shiftId: r.shiftId, status: r.status })),
       // Whether this person's sign-up is excluded from the event's capacity
       // math (e.g. a coach/mentor) — see getCapExemptRoleNames above.
       capExempt: isCapExemptRoles(rolesMap.get(s.userId) || [], exemptRoles),
@@ -246,37 +273,66 @@ router.get("/calendar/:id/signups", async (req, res) => {
   }
 });
 
-// Leadership accepts / declines / waitlists a signup.
-// Leadership accepts/declines/waitlists a signup and/or reassigns it to a
-// different shift on the same event (e.g. moving someone between shifts).
+const SIGNUP_STATUSES = ["requested", "accepted", "declined", "waitlisted"];
+
+// Leadership accepts / declines / waitlists a whole-event signup. On shift
+// events, decisions are made per shift instead (PUT /signup-shifts/:id).
 router.put("/signups/:id", requireRoles(...LEADERSHIP), async (req, res) => {
   try {
-    const { status, shiftId } = req.body;
-    if (status !== undefined && !["requested", "accepted", "declined", "waitlisted"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
-    const id = parseInt(req.params.id);
-    let updated: EventSignup | undefined;
-    if (status !== undefined) {
-      updated = await storage.setEventSignupStatus(id, status, req.userId!);
-      if (!updated) return res.status(404).json({ error: "Signup not found" });
-    }
-    if (shiftId !== undefined) {
-      const signup = updated ?? await storage.getEventSignupById(id);
-      if (!signup) return res.status(404).json({ error: "Signup not found" });
-      if (shiftId !== null) {
-        const shift = await storage.getEventShift(parseInt(shiftId));
-        if (!shift || shift.calendarEventId !== signup.calendarEventId) {
-          return res.status(400).json({ error: "Invalid shift for this event" });
-        }
-      }
-      updated = await storage.updateSignupShift(id, shiftId !== null ? parseInt(shiftId) : null);
-    }
+    const { status } = req.body;
+    if (!SIGNUP_STATUSES.includes(status)) return res.status(400).json({ error: "Invalid status" });
+    const updated = await storage.setEventSignupStatus(parseInt(req.params.id), status, req.userId!);
     if (!updated) return res.status(404).json({ error: "Signup not found" });
     res.json(updated);
   } catch (error) {
     console.error("Error updating signup:", error);
     res.status(500).json({ error: "Failed to update signup" });
+  }
+});
+
+// Leadership accepts / declines / waitlists one shift of a person's sign-up.
+router.put("/signup-shifts/:id", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!SIGNUP_STATUSES.includes(status)) return res.status(400).json({ error: "Invalid status" });
+    const row = await storage.setSignupShiftStatus(parseInt(req.params.id), status, req.userId!);
+    if (!row) return res.status(404).json({ error: "Shift sign-up not found" });
+    await storage.syncSignupStatusFromShifts(row.signupId);
+    res.json(row);
+  } catch (error) {
+    console.error("Error updating shift sign-up:", error);
+    res.status(500).json({ error: "Failed to update shift sign-up" });
+  }
+});
+
+// Leadership adds someone already on the roster to another shift (accepted).
+router.post("/signups/:id/shifts", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const signup = await storage.getEventSignupById(parseInt(req.params.id));
+    if (!signup) return res.status(404).json({ error: "Signup not found" });
+    const shift = await storage.getEventShift(parseInt(req.body?.shiftId));
+    if (!shift || shift.calendarEventId !== signup.calendarEventId) return res.status(400).json({ error: "Invalid shift for this event" });
+    const row = await storage.addSignupShift(signup.id, shift.id, "accepted", req.userId!);
+    await storage.syncSignupStatusFromShifts(signup.id);
+    res.status(201).json(row);
+  } catch (error) {
+    console.error("Error adding shift to sign-up:", error);
+    res.status(500).json({ error: "Failed to add shift" });
+  }
+});
+
+// Leadership removes someone from one shift. Their event sign-up (and any
+// attendance on it) stays; with no shifts left they show as Unassigned.
+router.delete("/signup-shifts/:id", requireRoles(...LEADERSHIP), async (req, res) => {
+  try {
+    const row = await storage.getSignupShiftById(parseInt(req.params.id));
+    if (!row) return res.status(204).send();
+    await storage.removeSignupShift(row.id);
+    await storage.syncSignupStatusFromShifts(row.signupId);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error removing shift from sign-up:", error);
+    res.status(500).json({ error: "Failed to remove shift" });
   }
 });
 
@@ -397,7 +453,7 @@ router.get("/me/upcoming", async (req, res) => {
     const today = localDatePT(new Date(), await getTeamTimezone());
     const mySignups = await storage.getUserSignups(req.userId!);
     const statusByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.status]));
-    const shiftByEvent = new Map(mySignups.map((s) => [s.calendarEventId, s.shiftId]));
+    const myShiftRows = await storage.getUserSignupShifts(req.userId!);
     const allEvents = await storage.getCalendarEvents();
     const events = await filterVisibleEvents(allEvents, req.userId!, req.userRoles || []);
     const filtered = events
@@ -414,7 +470,7 @@ router.get("/me/upcoming", async (req, res) => {
         id: e.id, title: e.title, type: e.type, startDate: e.startDate, endDate: e.endDate,
         startTime: e.startTime, location: e.location,
         myStatus: statusByEvent.get(e.id) || null,
-        myShiftId: shiftByEvent.get(e.id) ?? null,
+        myShifts: myShiftRows.filter((r) => r.calendarEventId === e.id).map((r) => ({ shiftId: r.shiftId, status: r.status })),
         capacity: cap,
         acceptedCount,
         shifts,

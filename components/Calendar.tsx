@@ -143,6 +143,13 @@ function expandRecurring(events: CalendarEvent[]): (CalendarEvent | VirtualInsta
   return result;
 }
 
+const SHIFT_STATUS_CLS: Record<string, string> = {
+  accepted: 'text-emerald-600 dark:text-emerald-400',
+  requested: 'text-amber-600 dark:text-amber-400',
+  waitlisted: 'text-blue-600 dark:text-blue-400',
+  declined: 'text-slate-400',
+};
+
 const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const { settings } = useTeamSettings();
   const today = new Date();
@@ -163,7 +170,10 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   const [rosterEvent, setRosterEvent] = useState<{ id: number; title: string; startDate: string } | null>(null);
   const [signupBusy, setSignupBusy] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
-  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
+  // Shift events: which shifts are ticked for the next sign-up, and the
+  // shifts this person already holds (shiftId → status).
+  const [selectedShiftIds, setSelectedShiftIds] = useState<number[]>([]);
+  const [myShifts, setMyShifts] = useState<Record<number, string>>({});
   const [commentText, setCommentText] = useState('');
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState('');
@@ -261,10 +271,19 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
   useEffect(() => {
     setSignupBusy(false);
     setSignupDone(false);
+    setSelectedShiftIds([]);
+    setMyShifts({});
     const ev = chipPopover?.event as CalendarEvent | undefined;
-    const openShift = ev?.shifts?.find(s => s.capacity == null || (s.acceptedCount ?? 0) < s.capacity);
-    setSelectedShiftId((openShift ?? ev?.shifts?.[0])?.id ?? null);
+    if (ev?.signupEnabled && ev.shifts && ev.shifts.length > 0) loadMyShifts(ev.id);
   }, [chipPopover?.event.id]);
+
+  const loadMyShifts = async (eventId: number) => {
+    try {
+      const rows = await api.events.roster(eventId);
+      const mine = rows.find((r: any) => String(r.userId) === String(currentUser?.id));
+      setMyShifts(Object.fromEntries((mine?.shifts || []).map((s: any) => [s.shiftId, s.status])));
+    } catch { setMyShifts({}); }
+  };
 
   const handlePostComment = async (eventId: number) => {
     const text = commentText.trim();
@@ -1098,34 +1117,54 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     <button onClick={() => { setRosterEvent({ id: ev.id, title: ev.title, startDate: (ev as any)._instanceDate ?? ev.startDate }); setChipPopover(null); }} className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 flex items-center justify-center gap-1"><Users size={11} /> View Roster</button>
                   ) : ev.shifts && ev.shifts.length > 0 ? (
                     <div className="space-y-1.5">
+                      <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Pick one or more shifts</p>
                       {ev.shifts.map(shift => {
                         const full = shift.capacity != null && (shift.acceptedCount ?? 0) >= shift.capacity;
+                        const held = myShifts[shift.id];
                         return (
                           <label key={shift.id} className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer">
                             <input
-                              type="radio"
-                              name="shift-select"
-                              checked={selectedShiftId === shift.id}
-                              onChange={() => setSelectedShiftId(shift.id)}
+                              type="checkbox"
+                              checked={!!held || selectedShiftIds.includes(shift.id)}
+                              disabled={!!held || signupBusy}
+                              onChange={(e) => setSelectedShiftIds(ids => e.target.checked ? [...ids, shift.id] : ids.filter(id => id !== shift.id))}
                               className="accent-teamColor"
                             />
                             <span className="flex-1 text-[10px] font-bold text-slate-700 dark:text-slate-200">
                               {shift.title} <span className="text-slate-400 font-medium">· {shift.startTime}–{shift.endTime}</span>
                             </span>
-                            {shift.capacity != null && (
+                            {held ? (
+                              <>
+                                <span className={`text-[9px] font-black uppercase ${SHIFT_STATUS_CLS[held] || 'text-slate-400'}`}>{held}</span>
+                                <button
+                                  type="button"
+                                  title="Withdraw from this shift"
+                                  disabled={signupBusy}
+                                  onClick={async (e) => { e.preventDefault(); setSignupBusy(true); try { await api.events.withdraw(ev.id, shift.id); await loadMyShifts(ev.id); } catch { /* */ } finally { setSignupBusy(false); } }}
+                                  className="p-0.5 text-slate-400 hover:text-red-500"
+                                >
+                                  <X size={11} />
+                                </button>
+                              </>
+                            ) : shift.capacity != null && (
                               <span className={`text-[9px] font-black uppercase ${full ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                {shift.acceptedCount ?? 0}/{shift.capacity}
+                                {shift.acceptedCount ?? 0}/{shift.capacity}{full ? ' · waitlist' : ''}
                               </span>
                             )}
                           </label>
                         );
                       })}
                       <button
-                        onClick={async () => { if (!selectedShiftId) return; setSignupBusy(true); try { await api.events.signup(ev.id, selectedShiftId); setSignupDone(true); } catch { /* */ } finally { setSignupBusy(false); } }}
-                        disabled={signupBusy || signupDone || !selectedShiftId}
+                        onClick={async () => {
+                          if (selectedShiftIds.length === 0) return;
+                          setSignupBusy(true);
+                          try { await api.events.signup(ev.id, selectedShiftIds); setSelectedShiftIds([]); setSignupDone(true); await loadMyShifts(ev.id); }
+                          catch { /* */ } finally { setSignupBusy(false); }
+                        }}
+                        disabled={signupBusy || selectedShiftIds.length === 0}
                         className="w-full py-2 bg-teamColor text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 disabled:opacity-60"
                       >
-                        {signupDone ? 'Signed up ✓' : signupBusy ? '…' : 'Sign Up'}
+                        {signupBusy ? '…' : selectedShiftIds.length > 1 ? `Sign Up for ${selectedShiftIds.length} Shifts` : signupDone && selectedShiftIds.length === 0 ? 'Signed up ✓' : 'Sign Up'}
                       </button>
                     </div>
                   ) : (

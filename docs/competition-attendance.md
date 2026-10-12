@@ -5,8 +5,10 @@ Competition attendance now uses one visit in the general time clock, calendar ro
 ## Before the next competition
 
 1. Publish the updated app. The development schema includes the nullable calendar-to-scouting event link; Publish must apply that additive schema change to production. **Do not overwrite production data with development data.**
-2. Sign in as a Coach and open **Time Tracking → Competition credit review → Verified event identity**.
-3. Explicitly link the calendar competition to its scouting event. Their date ranges must agree. Names are never used to guess a relationship.
+2. Sign in as a Coach and open **Time Tracking → Coach Tools → Competition Review → Verified event identity**.
+3. Optionally link the calendar competition to its scouting event (needed only to tie older scouting-event attendance to it). Their date ranges must agree. Names are never used to guess a relationship.
+
+Scouting-event check-in is retired: members check in to the competition's calendar event from the Time Clock. Existing scouting-event sessions can still be checked out, approved, rejected and audited.
 
 A check-in from another screen reuses the same open visit. Simultaneous check-ins are serialized per member. A member can still start a genuinely separate visit after checking out. Check-in request identifiers make delayed retries return the original visit even after it closes.
 

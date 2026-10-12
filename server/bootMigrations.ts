@@ -20,11 +20,12 @@ import { ensureSocialTables, migrateMediaManagerRole } from "./social/store";
 
 /** Tables that routes query unconditionally — must exist before traffic. */
 export async function ensurePreTrafficSchema(): Promise<void> {
-  // calendar/upcoming routes query event_shifts and event_signups.shift_id
+  // calendar/upcoming routes query event_shifts and event_signup_shifts
   // unconditionally, so early requests would 500 against missing objects.
   try {
     await storage.ensureEventShiftsTable();
     await storage.ensureSignupShiftIdColumn();
+    await storage.ensureSignupShiftsTable();
   } catch (e) {
     console.error("Event shifts migration failed — shift signup routes will error until this is fixed:", e);
   }
@@ -86,6 +87,12 @@ export async function runBootMigrations(): Promise<void> {
     await migrateMediaManagerRole();
   } catch (e) {
     console.warn("Media Manager role migration skipped:", e);
+  }
+  // Needs schema_migrations (above) and event_signup_shifts (pre-traffic).
+  try {
+    await storage.backfillSignupShifts();
+  } catch (e) {
+    console.warn("Event signup shifts backfill skipped:", e);
   }
   try {
     await storage.ensureScoutingSeasonsTables();
