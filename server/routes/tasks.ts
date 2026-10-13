@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
+import { TaskCreationError, taskProjectId } from "../services/taskCreationRules";
 
 const router = Router();
 
@@ -21,17 +22,11 @@ router.get("/tasks", async (req, res) => {
 
 router.post("/tasks", async (req, res) => {
   try {
-    // Members can create only on boards that opted into open task creation.
-    if (!isLeader(req)) {
-      const projectId = parseInt(req.body.projectId);
-      const project = projectId ? await storage.getProject(projectId) : undefined;
-      if (!project || !project.allowAllTaskCreation) {
-        return res.status(403).json({ error: "You don't have permission to create tasks on this board" });
-      }
-    }
-    const task = await storage.createTask(req.body);
+    const projectId = taskProjectId(req.body.projectId);
+    const task = await storage.createTask({...req.body, projectId}, req.userId!);
     res.status(201).json(task);
   } catch (error) {
+    if (error instanceof TaskCreationError) return res.status(error.status).json({error: error.message});
     console.error("Error creating task:", error);
     res.status(500).json({ error: "Failed to create task" });
   }
@@ -245,6 +240,7 @@ router.post("/tasks/bulk", requireRoles(...LEADERSHIP), async (req, res) => {
     const created = await storage.createTasksBulk(toInsert);
     res.status(201).json({ created: created.length, tasks: created, errors });
   } catch (error) {
+    if (error instanceof TaskCreationError) return res.status(error.status).json({error: error.message});
     console.error("Error bulk-creating tasks:", error);
     res.status(500).json({ error: "Failed to import tasks" });
   }

@@ -37,6 +37,7 @@ import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import { isCapExemptRoles } from "../shared/roles";
 import { AttendanceError } from "./services/competitionSessionRules";
+import { TaskCreationError } from "./services/taskCreationRules";
 import {
   type DepartmentChangeSet,
   type DepartmentPropagationCounts,
@@ -166,7 +167,7 @@ export interface IStorage {
   getTasks(): Promise<Task[]>;
   getTask(id: number): Promise<Task | undefined>;
   getTasksByProject(projectId: number): Promise<Task[]>;
-  createTask(task: InsertTask): Promise<Task>;
+  createTask(task: InsertTask, actorId?: number): Promise<Task>;
   createTasksBulk(tasks: (InsertTask & { dependencyTitles?: string[] })[]): Promise<Task[]>;
   updateTask(id: number, task: Partial<InsertTask>): Promise<Task | undefined>;
   deleteTask(id: number): Promise<void>;
@@ -433,10 +434,27 @@ export class DatabaseStorage implements IStorage {
     return result.map(t => ({ ...t, successCriteria: migrateSuccessCriteria(t.successCriteria as any) }));
   }
 
-  async createTask(task: InsertTask): Promise<Task> {
+  async createTask(task: InsertTask, actorId?: number): Promise<Task> {
     const sanitized = sanitizeTask(task);
-    const [newTask] = await db.insert(tasks).values(sanitized).returning();
-    return newTask;
+    return db.transaction(async tx => {
+      // Serialize changes to the board's permissions/archive state with saves.
+      const [project] = await tx.select().from(projects).where(eq(projects.id, sanitized.projectId)).for("share");
+      if (!project) throw new TaskCreationError("This board no longer exists. Your task has not been saved", 404);
+      // Authenticated/manual creation is the scope of this guard. Trusted
+      // internal recurrence has separate scheduling/claim semantics and must
+      // not start throwing midway through a batch because this UI fix shipped.
+      if (project.archived && actorId !== undefined) throw new TaskCreationError("This board was archived. Your task has not been saved; choose a live board", 409);
+      if (actorId !== undefined) {
+        const [actor] = await tx.select().from(users).where(eq(users.id, actorId)).for("share");
+        if (!actor || actor.archived) throw new TaskCreationError("Your account cannot create tasks", 403);
+        const unrestricted = actor.roles.some(r => ["Coach", "Team Captain", "SCRUM Master"].includes(r));
+        if (project.department && !unrestricted && !actor.departments.includes(project.department)) throw new TaskCreationError("You don't have access to create tasks on this board", 403);
+        const leader = unrestricted || actor.roles.includes("Department Head");
+        if (!leader && !project.allowAllTaskCreation) throw new TaskCreationError("You don't have permission to create tasks on this board", 403);
+      }
+      const [newTask] = await tx.insert(tasks).values(sanitized).returning();
+      return newTask;
+    });
   }
 
   // Insert every task in one transaction: a bulk import should either land
@@ -452,6 +470,11 @@ export class DatabaseStorage implements IStorage {
   async createTasksBulk(taskList: (InsertTask & { dependencyTitles?: string[] })[]): Promise<Task[]> {
     if (taskList.length === 0) return [];
     return db.transaction(async (tx) => {
+      for (const id of [...new Set(taskList.map(t => t.projectId))].sort((a, b) => a - b)) {
+        const [project] = await tx.select().from(projects).where(eq(projects.id, id)).for("share");
+        if (!project) throw new TaskCreationError("This board no longer exists. No tasks were imported", 404);
+        if (project.archived) throw new TaskCreationError("This board was archived. No tasks were imported", 409);
+      }
       const linkNames = taskList.map(t => t.dependencyTitles || []);
       const toInsert = taskList.map(t => {
         const { dependencyTitles, ...rest } = t;

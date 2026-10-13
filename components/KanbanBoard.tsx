@@ -11,12 +11,13 @@ import RecurringTasksModal from './RecurringTasksModal';
 import TaskImportExportModal from './TaskImportExportModal';
 import { ProjectLinkChip } from './ProjectLinks';
 import { api } from '../services/api';
+import { canCreateTaskOnBoard, rememberedBoardStorageKey, resolveBoardSelection } from '../utils/boardSelection';
 
 interface KanbanBoardProps {
   state: AppState;
-  onUpdateTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
-  onAddTask: (task: Task) => void;
+  onUpdateTask: (task: Task) => void | Promise<void>;
+  onDeleteTask: (taskId: string) => void | Promise<void>;
+  onAddTask: (task: Task) => void | Promise<void>;
   onAddProject: (p: Project) => void;
   onUpdateProject: (p: Project) => void;
   onArchiveProject: (id: string) => void;
@@ -32,10 +33,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [view, setView] = useState<'board' | 'help'>('board');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newTaskDraft, setNewTaskDraft] = useState<{ task: Task; boardLabel: string } | null>(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
-  const [showImportExportModal, setShowImportExportModal] = useState(false);
+  const [importContext, setImportContext] = useState<{project: Project; tasks: Task[]} | null>(null);
   
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
@@ -47,6 +49,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   const [certifications, setCertifications] = useState<any[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
+  const accountId = state.currentUser?.id || 'anonymous';
+  const storageKey = rememberedBoardStorageKey(accountId);
+  const readSavedBoard = () => {
+    try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
+  };
+  const [boardChoice, setBoardChoice] = useState(() => ({
+    accountId,
+    key: readSavedBoard(),
+    explicitlyBrowsingArchive: false,
+  }));
+  const requestedBoardKey = boardChoice.accountId === accountId ? boardChoice.key : readSavedBoard();
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -70,54 +83,45 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     });
   }, [state.projects, state.currentUser, isCoachOrCaptain]);
 
-  const firstAccessibleProject = useMemo(() => {
-    return accessibleProjects.find(p => !p.archived)?.id || accessibleProjects[0]?.id || '';
-  }, [accessibleProjects]);
-
-  const [activeBoardKey, setActiveBoardKeyRaw] = useState<string>(() => {
-    return localStorage.getItem('lastActiveBoardId') || '';
-  });
+  const boardSelection = useMemo(
+    () => resolveBoardSelection(
+      requestedBoardKey,
+      accessibleProjects,
+      deptNames,
+      boardChoice.accountId === accountId && boardChoice.explicitlyBrowsingArchive,
+    ),
+    [requestedBoardKey, accessibleProjects, deptNames, boardChoice.accountId, boardChoice.explicitlyBrowsingArchive, accountId],
+  );
+  const activeBoardKey = boardSelection.key;
+  const activeProject = boardSelection.project;
 
   const selectBoard = (key: string) => {
-    setActiveBoardKeyRaw(key);
-    localStorage.setItem('lastActiveBoardId', key);
+    const chosen = accessibleProjects.find(project => project.id === key);
+    const explicitlyBrowsingArchive = !!chosen?.archived;
+    setBoardChoice({ accountId, key, explicitlyBrowsingArchive });
+    try { localStorage.setItem(storageKey, key); } catch {}
   };
 
-  React.useEffect(() => {
-    if (accessibleProjects.length === 0) return;
-    const isDeptBoardKey = activeBoardKey.startsWith('dept:');
-    const matchedProject = accessibleProjects.find(p => p.id === activeBoardKey);
-    // A remembered dept board whose department was renamed/removed in the
-    // Control Panel would otherwise stick as an empty board forever.
-    const staleDept = isDeptBoardKey && !deptNames.includes(activeBoardKey.slice(5));
-    if (!activeBoardKey || staleDept || (!isDeptBoardKey && !matchedProject)) {
-      selectBoard(firstAccessibleProject);
-    }
-  }, [accessibleProjects, activeBoardKey, firstAccessibleProject, deptNames]);
+  const canCreateTask = canCreateTaskOnBoard(boardSelection, !!hasLeaderRole, accessibleProjects);
 
-  const activeProject = useMemo(() => {
-    if (activeBoardKey.startsWith('dept:')) return undefined;
-    return state.projects.find(p => p.id === activeBoardKey);
-  }, [state.projects, activeBoardKey]);
-
-  const canCreateTask = hasLeaderRole || (!activeBoardKey.startsWith('dept:') && activeProject?.allowAllTaskCreation);
-
-  const isDeptBoard = activeBoardKey.startsWith('dept:');
+  const isDeptBoard = boardSelection.isDepartment;
   const activeDept = isDeptBoard ? activeBoardKey.slice(5) as Department : null;
 
   const projectTasks = useMemo(() => {
+    if (!boardSelection.isResolved) return [];
     if (isDeptBoard && activeDept) {
       return state.tasks.filter(t => {
         const project = state.projects.find(p => p.id === t.projectId);
         return !project?.archived && t.departments.includes(activeDept);
       });
     }
+    if (!activeProject || activeProject.archived && !boardSelection.isArchived) return [];
     let tasks = state.tasks.filter(t => t.projectId === activeBoardKey && !t.deptOnly);
     if (deptFilter !== 'All') {
       tasks = tasks.filter(t => t.departments.includes(deptFilter));
     }
     return tasks;
-  }, [state.tasks, state.projects, activeBoardKey, deptFilter, isDeptBoard, activeDept]);
+  }, [state.tasks, state.projects, activeBoardKey, deptFilter, isDeptBoard, activeDept, activeProject, boardSelection.isArchived]);
 
   // A new task starts on the board it was created from, so it shows up where
   // the creator is looking. Previously a dept-board task started with no
@@ -125,7 +129,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
   // land the task on the first project in the list instead.
   const newTaskDefaults = useMemo((): Pick<Task, 'projectId' | 'departments' | 'deptOnly'> => {
     if (isDeptBoard && activeDept) {
-      // Dept-only tasks still need a project; prefer one owned by this department.
+      // Dept-only tasks still need a real, non-archived home project.
       const open = accessibleProjects.filter(p => !p.archived);
       const home = open.find(p => p.department === activeDept) || open[0];
       return { projectId: home?.id || '', departments: [activeDept], deptOnly: true };
@@ -133,6 +137,38 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
     const sector = deptFilter !== 'All' ? deptFilter : (activeProject?.department as Department | undefined);
     return { projectId: activeBoardKey, departments: sector ? [sector] : [], deptOnly: false };
   }, [isDeptBoard, activeDept, accessibleProjects, deptFilter, activeProject, activeBoardKey]);
+
+  const openNewTask = () => {
+    if (!canCreateTask || !newTaskDefaults.projectId) return;
+    const originProject = accessibleProjects.find(project => project.id === newTaskDefaults.projectId);
+    const boardLabel = isDeptBoard
+      ? `${activeDept} department board · ${originProject?.name || 'home project unavailable'}`
+      : originProject?.name || 'Selected project';
+    const now = Date.now();
+    const task: Task = {
+      id: Math.random().toString(36).substr(2, 9),
+      projectId: newTaskDefaults.projectId,
+      title: '',
+      description: '',
+      status: TaskStatus.Backlog,
+      priority: Priority.Medium,
+      effort: 1,
+      departments: [...newTaskDefaults.departments],
+      assignees: [],
+      successCriteria: [],
+      attachments: [],
+      comments: [],
+      history: [{ id: now.toString(), userId: 'system', action: 'Task Created', timestamp: now }],
+      startDate: todayLocalStr(),
+      dueDate: todayLocalStr(),
+      dependencies: [],
+      deptOnly: newTaskDefaults.deptOnly,
+      contributors: [],
+      createdAt: now,
+    };
+    setNewTaskDraft({ task, boardLabel });
+    setShowAddModal(true);
+  };
 
   const helpWantedTasks = useMemo(() => {
     return state.tasks.filter(t => t.helpRequested && !state.projects.find(p => p.id === t.projectId)?.archived);
@@ -266,9 +302,19 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                 onChange={(e) => selectBoard(e.target.value)}
                 className="flex-1 min-w-0 sm:flex-none sm:min-w-[160px] md:min-w-[200px] px-3 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 font-bold text-sm text-slate-800 dark:text-white shadow-sm outline-none focus:ring-2 focus:ring-teamColor/20"
               >
+                {!boardSelection.isResolved && (
+                  <option value={activeBoardKey}>{activeBoardKey ? 'Restoring board selection…' : 'No board selected'}</option>
+                )}
                 <optgroup label="Projects">
                   {accessibleProjects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </optgroup>
+                {(showArchived || boardSelection.isArchived) && accessibleProjects.some(p => p.archived) && (
+                  <optgroup label="Archived projects">
+                    {accessibleProjects.filter(p => p.archived).map(p => (
+                      <option key={p.id} value={p.id}>Archived · {p.name}</option>
+                    ))}
+                  </optgroup>
+                )}
                 <optgroup label="Department Boards">
                   {deptNames.map(d => <option key={d} value={`dept:${d}`}>⬡ {d}</option>)}
                 </optgroup>
@@ -289,7 +335,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               </button>
               {activeProject && hasLeaderRole && (
                 <button
-                    onClick={() => setShowImportExportModal(true)}
+                    onClick={() => activeProject && setImportContext({project: activeProject, tasks: projectTasks})}
                     className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
                     title="Import / Export Tasks"
                 >
@@ -298,7 +344,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
               )}
               {activeProject && hasLeaderRole && (
                 <button
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={() => activeProject && setSettingsProject(activeProject)}
                     className="p-2 md:p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
                     title="Board Settings"
                 >
@@ -339,12 +385,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
                   ⬡ {activeDept} Board
                 </span>
               )}
+              {boardSelection.isArchived && activeProject && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                  <Archive size={11} /> Archived board · historical tasks
+                </span>
+              )}
             </>
           )}
 
           {canCreateTask && (
             <button 
-              onClick={() => setShowAddModal(true)}
+              onClick={openNewTask}
               className="ml-auto flex items-center justify-center gap-1 md:gap-2 px-4 md:px-6 py-2 md:py-3 bg-teamColor text-white font-black rounded-xl md:rounded-2xl hover:opacity-90 shadow-lg shadow-teamColor/20 transition-all uppercase text-[10px] md:text-xs tracking-wider"
             >
               <Plus size={16} />
@@ -621,40 +672,24 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
 
       {(selectedTask || showAddModal) && (
         <TaskModal 
-          task={selectedTask || {
-            id: Math.random().toString(36).substr(2, 9),
-            projectId: newTaskDefaults.projectId,
-            title: '',
-            description: '',
-            status: TaskStatus.Backlog,
-            priority: Priority.Medium,
-            effort: 1,
-            departments: newTaskDefaults.departments,
-            assignees: [],
-            successCriteria: [],
-            attachments: [],
-            comments: [],
-            history: [{ id: Date.now().toString(), userId: 'system', action: 'Task Created', timestamp: Date.now() }],
-            startDate: todayLocalStr(),
-            dueDate: todayLocalStr(),
-            dependencies: [],
-            deptOnly: newTaskDefaults.deptOnly,
-            contributors: [],
-            createdAt: Date.now()
-          }}
+          task={selectedTask || newTaskDraft?.task || null}
+          isNewTask={!selectedTask}
+          originBoardLabel={!selectedTask ? newTaskDraft?.boardLabel : undefined}
           users={state.users}
           allTasks={state.tasks}
           currentUser={state.currentUser}
           onClose={() => {
               setSelectedTask(null);
               setShowAddModal(false);
+              setNewTaskDraft(null);
           }}
           onNotify={(to, msg) => onNotify(selectedTask?.id || 'new', to, msg)}
-          onSave={(task) => {
-              if (selectedTask) onUpdateTask(task);
-              else onAddTask(task);
+          onSave={async (task) => {
+              if (selectedTask) await onUpdateTask(task);
+              else await onAddTask(task);
               setSelectedTask(null);
               setShowAddModal(false);
+              setNewTaskDraft(null);
           }}
           onSaveWithoutClose={(task) => {
               if (selectedTask) onUpdateTask(task);
@@ -667,15 +702,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         />
       )}
 
-      {showSettingsModal && activeProject && (
+      {settingsProject && (
         <BoardSettingsModal
-          project={activeProject}
+          project={settingsProject}
           users={state.users}
           currentUser={state.currentUser}
-          onClose={() => setShowSettingsModal(false)}
+          onClose={() => setSettingsProject(null)}
           onSave={(updated) => {
             onUpdateProject(updated);
-            setShowSettingsModal(false);
+            setSettingsProject(null);
           }}
           onArchive={onArchiveProject}
         />
@@ -689,12 +724,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
         />
       )}
 
-      {showImportExportModal && activeProject && (
+      {importContext && (
         <TaskImportExportModal
-          project={{ id: activeProject.id, name: activeProject.name }}
-          boardTasks={projectTasks}
+          project={{ id: importContext.project.id, name: importContext.project.name }}
+          boardTasks={importContext.tasks}
           users={state.users.filter(u => !u.archived).map(u => ({ id: u.id, username: u.username }))}
-          onClose={() => setShowImportExportModal(false)}
+          onClose={() => setImportContext(null)}
           onImported={() => onDataChanged?.()}
         />
       )}

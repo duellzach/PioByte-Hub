@@ -15,8 +15,10 @@ interface TaskModalProps {
   users: User[];
   allTasks: Task[];
   currentUser: User | null;
+  isNewTask?: boolean;
+  originBoardLabel?: string;
   onClose: () => void;
-  onSave: (task: Task) => void;
+  onSave: (task: Task) => void | Promise<void>;
   onSaveWithoutClose?: (task: Task) => void;
   onNotify?: (toUserId: string, message: string) => void;
   onDelete?: (taskId: string) => void;
@@ -43,7 +45,7 @@ const taskSignature = (t: Task): string => JSON.stringify({
   successCriteria: (t.successCriteria || []).map(s => ({ text: s.text, completed: s.completed })),
 });
 
-const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUser, isNewTask = false, originBoardLabel, onClose, onSave, onSaveWithoutClose, onNotify, onDelete }) => {
   const { settings } = useTeamSettings();
   const { fmtTime, fmtDate, fmtDateTime } = useTeamTime();
   const deptNames = settings.departments.map(d => d.name);
@@ -83,20 +85,37 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
   const certPickerRef = useRef<HTMLDivElement>(null);
   const [depSearch, setDepSearch] = useState('');
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const saveLockRef = useRef(false);
 
   // Baseline captured on first render; edits that differ from it are "unsaved".
   const pristineRef = useRef<string | null>(null);
   if (pristineRef.current === null) pristineRef.current = taskSignature(editedTask);
   const isDirty = taskSignature(editedTask) !== pristineRef.current;
 
-  const commitTask = () => {
+  const commitTask = async () => {
+    if (saveLockRef.current) return;
     const taskToSave = (editedTask.deptOnly && editedTask.departments.length === 0)
       ? { ...editedTask, deptOnly: false }
       : editedTask;
-    onSave(taskToSave);
+    saveLockRef.current = true;
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await onSave(taskToSave);
+      setShowCloseConfirm(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Task could not be saved. Please try again.');
+      setShowCloseConfirm(false);
+    } finally {
+      saveLockRef.current = false;
+      setIsSaving(false);
+    }
   };
 
   const handleCloseAttempt = () => {
+    if (isSaving) return;
     if (isDirty) setShowCloseConfirm(true);
     else onClose();
   };
@@ -327,18 +346,28 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
           </div>
           <div className="flex items-center gap-4">
             {onDelete && (
-                <button onClick={() => onDelete(editedTask.id)} className="p-3 text-slate-300 hover:text-red-600 transition-colors">
+                <button onClick={() => onDelete(editedTask.id)} disabled={isSaving} className="p-3 text-slate-300 hover:text-red-600 transition-colors disabled:opacity-40">
                     <Trash2 size={24} />
                 </button>
             )}
-            <button onClick={handleCloseAttempt} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
+            <button onClick={handleCloseAttempt} disabled={isSaving} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all disabled:opacity-40">
               <X size={24} />
             </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-auto grid grid-cols-1 lg:grid-cols-3 gap-0">
+          <fieldset disabled={isSaving} className="contents">
           <div className="lg:col-span-2 p-10 space-y-10 border-r border-slate-100 dark:border-slate-700">
+            {isNewTask && originBoardLabel && (
+              <div className="rounded-2xl border border-teamColor/20 bg-teamColor/5 px-5 py-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-teamColor">Creating on</p>
+                <p className="mt-1 text-sm font-black uppercase tracking-tight text-slate-700 dark:text-slate-200">{originBoardLabel}</p>
+                <p className="mt-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                  This destination stays with the draft if you switch boards.
+                </p>
+              </div>
+            )}
             {editedTask.status === TaskStatus.Blocked && editedTask.blockedReason && (
               <div className="bg-red-50 dark:bg-red-900/30 border-2 border-red-100 dark:border-red-700 p-8 rounded-[32px] flex items-start gap-6">
                 <div className="p-3 bg-red-600 text-white rounded-2xl">
@@ -966,24 +995,31 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </div>
 
             <div className="pt-8 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                {saveError && (
+                  <div role="alert" className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/25 px-4 py-3 text-xs font-bold text-red-700 dark:text-red-300">
+                    {saveError}
+                  </div>
+                )}
                 {editedTask.deptOnly && editedTask.departments.length === 0 && (
                   <p className="text-[9px] text-amber-600 dark:text-amber-400 font-black text-center uppercase tracking-wide">
                     "Dept Board Only" will be cleared on save — no department selected.
                   </p>
                 )}
                 <button
-                  onClick={commitTask}
-                  className="w-full py-6 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-[0.2em] text-sm"
+                  onClick={() => { void commitTask(); }}
+                  disabled={isSaving}
+                  className="w-full py-6 bg-teamColor text-white font-black rounded-[28px] hover:opacity-90 shadow-2xl shadow-teamColor/20 transition-all uppercase tracking-[0.2em] text-sm disabled:opacity-60 disabled:cursor-wait"
                 >
-                  Commit Mission
+                  {isSaving ? 'Saving Mission…' : 'Commit Mission'}
                 </button>
             </div>
           </div>
+          </fieldset>
         </div>
       </div>
 
       {showCloseConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" onClick={() => setShowCloseConfirm(false)}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" onClick={() => { if (!isSaving) setShowCloseConfirm(false); }}>
           <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl border-t-8 border-amber-500" onClick={(e) => e.stopPropagation()}>
             <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <AlertTriangle size={26} />
@@ -994,19 +1030,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
             </p>
             <div className="space-y-2.5">
               <button
-                onClick={() => { setShowCloseConfirm(false); commitTask(); }}
-                className="w-full py-4 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-widest text-xs"
+                onClick={() => { void commitTask(); }}
+                disabled={isSaving}
+                className="w-full py-4 bg-teamColor text-white font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-widest text-xs disabled:opacity-60 disabled:cursor-wait"
               >
-                Commit Mission
+                {isSaving ? 'Saving Mission…' : 'Commit Mission'}
               </button>
               <button
                 onClick={() => { setShowCloseConfirm(false); onClose(); }}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-xs"
+                disabled={isSaving}
+                className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all uppercase tracking-widest text-xs disabled:opacity-50"
               >
                 Discard &amp; Close
               </button>
               <button
                 onClick={() => setShowCloseConfirm(false)}
+                disabled={isSaving}
                 className="w-full py-3 text-slate-400 font-bold rounded-2xl hover:text-slate-600 dark:hover:text-slate-300 transition-all uppercase tracking-widest text-[10px]"
               >
                 Keep Editing

@@ -22,6 +22,10 @@ args = "Start application"
 task = "workflow.run"
 args = "competition-attendance"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "board-permissions"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -41,6 +45,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx tsx server/competition-attendance.test.ts && npx tsx server/competition-events.test.ts && npm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "board-permissions"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx tsx utils/boardSelection.test.ts && npx tsx components/KanbanBoard.render.test.tsx && npx tsx server/board-task-creation.test.ts && npm run build"
 
 [workflows.workflow.metadata]
 isValidation = true
