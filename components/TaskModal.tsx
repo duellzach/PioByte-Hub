@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { pickableMembers } from '../shared/members';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
@@ -114,11 +114,26 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     }
   };
 
-  const handleCloseAttempt = () => {
-    if (isSaving) return;
+  const handleCloseAttempt = useCallback(() => {
+    if (isSaving || saveLockRef.current) return;
     if (isDirty) setShowCloseConfirm(true);
     else onClose();
-  };
+  }, [isSaving, isDirty, onClose]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (showCloseConfirm) {
+        if (!isSaving && !saveLockRef.current) setShowCloseConfirm(false);
+      } else {
+        handleCloseAttempt();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [handleCloseAttempt, showCloseConfirm, isSaving]);
 
   useEffect(() => {
     api.certifications.getAll().then(setCertifications).catch(() => {});
@@ -333,11 +348,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                 <LifeBuoy size={24} />
             </button>
             <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 px-2 mb-1">
+                  <label htmlFor="task-modal-title" className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">
+                    Task title
+                  </label>
+                  {!editedTask.title.trim() && (
+                    <span role="status" className="text-[10px] font-bold text-red-700 dark:text-red-300">
+                      Title missing
+                    </span>
+                  )}
+                </div>
                 <input 
+                  id="task-modal-title"
                   value={editedTask.title}
                   onChange={(e) => setEditedTask({...editedTask, title: e.target.value})}
-                  placeholder="Task Title"
-                  className="text-3xl font-black text-slate-900 dark:text-white bg-transparent border-none outline-none focus:ring-4 focus:ring-teamColor/10 rounded-xl px-2 w-full uppercase tracking-tighter"
+                  placeholder="Enter a task title"
+                  className="text-3xl font-black text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 outline-none focus:ring-4 focus:ring-teamColor/10 focus:border-teamColor rounded-xl px-3 py-2 w-full uppercase tracking-tighter placeholder:normal-case placeholder:tracking-normal placeholder:font-bold placeholder:text-slate-600 dark:placeholder:text-slate-300"
                 />
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-1.5 mt-1">
                    <Clock size={10} /> POSTED {fmtDate(editedTask.createdAt)} {fmtTime(editedTask.createdAt)}
