@@ -18,6 +18,7 @@
     "db:studio": "drizzle-kit studio --config=db/drizzle.config.ts",
     "db:reset": "tsx server/reset.ts",
     "db:diagnose-tz": "tsx server/diagnoseTimestamps.ts",
+    "db:diagnose-authors": "tsx server/diagnose-authors.ts",
     "db:migrate-timestamptz": "tsx server/migrateTimestamptz.ts"
   },
   "dependencies": {

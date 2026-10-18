@@ -157,6 +157,8 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: number): Promise<void>;
+  /** Whether any task comment or history entry names this user as author. */
+  userHasAuthoredTaskEntries(id: number): Promise<boolean>;
 
   getProjects(): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
@@ -390,6 +392,17 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: number): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async userHasAuthoredTaskEntries(id: number): Promise<boolean> {
+    // userId is stored as a number or a numeric string depending on who wrote
+    // the entry, so compare as text.
+    const { rows } = await db.execute(sql`
+      SELECT 1 FROM tasks
+      WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(comments) e WHERE e->>'userId' = ${String(id)})
+         OR EXISTS (SELECT 1 FROM jsonb_array_elements(history) e WHERE e->>'userId' = ${String(id)})
+      LIMIT 1`);
+    return rows.length > 0;
   }
 
   async getProjects(): Promise<Project[]> {

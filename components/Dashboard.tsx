@@ -8,6 +8,7 @@ import { onLiveBoard } from '../utils/tasks';
 import { presentEntries, workersByTaskId, workingOnLabel, hasNoTask, presenceDisplayNames } from '../utils/presence';
 import { styleFor } from './hourCategoryStyles';
 import type { TimeEntryWithTaskInfo } from '../types';
+import { authorName } from '../shared/members';
 
 interface DashboardProps {
   state: AppState;
@@ -136,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     // Retired boards stop generating news — their history stays on the board,
     // not in the War Room feed.
     const activities = onLiveBoard(state.tasks, state.projects).flatMap(t => t.history.map(h => {
-      const user = state.users.find(u => u.id === h.userId);
+      const user = state.users.find(u => String(u.id) === String(h.userId));
       const project = state.projects.find(p => p.id === t.projectId);
       return { 
         type: 'activity',
@@ -144,7 +145,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
         taskTitle: t.title, 
         taskId: t.id, 
         taskObj: t,
-        userName: user?.name || 'System',
+        userName: authorName(state.users, h.userId),
         userRole: user?.roles[0] || 'Member',
         projectName: project?.name || 'Unknown Project',
         dept: t.departments[0] || 'General'

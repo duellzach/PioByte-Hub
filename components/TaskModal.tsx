@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { pickableMembers } from '../shared/members';
+import { pickableMembers, authorName } from '../shared/members';
 import { X, Calendar, Plus, MessageSquare, History as HistoryIcon, Trash2, CheckCircle, BarChart3, AtSign, LifeBuoy, AlertTriangle, Clock, Search, ShieldCheck, Lock, ChevronDown, Link2 } from 'lucide-react';
 import { getUnmetDepNames } from '../utils/deps';
 import { todayLocalStr, parseLocalDate } from '../utils/dates';
@@ -64,7 +64,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
     successCriteria: [],
     attachments: [],
     comments: [],
-    history: [{ id: Date.now().toString(), userId: 'system', action: 'Task Created', timestamp: Date.now() }],
+    history: [{ id: Date.now().toString(), userId: currentUser?.id || 'system', action: 'Task Created', timestamp: Date.now() }],
     startDate: todayLocalStr(),
     dueDate: todayLocalStr(),
     dependencies: [],
@@ -228,7 +228,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
       history: [deleteActivity, ...editedTask.history]
     };
     setEditedTask(updatedTask);
-    if (onSaveWithoutClose) onSaveWithoutClose(updatedTask);
+    // The server never treats a missing comment as deleted (the client's copy
+    // may just be stale), so name the one being removed.
+    if (onSaveWithoutClose) onSaveWithoutClose({ ...updatedTask, deletedCommentIds: [commentId] } as Task);
   };
 
   const addComment = () => {
@@ -517,11 +519,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
 
                     <div className="space-y-4 mb-6 max-h-96 overflow-auto pr-2 kanban-scroll">
                         {editedTask.comments.map(c => {
-                          const user = users.find(u => u.id === c.userId);
                           return (
                             <div key={c.id} className="bg-slate-50 dark:bg-slate-700 p-6 rounded-[24px] border border-slate-100 dark:border-slate-600 group">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{user?.name || 'Unknown'}</span>
+                                    <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{authorName(users, c.userId)}</span>
                                     <div className="flex items-center gap-2">
                                       <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">{fmtTime(c.timestamp)}</span>
                                       {isCoach && (
@@ -570,7 +571,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                     </h3>
                     <div className="space-y-4 max-h-64 overflow-auto kanban-scroll pr-4">
                         {editedTask.history.map(h => {
-                          const user = users.find(u => u.id === h.userId);
                           const isSOS = h.action.includes('SOS');
                           const isResolved = h.action.includes('RESOLVED');
                           return (
@@ -578,7 +578,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, users, allTasks, currentUse
                                 <div className={`w-1 rounded-full ${isSOS && !isResolved ? 'bg-red-600' : isResolved ? 'bg-green-500' : 'bg-red-600/20 dark:bg-red-600/40'}`} />
                                 <div>
                                     <p className={`font-black uppercase tracking-tight text-[10px] ${isSOS && !isResolved ? 'text-red-600' : isResolved ? 'text-green-600' : 'text-slate-800 dark:text-slate-100'}`}>{h.action}</p>
-                                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase mt-0.5">{user?.name} • {fmtDateTime(h.timestamp)}</p>
+                                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase mt-0.5">{authorName(users, h.userId)} • {fmtDateTime(h.timestamp)}</p>
                                 </div>
                             </div>
                           );

@@ -19,3 +19,17 @@ export function pickableMembers<T extends { id: string | number; archived?: bool
   const selected = new Set(selectedIds.map(String));
   return users.filter((u) => !u.archived || selected.has(String(u.id)));
 }
+
+/** Display name for the author of a comment or history entry. Entry userIds
+ *  are numbers or numeric strings depending on who wrote them, so compare as
+ *  strings. A numeric id with no matching user belonged to a deleted account. */
+export function authorName(
+  users: readonly { id: string | number; name: string }[],
+  userId: string | number | null | undefined,
+): string {
+  const id = String(userId ?? '');
+  const user = users.find((u) => String(u.id) === id);
+  if (user) return user.name;
+  if (id === 'system') return 'System';
+  return /^\d+$/.test(id) ? 'Former member' : 'Unknown';
+}

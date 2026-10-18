@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { TaskCreationError, taskProjectId } from "../services/taskCreationRules";
+import { mergeAuthoredEntries, deletedIds } from "../services/taskEntries";
 
 const router = Router();
 
@@ -23,7 +24,11 @@ router.get("/tasks", async (req, res) => {
 router.post("/tasks", async (req, res) => {
   try {
     const projectId = taskProjectId(req.body.projectId);
-    const task = await storage.createTask({...req.body, projectId}, req.userId!);
+    // Authors come from the session, never the payload (see taskEntries.ts).
+    const { deletedCommentIds: _ignored, ...body } = req.body;
+    const comments = mergeAuthoredEntries([], body.comments, req.userId!);
+    const history = mergeAuthoredEntries([], body.history, req.userId!);
+    const task = await storage.createTask({...body, projectId, comments, history} as any, req.userId!);
     res.status(201).json(task);
   } catch (error) {
     if (error instanceof TaskCreationError) return res.status(error.status).json({error: error.message});
@@ -249,10 +254,10 @@ router.post("/tasks/bulk", requireRoles(...LEADERSHIP), async (req, res) => {
 router.put("/tasks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getTask(id);
+    if (!existing) return res.status(404).json({ error: "Task not found" });
     // Non-leaders may only edit a task they're assigned to or contributing on.
     if (!isLeader(req)) {
-      const existing = await storage.getTask(id);
-      if (!existing) return res.status(404).json({ error: "Task not found" });
       const onTask = [
         ...((existing.assignees as number[]) || []),
         ...((existing.contributors as number[]) || []),
@@ -261,7 +266,17 @@ router.put("/tasks/:id", async (req, res) => {
         return res.status(403).json({ error: "You can only edit tasks you're assigned to" });
       }
     }
-    const task = await storage.updateTask(id, req.body);
+    // Comments/history are merged, not overwritten: stored entries keep their
+    // author, new ones are stamped with this user, and only a leader or the
+    // comment's own author can delete a comment. History is never deletable.
+    const { deletedCommentIds, ...body } = req.body;
+    const actorId = req.userId!;
+    if ("comments" in body || deletedCommentIds !== undefined) {
+      body.comments = mergeAuthoredEntries(existing.comments, body.comments, actorId, deletedIds(deletedCommentIds),
+        c => isLeader(req) || String(c.userId) === String(actorId));
+    }
+    if ("history" in body) body.history = mergeAuthoredEntries(existing.history, body.history, actorId);
+    const task = await storage.updateTask(id, body);
     if (!task) return res.status(404).json({ error: "Task not found" });
     res.json(task);
   } catch (error) {

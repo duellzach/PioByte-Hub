@@ -158,7 +158,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ state, onUpdateTask, onDelete
       successCriteria: [],
       attachments: [],
       comments: [],
-      history: [{ id: now.toString(), userId: 'system', action: 'Task Created', timestamp: now }],
+      history: [{ id: now.toString(), userId: state.currentUser?.id || 'system', action: 'Task Created', timestamp: now }],
       startDate: todayLocalStr(),
       dueDate: todayLocalStr(),
       dependencies: [],

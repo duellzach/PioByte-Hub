@@ -666,7 +666,11 @@ const App: React.FC = () => {
                     await fetchData();
                   }}
                   onDeleteUser={async (id) => {
-                    await api.users.delete(parseInt(id));
+                    try {
+                      await api.users.delete(parseInt(id));
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : 'Could not delete this member.');
+                    }
                     await fetchData();
                   }}
                 />

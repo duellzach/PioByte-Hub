@@ -179,6 +179,11 @@ router.patch("/users/:id/archive", requireRoles(...COACH_CAPTAIN), async (req, r
 router.delete("/users/:id", requireRoles(...COACH_CAPTAIN), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    // Deleting someone who has posted on tasks turns their comments into
+    // "Unknown". Archiving hides them everywhere but keeps their name.
+    if (await storage.userHasAuthoredTaskEntries(id)) {
+      return res.status(409).json({ error: "This member has comments or activity on tasks. Archive them instead so their name stays on those entries." });
+    }
     await storage.deleteUser(id);
     res.status(204).send();
   } catch (error) {

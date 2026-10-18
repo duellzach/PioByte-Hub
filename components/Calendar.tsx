@@ -7,6 +7,7 @@ import { todayLocalStr } from '../utils/dates';
 import EventRosterModal from './EventRosterModal';
 import UserMultiSelect from './UserMultiSelect';
 import { CATEGORY_STYLES, HOUR_CATEGORIES } from './hourCategoryStyles';
+import { authorName } from '../shared/members';
 
 interface EventShift {
   id: number;
@@ -1192,12 +1193,11 @@ const Calendar: React.FC<CalendarProps> = ({ currentUser }) => {
                     {sorted.length > 0 && (
                       <div className="space-y-1.5">
                         {sorted.map((c) => {
-                          const author = allUsers.find((u: any) => u.id === c.userId);
-                          const canDelete = isCoachOrCaptain || (!!currentUser && parseInt(currentUser.id) === c.userId);
+                                                    const canDelete = isCoachOrCaptain || (!!currentUser && parseInt(currentUser.id) === c.userId);
                           return (
                             <div key={c.id} className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded-lg group">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-[8px] font-black text-slate-700 dark:text-slate-200 uppercase truncate">{author?.name || 'Unknown'}</span>
+                                <span className="text-[8px] font-black text-slate-700 dark:text-slate-200 uppercase truncate">{authorName(allUsers, c.userId)}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <span className="text-[7px] text-slate-400 dark:text-slate-500 font-bold">{new Date(c.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
                                   {canDelete && (
