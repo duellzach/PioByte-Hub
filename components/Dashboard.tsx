@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { AppState, TaskStatus, Task, Project, Department, User } from '../types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
-import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause, Users } from 'lucide-react';
+import { Timer, Activity, CheckCircle2, MessageSquare, LifeBuoy, Megaphone, ChevronDown, ChevronUp, UserCheck, Play, Pause, Users, X } from 'lucide-react';
 import TaskModal from './TaskModal';
 import { ProjectLinkChip } from './ProjectLinks';
 import { onLiveBoard } from '../utils/tasks';
@@ -9,6 +9,8 @@ import { presentEntries, workersByTaskId, workingOnLabel, hasNoTask, presenceDis
 import { styleFor } from './hourCategoryStyles';
 import type { TimeEntryWithTaskInfo } from '../types';
 import { authorName } from '../shared/members';
+import { BoardSummary, BoardHealth, summarizeBoard, byAttention, daysLate, lastActivityAt, shortAgo } from '../utils/warRoom';
+import { todayLocalStr } from '../utils/dates';
 
 interface DashboardProps {
   state: AppState;
@@ -19,7 +21,16 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask, onNotify }) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  /** The board whose full kanban row is open above the cards, if any. */
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showPulse, setShowPulse] = useState(false);
+  // "Quiet for 6d" and "3h ago" age while the screen sits on a projector, so
+  // re-derive them every minute rather than only when a task changes.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [autoScroll, setAutoScroll] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollDirection = useRef<'down' | 'up'>('down');
@@ -133,6 +144,41 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     [present, visibleTaskIds],
   );
 
+  // --- Board health ---------------------------------------------------------
+  // With a dozen live boards, a full kanban per board buried the few tasks that
+  // needed a coach. The room now leads with a short "Needs a coach" list and
+  // shows every board as one card, worst first; a card opens that board's full
+  // row. See utils/warRoom.ts for what each signal means.
+  const summaries = useMemo(
+    () => activeProjects.map(p => summarizeBoard(p, state.tasks, now)).sort(byAttention),
+    [activeProjects, state.tasks, now],
+  );
+
+  /**
+   * Who is on each board right now — the same people as the per-task chips, so
+   * a card's names plus the Also Here strip still cover everyone exactly once.
+   */
+  const workersByProject = useMemo(() => {
+    const byProject = new Map<string, TimeEntryWithTaskInfo[]>();
+    for (const project of activeProjects) {
+      const columns = tasksByMatrix[project.id];
+      if (!columns) continue;
+      const list: TimeEntryWithTaskInfo[] = [];
+      for (const status of [TaskStatus.Blocked, TaskStatus.InProgress, TaskStatus.NotStarted, TaskStatus.Backlog]) {
+        for (const task of columns[status]) list.push(...(workersByTask.get(String(task.id)) || []));
+      }
+      byProject.set(project.id, list);
+    }
+    return byProject;
+  }, [activeProjects, tasksByMatrix, workersByTask]);
+
+  const selectedProject = activeProjects.find(p => p.id === selectedProjectId) || null;
+  const selectedRowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selectedProjectId) selectedRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [selectedProjectId]);
+  const toggleProject = (id: string) => setSelectedProjectId(prev => (prev === id ? null : id));
+
   const livePulse = useMemo(() => {
     // Retired boards stop generating news — their history stays on the board,
     // not in the War Room feed.
@@ -210,17 +256,59 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
             </button>
           </div>
           <div ref={scrollRef} className="flex-1 overflow-auto pr-2 kanban-scroll space-y-3 md:space-y-4 pb-4">
-            {activeProjects.map(project => (
-              <ProjectRow 
-                key={project.id}
-                project={project}
-                tasks={tasksByMatrix[project.id]}
-                onTaskClick={setSelectedTask}
-                users={state.users}
-                workersByTask={workersByTask}
-                displayNames={displayNames}
-              />
-            ))}
+            <NeedsCoach
+              summaries={summaries}
+              idle={present.filter(hasNoTask)}
+              displayNames={displayNames}
+              users={state.users}
+              now={now}
+              onTaskClick={setSelectedTask}
+              onProjectClick={setSelectedProjectId}
+            />
+
+            {selectedProject && tasksByMatrix[selectedProject.id] && (
+              <div ref={selectedRowRef} className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Board detail</span>
+                  <button
+                    onClick={() => setSelectedProjectId(null)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600"
+                  >
+                    <X size={12} /> Close
+                  </button>
+                </div>
+                <ProjectRow
+                  key={selectedProject.id}
+                  project={selectedProject}
+                  tasks={tasksByMatrix[selectedProject.id]}
+                  onTaskClick={setSelectedTask}
+                  users={state.users}
+                  workersByTask={workersByTask}
+                  displayNames={displayNames}
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <h2 className="text-xs md:text-sm font-black uppercase tracking-wide text-slate-900 dark:text-white">All boards</h2>
+                <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Worst first · click for tasks</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+                {summaries.map(summary => (
+                  <HealthCard
+                    key={summary.project.id}
+                    summary={summary}
+                    users={state.users}
+                    workers={workersByProject.get(summary.project.id) || []}
+                    displayNames={displayNames}
+                    now={now}
+                    selected={summary.project.id === selectedProjectId}
+                    onClick={() => toggleProject(summary.project.id)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Pinned outside the scroller on purpose: the people with no task are
@@ -302,16 +390,7 @@ const ProjectRow: React.FC<{
 }> = ({ project, tasks, onTaskClick, users, workersByTask, displayNames }) => {
   const [expanded, setExpanded] = useState(true);
   
-  const scrumMasterDisplay = useMemo(() => {
-    if (!project.scrumMasters || project.scrumMasters.length === 0) return null;
-    return project.scrumMasters
-      .map(id => {
-        const user = users.find(u => u.id === id);
-        return user ? `@${user.username}` : null;
-      })
-      .filter(Boolean)
-      .join(', ');
-  }, [project.scrumMasters, users]);
+  const scrumMasterDisplay = useMemo(() => scrumMasterLabel(project, users), [project, users]);
   
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl 2xl:rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -361,7 +440,249 @@ const ProjectRow: React.FC<{
   );
 };
 
-const StatusColumn: React.FC<{ 
+/** "@maya, @eli" — the board's scrum masters as the boards show them; null when none. */
+const scrumMasterLabel = (project: Project, users: User[]): string | null => {
+  const names = (project.scrumMasters || [])
+    .map(id => users.find(u => u.id === id))
+    .filter((u): u is User => Boolean(u))
+    .map(u => `@${u.username}`);
+  return names.length > 0 ? names.join(', ') : null;
+};
+
+const HEALTH_DOT: Record<BoardHealth, string> = {
+  red: 'bg-red-600',
+  amber: 'bg-amber-500',
+  green: 'bg-green-500',
+};
+const HEALTH_TEXT: Record<BoardHealth, string> = {
+  red: 'text-red-700 dark:text-red-400',
+  amber: 'text-amber-700 dark:text-amber-400',
+  green: 'text-green-700 dark:text-green-400',
+};
+
+/** "2 blocked · 1 overdue", or "On track" — the one line that says why a card is its color. */
+const HealthLine: React.FC<{ summary: BoardSummary; now: number }> = ({ summary, now }) => {
+  const parts = [
+    summary.blocked.length > 0 && `${summary.blocked.length} blocked`,
+    summary.overdue.length > 0 && `${summary.overdue.length} overdue`,
+    summary.quiet && summary.lastActivity !== null && `quiet ${shortAgo(summary.lastActivity, now)}`,
+  ].filter(Boolean);
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] md:text-[11px] font-black uppercase tracking-wide text-right ${HEALTH_TEXT[summary.health]}`}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${HEALTH_DOT[summary.health]}`} />
+      {parts.length > 0 ? parts.join(' · ') : 'On track'}
+    </span>
+  );
+};
+
+/** Task mix as one bar, in the same colors as the board columns' dots. */
+const StatusBar: React.FC<{ summary: BoardSummary }> = ({ summary }) => {
+  const total = summary.tasks.length;
+  const segments: { status: TaskStatus; className: string; style?: React.CSSProperties }[] = [
+    { status: TaskStatus.Complete, className: 'bg-green-500' },
+    { status: TaskStatus.InProgress, className: 'bg-teamColor' },
+    // Striped so Blocked never reads as In Progress when the team color is red.
+    { status: TaskStatus.Blocked, className: '', style: { background: 'repeating-linear-gradient(135deg, #dc2626 0 3px, #0f172a 3px 6px)' } },
+    { status: TaskStatus.NotStarted, className: 'bg-slate-300 dark:bg-slate-600' },
+    { status: TaskStatus.Backlog, className: 'bg-purple-400' },
+  ];
+  return (
+    <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700 gap-px">
+      {total > 0 && segments.map(({ status, className, style }) => {
+        const count = summary.byStatus[status].length;
+        if (count === 0) return null;
+        return (
+          <span
+            key={status}
+            title={`${count} ${status}`}
+            className={`h-full ${className}`}
+            style={{ ...style, width: `${(count / total) * 100}%` }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+/** One board, small enough that a dozen fit on a projector without scrolling. */
+const HealthCard: React.FC<{
+  summary: BoardSummary;
+  users: User[];
+  workers: TimeEntryWithTaskInfo[];
+  displayNames: Map<string, string>;
+  now: number;
+  selected: boolean;
+  onClick: () => void;
+}> = ({ summary, users, workers, displayNames, now, selected, onClick }) => {
+  const scrumMasters = scrumMasterLabel(summary.project, users);
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`w-full text-left bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl border p-3 md:p-4 flex flex-col gap-3 shadow-sm transition-all ${
+        selected
+          ? 'border-teamColor ring-2 ring-teamColor/30'
+          : 'border-slate-200 dark:border-slate-700 hover:border-teamColor/40 hover:shadow-md'
+      }`}
+    >
+      <div className="flex flex-col items-start gap-1.5 min-w-0">
+        <h3 className="text-sm 2xl:text-base font-black text-slate-900 dark:text-white leading-tight uppercase break-words">{summary.project.name}</h3>
+        {scrumMasters && (
+          <span className="inline-flex items-center gap-1 max-w-full text-[8px] md:text-[9px] font-black text-teamColor bg-teamColor/5 dark:bg-teamColor/10 px-2 py-0.5 rounded-full border border-teamColor/20">
+            <UserCheck size={10} className="flex-shrink-0" />
+            <span className="truncate">SM: {scrumMasters}</span>
+          </span>
+        )}
+      </div>
+
+      <StatusBar summary={summary} />
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xl 2xl:text-2xl font-black text-slate-900 dark:text-white tabular-nums leading-none">{summary.percentDone}%</span>
+        <HealthLine summary={summary} now={now} />
+      </div>
+
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          {workers.length > 0
+            ? <LiveWorkers workers={workers} displayNames={displayNames} users={users} />
+            : <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">Nobody on it</span>}
+        </div>
+        {summary.lastActivity !== null && (
+          <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 tabular-nums flex-shrink-0">
+            {shortAgo(summary.lastActivity, now)}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+};
+
+interface CoachItem {
+  key: string;
+  tone: 'bad' | 'warn';
+  label: string;
+  text: React.ReactNode;
+  board?: string;
+  age?: string;
+  onClick?: () => void;
+}
+
+/** How long a blocked task has been blocked: its latest BLOCKED history entry, else its last activity. */
+const blockedSince = (task: Task): number => {
+  const entry = [...(task.history || [])].reverse().find(h => h.action.startsWith('BLOCKED'));
+  return entry ? Number(entry.timestamp) || lastActivityAt(task) : lastActivityAt(task);
+};
+
+/**
+ * The short list a coach acts on, above the cards. Overdue work is grouped per
+ * board so one slipping board is one line, not five; people with no task are
+ * one line too (the Also Here strip still names each of them).
+ */
+const NeedsCoach: React.FC<{
+  summaries: BoardSummary[];
+  idle: TimeEntryWithTaskInfo[];
+  displayNames: Map<string, string>;
+  users: User[];
+  now: number;
+  onTaskClick: (t: Task) => void;
+  onProjectClick: (projectId: string) => void;
+}> = ({ summaries, idle, displayNames, users, now, onTaskClick, onProjectClick }) => {
+  const [showAll, setShowAll] = useState(false);
+  const today = todayLocalStr(new Date(now));
+  const nameFor = (userId: string) => displayNames.get(userId) || firstNameOf(users.find(u => u.id === userId)?.name || 'Unknown');
+
+  const items: CoachItem[] = [];
+  summaries
+    .flatMap(s => s.blocked.map(task => ({ task, board: s.project.name })))
+    .sort((a, b) => blockedSince(a.task) - blockedSince(b.task))
+    .forEach(({ task, board }) => items.push({
+      key: `blocked-${task.id}`,
+      tone: 'bad',
+      label: 'Blocked',
+      text: <>{task.title}{task.blockedReason && <span className="font-medium italic normal-case text-slate-500 dark:text-slate-400"> "{task.blockedReason}"</span>}</>,
+      board,
+      age: shortAgo(blockedSince(task), now),
+      onClick: () => onTaskClick(task),
+    }));
+  if (idle.length > 0) {
+    items.push({
+      key: 'idle',
+      tone: 'warn',
+      label: 'No task',
+      text: `${[...new Set(idle.map(e => e.userId))].map(nameFor).join(', ')} clocked in without picking a task`,
+    });
+  }
+  [...summaries]
+    .filter(s => s.overdue.length > 0)
+    .sort((a, b) => b.overdue.length - a.overdue.length)
+    .forEach(s => {
+      const single = s.overdue.length === 1 ? s.overdue[0] : null;
+      items.push({
+        key: `overdue-${s.project.id}`,
+        tone: 'warn',
+        label: 'Overdue',
+        text: single ? single.title : `${s.overdue.length} tasks past due`,
+        board: s.project.name,
+        age: `${Math.max(...s.overdue.map(t => daysLate(t, today)))}d late`,
+        onClick: single ? () => onTaskClick(single) : () => onProjectClick(s.project.id),
+      });
+    });
+  summaries.filter(s => s.quiet && s.lastActivity !== null).forEach(s => items.push({
+    key: `quiet-${s.project.id}`,
+    tone: 'warn',
+    label: 'Quiet',
+    text: `No activity in ${shortAgo(s.lastActivity!, now)} · ${s.openCount} open task${s.openCount !== 1 ? 's' : ''}`,
+    board: s.project.name,
+    onClick: () => onProjectClick(s.project.id),
+  }));
+
+  const LIMIT = 8;
+  const shown = showAll ? items : items.slice(0, LIMIT);
+
+  return (
+    <section className="bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm px-3 py-2.5 md:px-4 md:py-3">
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="text-xs md:text-sm font-black uppercase tracking-wide text-slate-900 dark:text-white">Needs a coach</h2>
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 tabular-nums">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 py-1">
+          Nothing needs a coach right now
+        </p>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          {shown.map(item => {
+            const body = (
+              <>
+                <span className={`w-16 flex-shrink-0 text-[8px] md:text-[9px] font-black uppercase tracking-widest ${
+                  item.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                }`}>{item.label}</span>
+                <span className="flex-1 min-w-0 text-[11px] md:text-xs font-bold text-slate-900 dark:text-white break-words">{item.text}</span>
+                {item.board && <span className="hidden sm:block flex-shrink-0 max-w-[30%] truncate text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">{item.board}</span>}
+                <span className="w-14 flex-shrink-0 text-right text-[9px] md:text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tabular-nums">{item.age}</span>
+              </>
+            );
+            const rowClass = 'w-full flex items-baseline gap-3 py-2 text-left';
+            return item.onClick
+              ? <button key={item.key} onClick={item.onClick} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-md`}>{body}</button>
+              : <div key={item.key} className={rowClass}>{body}</div>;
+          })}
+        </div>
+      )}
+      {items.length > LIMIT && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="mt-1 text-[9px] font-black uppercase tracking-widest text-teamColor hover:underline"
+        >
+          {showAll ? 'Show fewer' : `Show all ${items.length}`}
+        </button>
+      )}
+    </section>
+  );
+};
+
+const StatusColumn: React.FC<{
   status: TaskStatus;
   tasks: Task[]; 
   onTaskClick: (t: Task) => void;
@@ -589,6 +910,10 @@ const PulseFeed: React.FC<{ livePulse: any[] }> = ({ livePulse }) => (
           </p>
           <p className="text-[8px] 2xl:text-[9px] font-bold uppercase text-red-500/80 line-clamp-1 break-words">
             {pulse.taskTitle}
+          </p>
+          {/* With a dozen boards a task title alone is ambiguous — say whose board it is. */}
+          <p className="text-[7px] 2xl:text-[8px] font-black uppercase tracking-widest text-slate-500 line-clamp-1 break-words mt-0.5">
+            {pulse.projectName}
           </p>
         </div>
       );
