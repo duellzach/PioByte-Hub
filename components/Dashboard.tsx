@@ -9,8 +9,7 @@ import { presentEntries, workersByTaskId, workingOnLabel, hasNoTask, presenceDis
 import { styleFor } from './hourCategoryStyles';
 import type { TimeEntryWithTaskInfo } from '../types';
 import { authorName } from '../shared/members';
-import { BoardSummary, BoardHealth, summarizeBoard, byAttention, daysLate, lastActivityAt, shortAgo } from '../utils/warRoom';
-import { todayLocalStr } from '../utils/dates';
+import { BoardSummary, BoardHealth, summarizeBoard, shortAgo } from '../utils/warRoom';
 
 interface DashboardProps {
   state: AppState;
@@ -144,15 +143,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     [present, visibleTaskIds],
   );
 
-  // --- Board health ---------------------------------------------------------
+  // --- Board cards ----------------------------------------------------------
   // With a dozen live boards, a full kanban per board buried the few tasks that
-  // needed a coach. The room now leads with a short "Needs a coach" list and
-  // shows every board as one card, worst first; a card opens that board's full
-  // row. See utils/warRoom.ts for what each signal means.
-  const summaries = useMemo(
-    () => activeProjects.map(p => summarizeBoard(p, state.tasks, now)).sort(byAttention),
-    [activeProjects, state.tasks, now],
-  );
+  // needed a coach. The room now shows every board as one card; a card opens
+  // that board's full row. See utils/warRoom.ts for what each signal means.
 
   /**
    * Who is on each board right now — the same people as the per-task chips, so
@@ -171,6 +165,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
     }
     return byProject;
   }, [activeProjects, tasksByMatrix, workersByTask]);
+
+  /**
+   * Boards people are on right now come first, most people first; then the
+   * most recently touched. During class the top row is where the work is.
+   */
+  const summaries = useMemo(() => {
+    const onIt = (s: BoardSummary) => (workersByProject.get(s.project.id) || []).length;
+    return activeProjects
+      .map(p => summarizeBoard(p, state.tasks, now))
+      .sort((a, b) => onIt(b) - onIt(a) || (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+  }, [activeProjects, state.tasks, now, workersByProject]);
 
   const selectedProject = activeProjects.find(p => p.id === selectedProjectId) || null;
   const selectedRowRef = useRef<HTMLDivElement>(null);
@@ -256,16 +261,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
             </button>
           </div>
           <div ref={scrollRef} className="flex-1 overflow-auto pr-2 kanban-scroll space-y-3 md:space-y-4 pb-4">
-            <NeedsCoach
-              summaries={summaries}
-              idle={present.filter(hasNoTask)}
-              displayNames={displayNames}
-              users={state.users}
-              now={now}
-              onTaskClick={setSelectedTask}
-              onProjectClick={setSelectedProjectId}
-            />
-
             {selectedProject && tasksByMatrix[selectedProject.id] && (
               <div ref={selectedRowRef} className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -292,7 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onUpdateTask, onDeleteTask
             <div>
               <div className="flex items-baseline justify-between mb-2">
                 <h2 className="text-xs md:text-sm font-black uppercase tracking-wide text-slate-900 dark:text-white">All boards</h2>
-                <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Worst first · click for tasks</span>
+                <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Most active first · click for tasks</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                 {summaries.map(summary => (
@@ -555,130 +550,6 @@ const HealthCard: React.FC<{
         )}
       </div>
     </button>
-  );
-};
-
-interface CoachItem {
-  key: string;
-  tone: 'bad' | 'warn';
-  label: string;
-  text: React.ReactNode;
-  board?: string;
-  age?: string;
-  onClick?: () => void;
-}
-
-/** How long a blocked task has been blocked: its latest BLOCKED history entry, else its last activity. */
-const blockedSince = (task: Task): number => {
-  const entry = [...(task.history || [])].reverse().find(h => h.action.startsWith('BLOCKED'));
-  return entry ? Number(entry.timestamp) || lastActivityAt(task) : lastActivityAt(task);
-};
-
-/**
- * The short list a coach acts on, above the cards. Overdue work is grouped per
- * board so one slipping board is one line, not five; people with no task are
- * one line too (the Also Here strip still names each of them).
- */
-const NeedsCoach: React.FC<{
-  summaries: BoardSummary[];
-  idle: TimeEntryWithTaskInfo[];
-  displayNames: Map<string, string>;
-  users: User[];
-  now: number;
-  onTaskClick: (t: Task) => void;
-  onProjectClick: (projectId: string) => void;
-}> = ({ summaries, idle, displayNames, users, now, onTaskClick, onProjectClick }) => {
-  const [showAll, setShowAll] = useState(false);
-  const today = todayLocalStr(new Date(now));
-  const nameFor = (userId: string) => displayNames.get(userId) || firstNameOf(users.find(u => u.id === userId)?.name || 'Unknown');
-
-  const items: CoachItem[] = [];
-  summaries
-    .flatMap(s => s.blocked.map(task => ({ task, board: s.project.name })))
-    .sort((a, b) => blockedSince(a.task) - blockedSince(b.task))
-    .forEach(({ task, board }) => items.push({
-      key: `blocked-${task.id}`,
-      tone: 'bad',
-      label: 'Blocked',
-      text: <>{task.title}{task.blockedReason && <span className="font-medium italic normal-case text-slate-500 dark:text-slate-400"> "{task.blockedReason}"</span>}</>,
-      board,
-      age: shortAgo(blockedSince(task), now),
-      onClick: () => onTaskClick(task),
-    }));
-  if (idle.length > 0) {
-    items.push({
-      key: 'idle',
-      tone: 'warn',
-      label: 'No task',
-      text: `${[...new Set(idle.map(e => e.userId))].map(nameFor).join(', ')} clocked in without picking a task`,
-    });
-  }
-  [...summaries]
-    .filter(s => s.overdue.length > 0)
-    .sort((a, b) => b.overdue.length - a.overdue.length)
-    .forEach(s => {
-      const single = s.overdue.length === 1 ? s.overdue[0] : null;
-      items.push({
-        key: `overdue-${s.project.id}`,
-        tone: 'warn',
-        label: 'Overdue',
-        text: single ? single.title : `${s.overdue.length} tasks past due`,
-        board: s.project.name,
-        age: `${Math.max(...s.overdue.map(t => daysLate(t, today)))}d late`,
-        onClick: single ? () => onTaskClick(single) : () => onProjectClick(s.project.id),
-      });
-    });
-  summaries.filter(s => s.quiet && s.lastActivity !== null).forEach(s => items.push({
-    key: `quiet-${s.project.id}`,
-    tone: 'warn',
-    label: 'Quiet',
-    text: `No activity in ${shortAgo(s.lastActivity!, now)} · ${s.openCount} open task${s.openCount !== 1 ? 's' : ''}`,
-    board: s.project.name,
-    onClick: () => onProjectClick(s.project.id),
-  }));
-
-  const LIMIT = 8;
-  const shown = showAll ? items : items.slice(0, LIMIT);
-
-  return (
-    <section className="bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm px-3 py-2.5 md:px-4 md:py-3">
-      <div className="flex items-baseline justify-between mb-1">
-        <h2 className="text-xs md:text-sm font-black uppercase tracking-wide text-slate-900 dark:text-white">Needs a coach</h2>
-        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 tabular-nums">{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 py-1">
-          Nothing needs a coach right now
-        </p>
-      ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-700">
-          {shown.map(item => {
-            const body = (
-              <>
-                <span className={`w-16 flex-shrink-0 text-[8px] md:text-[9px] font-black uppercase tracking-widest ${
-                  item.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
-                }`}>{item.label}</span>
-                <span className="flex-1 min-w-0 text-[11px] md:text-xs font-bold text-slate-900 dark:text-white break-words">{item.text}</span>
-                {item.board && <span className="hidden sm:block flex-shrink-0 max-w-[30%] truncate text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">{item.board}</span>}
-                <span className="w-14 flex-shrink-0 text-right text-[9px] md:text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tabular-nums">{item.age}</span>
-              </>
-            );
-            const rowClass = 'w-full flex items-baseline gap-3 py-2 text-left';
-            return item.onClick
-              ? <button key={item.key} onClick={item.onClick} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-md`}>{body}</button>
-              : <div key={item.key} className={rowClass}>{body}</div>;
-          })}
-        </div>
-      )}
-      {items.length > LIMIT && (
-        <button
-          onClick={() => setShowAll(!showAll)}
-          className="mt-1 text-[9px] font-black uppercase tracking-widest text-teamColor hover:underline"
-        >
-          {showAll ? 'Show fewer' : `Show all ${items.length}`}
-        </button>
-      )}
-    </section>
   );
 };
 
