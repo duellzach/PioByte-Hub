@@ -8,14 +8,19 @@ import { useTeamSettings } from '../contexts/TeamSettingsContext';
 import { CategoryBadge, styleFor, HOUR_CATEGORIES } from './hourCategoryStyles';
 import { TASK_LINKED_CATEGORIES } from '../shared/hourCategories';
 import { LEADERSHIP_ALL, hasAnyRole, CLASS_MEMBER_ROLE } from '../shared/roles';
-import { presentEntries as selectPresent, groupByCategory, untaskedCount as countUntasked, workingOnLabel } from '../utils/presence';
+import { presentEntries as selectPresent, groupByCategory, untaskedCount as countUntasked, workingOnLabel, presenceDisplayNames } from '../utils/presence';
+import { buildTaskSuggestions } from '../utils/taskSuggestions';
 import TaskPickerModal from './TaskPickerModal';
 import CompetitionAttendanceReview from './CompetitionAttendanceReview';
 
 /** An in-flight "what are you working on?" prompt — see `taskPicker` below. */
 interface TaskPickerSession {
   mode: 'checkin' | 'switch' | 'reassign';
-  entryId: number;
+  /**
+   * The session being changed. Null at check-in: the sheet opens before any
+   * session exists, and confirming creates the session with its task in one go.
+   */
+  entryId: number | null;
   /** Whose session is being changed — not necessarily the person clicking. */
   subjectUserId: number;
   subjectName: string;
@@ -92,8 +97,9 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const [availableGeneralTasks, setAvailableGeneralTasks] = useState<GeneralTask[]>([]);
   const [taskPickerError, setTaskPickerError] = useState('');
   const [checkInLoading, setCheckInLoading] = useState(false);
-  const [showKindPicker, setShowKindPicker] = useState(false);
   const [clockableEvents, setClockableEvents] = useState<any[]>([]);
+  /** Which hours-type chip is chosen on the check-in sheet — see `checkInOptions`. */
+  const [checkInKey, setCheckInKey] = useState('shop');
   const [myTotals, setMyTotals] = useState<Record<string, number> | null>(null);
   const [myLedgerRows, setMyLedgerRows] = useState<any[] | null>(null);
   const [eventTitles, setEventTitles] = useState<Record<number, { title: string; type: string }>>({});
@@ -275,25 +281,26 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }).catch(() => {});
   }, []);
 
-  // Ask "what are you clocking?" when there are events to clock into today, or
-  // when a Class Member should be offered the standalone Class option (every
-  // school day, event or not) — otherwise go straight to a normal shop check-in.
-  const handleCheckIn = async () => {
-    setCheckInLoading(true);
-    try {
-      const events = await api.events.clockableEvents().catch(() => []);
-      if (events.length > 0 || (isClassMemberSubjectToWindow && isSchoolDayToday)) {
-        setClockableEvents(events);
-        setShowKindPicker(true);
-        setCheckInLoading(false);
-        return;
-      }
-      await doShopCheckIn();
-    } catch (error) {
-      console.error('Check-in failed:', error);
-      onRefresh();
-      setCheckInLoading(false);
-    }
+  /**
+   * Check-in is one sheet: hours type as chips across the top (only when there
+   * is more than Shop to choose), suggested tasks below. Nothing is created
+   * until the student confirms, so closing the sheet leaves no stray session.
+   * It used to be up to three steps — Check In, "What are you clocking?", then
+   * the task list — and the task step was the one students skipped.
+   */
+  const handleCheckIn = () => {
+    setCheckInKey('shop');
+    setClockableEvents([]);
+    // Events load alongside the task list; their chips appear when they arrive.
+    api.events.clockableEvents().then(setClockableEvents).catch(() => setClockableEvents([]));
+    openTaskPicker({
+      mode: 'checkin',
+      entryId: null,
+      subjectUserId: currentUserId,
+      subjectName: state.currentUser?.name || 'You',
+      currentTaskId: null,
+      currentGeneralTaskId: null,
+    });
   };
 
   /**
@@ -327,17 +334,6 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     }
   };
 
-  /** The picker for one's own freshly-created entry, right after clocking in. */
-  const openCheckInPicker = (entryId: number) =>
-    openTaskPicker({
-      mode: 'checkin',
-      entryId,
-      subjectUserId: currentUserId,
-      subjectName: state.currentUser?.name || 'You',
-      currentTaskId: null,
-      currentGeneralTaskId: null,
-    });
-
   /** "I've moved onto something else" — valid any time during an open session. */
   const openSwitchPicker = () => {
     if (!myOpenEntry) return;
@@ -362,50 +358,85 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
       currentGeneralTaskId: entry.workingOnGeneralTaskId ?? null,
     });
 
-  const doShopCheckIn = async () => {
-    setShowKindPicker(false);
-    setCheckInLoading(true);
-    try {
-      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'shop' });
-      await openCheckInPicker(parseInt(entry.id));
-    } catch (error) {
-      console.error('Check-in failed:', error);
-      onRefresh();
-    } finally {
-      setCheckInLoading(false);
+  /**
+   * The hours types the check-in sheet offers: Shop always; Class on a school
+   * day for Class Members (unless a class event already covers it); and every
+   * event open for clocking today. Class is shown but locked outside its
+   * window — the server is the real gate (server/routes/time.ts).
+   */
+  const checkInOptions = useMemo(() => {
+    const options: { key: string; kind: string; label: string; event: any | null; locked: boolean }[] = [
+      { key: 'shop', kind: 'shop', label: 'Shop', event: null, locked: false },
+    ];
+    if (isClassMemberSubjectToWindow && isSchoolDayToday && !clockableEvents.some(ev => ev.type === 'class')) {
+      options.push({ key: 'class', kind: 'class', label: 'Class', event: null, locked: !classCheckInWindowOpen });
     }
-  };
+    for (const ev of clockableEvents) {
+      options.push({
+        key: `event-${ev.id}`,
+        kind: ev.type,
+        label: ev.title,
+        event: ev,
+        locked: ev.type === 'class' && isClassMemberSubjectToWindow && !classCheckInWindowOpen,
+      });
+    }
+    return options;
+  }, [clockableEvents, isClassMemberSubjectToWindow, isSchoolDayToday, classCheckInWindowOpen]);
+  const checkInOption = checkInOptions.find(o => o.key === checkInKey && !o.locked) || checkInOptions[0];
+  const checkInTakesTask = (TASK_LINKED_CATEGORIES as readonly string[]).includes(checkInOption.kind);
 
-  /** Standalone Class check-in — no calendar event, same shape as Shop. */
-  const doClassCheckIn = async () => {
-    setShowKindPicker(false);
+  /**
+   * Create the session — and, for task-linked hours, attach the chosen task
+   * straight after. If attaching fails the student is still checked in (the
+   * clock matters more than the label) and can pick the task from the card.
+   */
+  const commitCheckIn = async (taskId: number | null, generalTaskId: number | null) => {
+    const option = checkInOption;
+    if (option.locked) return;
     setCheckInLoading(true);
+    setTaskPickerError('');
+    let entry: any;
     try {
-      const entry = await api.timeEntries.checkIn(currentUserId, { kind: 'class' });
-      await openCheckInPicker(parseInt(entry.id));
+      entry = await api.timeEntries.checkIn(
+        currentUserId,
+        option.event ? { kind: option.event.type, calendarEventId: option.event.id } : { kind: option.kind },
+      );
     } catch (error: any) {
-      alert(error?.message || 'Could not clock in to Class hours.');
-    } finally {
+      setTaskPickerError(error?.message || 'Could not check in. Try again.');
       setCheckInLoading(false);
-      onRefresh();
+      return;
     }
-  };
-
-  const doEventCheckIn = async (event: any) => {
-    setShowKindPicker(false);
-    setCheckInLoading(true);
-    try {
-      const entry = await api.timeEntries.checkIn(currentUserId, { kind: event.type, calendarEventId: event.id });
-      if ((TASK_LINKED_CATEGORIES as readonly string[]).includes(event.type)) {
-        await openCheckInPicker(parseInt(entry.id));
+    setTaskPicker(null);
+    if (checkInTakesTask && (taskId !== null || generalTaskId !== null)) {
+      try {
+        await api.timeEntries.setWorkingOn(parseInt(entry.id), currentUserId, taskId, generalTaskId);
+      } catch (error: any) {
+        alert(`You're checked in, but the task couldn't be set: ${error?.message || 'unknown error'}. Use Pick Task to try again.`);
       }
-    } catch (error: any) {
-      alert(error?.message || 'Could not clock in to that event.');
-    } finally {
-      setCheckInLoading(false);
-      onRefresh();
     }
+    setCheckInLoading(false);
+    onRefresh();
   };
+
+  // Suggested groups for whichever picker is open — see utils/taskSuggestions.ts.
+  const presenceNames = useMemo(() => presenceDisplayNames(presentEntries, state.users), [presentEntries, state.users]);
+  const shortNameFor = (userId: string) =>
+    presenceNames.get(userId) || (state.users.find(u => String(u.id) === userId)?.name || 'Member').trim().split(/\s+/)[0];
+  const pickerSubject = taskPicker ? state.users.find(u => String(u.id) === String(taskPicker.subjectUserId)) : undefined;
+  const pickerSuggestions = useMemo(() => {
+    if (!taskPicker || taskPickerLoading) return undefined;
+    return buildTaskSuggestions({
+      tasks: [...availableAssignedTasks, ...availableOpenTasks],
+      subjectId: String(taskPicker.subjectUserId),
+      subjectDepartments: (pickerSubject?.departments || []).map(String),
+      entries: state.timeEntries,
+      includeResume: taskPicker.mode === 'checkin',
+    });
+  }, [taskPicker, taskPickerLoading, availableAssignedTasks, availableOpenTasks, pickerSubject, state.timeEntries]);
+  const pickerDepartments = pickerSubject?.departments || [];
+  const teammatesLabel = pickerDepartments.length === 1
+    ? `${pickerDepartments[0]} is working on`
+    : taskPicker?.mode === 'reassign' ? 'Their departments are working on' : 'Your departments are working on';
 
   /**
    * Commit the picker's choice. `subjectUserId` — not the clicker — is sent as
@@ -415,12 +446,11 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
   const handlePickTask = async (taskId: number | null, generalTaskId: number | null) => {
     const session = taskPicker;
     if (!session) return;
-    // At check-in "no task" means skip, not an edit — nothing to save.
-    if (session.mode === 'checkin' && taskId === null && generalTaskId === null) {
-      setTaskPicker(null);
-      onRefresh();
+    if (session.mode === 'checkin') {
+      await commitCheckIn(taskId, generalTaskId);
       return;
     }
+    if (session.entryId === null) return;
     try {
       await api.timeEntries.setWorkingOn(session.entryId, session.subjectUserId, taskId, generalTaskId);
       setTaskPicker(null);
@@ -1757,71 +1787,16 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
         </div>
       )}
 
-      {showKindPicker && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300" onClick={() => setShowKindPicker(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">What are you clocking?</h2>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-5">Pick shop time or one of today's events</p>
-            <div className="space-y-2.5">
-              <button onClick={doShopCheckIn} className="w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl hover:ring-2 hover:ring-teamColor transition-all text-left">
-                <div className="w-10 h-10 rounded-xl bg-teamColor/10 text-teamColor flex items-center justify-center flex-shrink-0"><Briefcase size={18} /></div>
-                <div><p className="font-black text-sm text-slate-900 dark:text-white">Shop Time</p><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Build / work session</p></div>
-              </button>
-              {isClassMemberSubjectToWindow && isSchoolDayToday && !clockableEvents.some((ev) => ev.type === 'class') && (() => {
-                const s = styleFor('class');
-                const classLocked = !classCheckInWindowOpen;
-                return (
-                  <button
-                    onClick={() => !classLocked && doClassCheckIn()}
-                    disabled={classLocked}
-                    title={classLocked ? 'Class check-in is only available 7:00am–3:10pm, Monday–Friday' : undefined}
-                    className={`w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-all text-left ${classLocked ? 'opacity-50 cursor-not-allowed' : 'hover:ring-2 hover:ring-teamColor'}`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg} ${s.text}`}><MapPin size={18} /></div>
-                    <div>
-                      <p className="font-black text-sm text-slate-900 dark:text-white">Class Time</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">School day session</p>
-                      {classLocked && <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">Available 7:00am–3:10pm, Mon–Fri</p>}
-                    </div>
-                  </button>
-                );
-              })()}
-              {clockableEvents.map((ev) => {
-                const s = styleFor(ev.type);
-                const classLocked = ev.type === 'class' && isClassMemberSubjectToWindow && !classCheckInWindowOpen;
-                return (
-                  <button
-                    key={ev.id}
-                    onClick={() => !classLocked && doEventCheckIn(ev)}
-                    disabled={classLocked}
-                    title={classLocked ? 'Class check-in is only available 7:00am–3:10pm, Monday–Friday' : undefined}
-                    className={`w-full flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-all text-left ${classLocked ? 'opacity-50 cursor-not-allowed' : 'hover:ring-2 hover:ring-teamColor'}`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg} ${s.text}`}><MapPin size={18} /></div>
-                    <div className="min-w-0">
-                      <p className="font-black text-sm text-slate-900 dark:text-white truncate">{ev.title}</p>
-                      <CategoryBadge category={ev.type} className="mt-0.5" />
-                      {classLocked && <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">Available 7:00am–3:10pm, Mon–Fri</p>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <button onClick={() => setShowKindPicker(false)} className="w-full mt-4 py-2.5 text-slate-400 font-bold uppercase tracking-widest text-[10px] hover:text-slate-600 dark:hover:text-slate-300">Cancel</button>
-          </div>
-        </div>
-      )}
-
       {taskPicker && (
         <>
           <TaskPickerModal
-            title={taskPicker.mode === 'reassign' ? 'Move Them Onto' : taskPicker.mode === 'switch' ? 'Switch Task' : 'What are you working on?'}
+            title={taskPicker.mode === 'reassign' ? 'Move Them Onto' : taskPicker.mode === 'switch' ? 'Switch Task' : 'Check In'}
             subtitle={
               taskPicker.mode === 'reassign'
                 ? taskPicker.subjectName
                 : taskPicker.mode === 'switch'
                   ? 'Your clock keeps running — only the task changes'
-                  : 'Optional — skip to just check in'
+                  : 'Your clock starts when you check in'
             }
             loading={taskPickerLoading}
             assignedTasks={availableAssignedTasks}
@@ -1830,11 +1805,25 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
             userNameFor={(id) => getUserName(String(id))}
             selectedTaskId={taskPicker.currentTaskId}
             selectedGeneralTaskId={taskPicker.currentGeneralTaskId}
-            confirmLabel={taskPicker.mode === 'reassign' ? 'Move Them' : taskPicker.mode === 'switch' ? 'Switch' : 'Start Working'}
-            dismissLabel={taskPicker.mode === 'checkin' ? 'Skip' : 'Cancel'}
+            confirmLabel={taskPicker.mode === 'reassign' ? 'Move Them' : taskPicker.mode === 'switch' ? 'Switch' : 'Check In'}
+            dismissLabel="Cancel"
             allowClear={taskPicker.mode !== 'checkin'}
-            onDismiss={() => { setTaskPicker(null); if (taskPicker.mode === 'checkin') onRefresh(); }}
+            onDismiss={() => setTaskPicker(null)}
             onConfirm={handlePickTask}
+            suggestions={pickerSuggestions}
+            teammatesLabel={teammatesLabel}
+            shortNameFor={shortNameFor}
+            {...(taskPicker.mode === 'checkin' ? {
+              preselectResume: true,
+              busy: checkInLoading,
+              header: checkInOptions.length > 1 ? (
+                <CheckInKindChips options={checkInOptions} selectedKey={checkInOption.key} onSelect={setCheckInKey} />
+              ) : undefined,
+              hideTasksNote: checkInTakesTask ? undefined : `${checkInOption.label} doesn't need a task. Check in to start your clock.`,
+              allowEmptyConfirm: !checkInTakesTask,
+              confirmLabelFor: (title: string | null) => (checkInTakesTask && title ? `Start on ${title}` : 'Check In'),
+              skip: checkInTakesTask ? { label: 'Check in without a task', onClick: () => commitCheckIn(null, null) } : undefined,
+            } : {})}
           />
           {taskPickerError && (
             <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110] px-4 py-2.5 bg-red-600 text-white rounded-xl shadow-2xl text-xs font-bold max-w-[90vw] text-center">
@@ -1879,13 +1868,13 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
 
               <div>
                 <label className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
-                  {hasCheckoutTask ? 'Handoff Note' : 'What did you work on today?'} {hasCheckoutTask && !checkoutMarkComplete && <span className="text-red-500">*</span>}
+                  {hasCheckoutTask ? 'Where did you leave off?' : 'What did you work on today?'} {hasCheckoutTask && !checkoutMarkComplete && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
                   value={checkoutHandoffNote}
                   onChange={e => setCheckoutHandoffNote(e.target.value)}
                   rows={3}
-                  placeholder={!hasCheckoutTask ? 'Optional — a quick summary for your coaches...' : checkoutMarkComplete ? 'Optional completion notes...' : 'What did you accomplish? What\'s next for this task?'}
+                  placeholder={!hasCheckoutTask ? 'Optional — a quick summary for your coaches...' : checkoutMarkComplete ? 'Optional completion notes...' : 'What did you get done, and what\'s next? Whoever checks in on this task next will see this.'}
                   className="w-full p-3 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-medium resize-none text-sm"
                 />
               </div>
@@ -2037,5 +2026,44 @@ const TimeTracking: React.FC<TimeTrackingProps> = ({ state, onRefresh }) => {
     </div>
   );
 };
+
+/**
+ * The check-in sheet's hours-type chips, in the calendar's colors and icons
+ * (components/hourCategoryStyles.tsx) so Shop and Class look the same here as
+ * on the calendar. A locked chip (Class outside its window) stays visible.
+ */
+const CheckInKindChips: React.FC<{
+  options: { key: string; kind: string; label: string; locked: boolean }[];
+  selectedKey: string;
+  onSelect: (key: string) => void;
+}> = ({ options, selectedKey, onSelect }) => (
+  <div className="space-y-1.5">
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Hours type">
+      {options.map(option => {
+        const s = styleFor(option.kind);
+        const selected = option.key === selectedKey;
+        return (
+          <button
+            key={option.key}
+            onClick={() => !option.locked && onSelect(option.key)}
+            disabled={option.locked}
+            aria-pressed={selected}
+            title={option.locked ? 'Class check-in is only available 7:00am–3:10pm, Monday–Friday' : undefined}
+            className={`inline-flex items-center gap-1.5 max-w-full px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide border-2 transition-all ${s.bg} ${s.text} ${
+              option.locked ? 'opacity-40 cursor-not-allowed border-transparent'
+                : selected ? 'border-current' : 'border-transparent opacity-70 hover:opacity-100'
+            }`}
+          >
+            <span className="flex-shrink-0">{s.icon}</span>
+            <span className="truncate">{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
+    {options.some(o => o.locked) && (
+      <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">Class check-in opens 7:00am–3:10pm, Mon–Fri</p>
+    )}
+  </div>
+);
 
 export default TimeTracking;

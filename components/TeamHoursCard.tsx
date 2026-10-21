@@ -38,12 +38,12 @@ const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => 
     .sort((a, b) => b.minutes - a.minutes);
 
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3.5 ${className}`}>
+    <div className={`bg-white dark:bg-slate-800 rounded-2xl md:rounded-[28px] border-2 border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3.5 min-h-0 overflow-hidden ${className}`}>
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Clock size={18} /></div>
+        <div className="w-9 h-9 flex-shrink-0 bg-teamColor/10 text-teamColor rounded-xl flex items-center justify-center"><Clock size={18} /></div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Team Hours</h3>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
+          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">Team Hours</h3>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest truncate">
             {formatLocalDate(range.start, { month: 'short', year: 'numeric' })} – {formatLocalDate(range.end, { month: 'short', year: 'numeric' })}
           </p>
         </div>
@@ -55,7 +55,12 @@ const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => 
       ) : rows.length === 0 ? (
         <p className="text-xs text-slate-400 dark:text-slate-500 font-bold italic">No confirmed hours logged yet.</p>
       ) : (
-        <div className="flex-1 flex flex-col justify-evenly gap-2">
+        // Home caps this card's height to match its row, and with every category
+        // in use the bars outgrow that cap in a narrow column — they used to
+        // spill out over the section below. The list scrolls inside the card
+        // instead; the inner min-h-full keeps the even spacing when it fits.
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 kanban-scroll">
+        <div className="min-h-full flex flex-col justify-evenly gap-2">
           {rows.map(({ cat, minutes }) => {
             const style = styleFor(cat);
             const percent = totalMinutes > 0 ? Math.round((minutes / totalMinutes) * 100) : 0;
@@ -73,6 +78,7 @@ const TeamHoursCard: React.FC<{ className?: string }> = ({ className = '' }) => 
               </div>
             );
           })}
+        </div>
         </div>
       )}
     </div>

@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban, CalendarClock, HelpCircle, CircleCheck, Circle, MoreHorizontal, ArrowLeft, Link2, MessageSquare, ExternalLink } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Search, Briefcase, Users, ListChecks, CheckSquare, Square, Loader2, Check, Ban, CalendarClock, HelpCircle, CircleCheck, Circle, MoreHorizontal, ArrowLeft, Link2, MessageSquare, ExternalLink, History, HandHelping, ChevronRight } from 'lucide-react';
 import type { AvailableTask, GeneralTask } from '../types';
 import { PRIORITY_COLORS } from '../constants';
+import type { TaskSuggestions, HandoffNote } from '../utils/taskSuggestions';
 
 interface Props {
   title: string;
@@ -23,6 +24,34 @@ interface Props {
   allowClear?: boolean;
   onDismiss: () => void;
   onConfirm: (taskId: number | null, generalTaskId: number | null) => void;
+  /**
+   * Short groups to lead with — resume, your tasks, what your department is on,
+   * needs hands — before the full list. Omit to open straight on the full list.
+   */
+  suggestions?: TaskSuggestions;
+  /** Heading for the "who's on what" group, e.g. "Mechanical is working on". */
+  teammatesLabel?: string;
+  /** Short name for a user id — live chips and note authors. */
+  shortNameFor?: (userId: string) => string;
+  /** Select the resume suggestion as soon as it arrives, if nothing is selected yet. */
+  preselectResume?: boolean;
+  /** Rendered above the search — the check-in sheet's hours-type chips. */
+  header?: React.ReactNode;
+  /** No task list at all (an hours type that doesn't take a task); shows this note instead. */
+  hideTasksNote?: string;
+  /** Builds the confirm label from the selected task's title, e.g. "Start on Elevator rigging". */
+  confirmLabelFor?: (selectedTitle: string | null) => string;
+  /** Let confirm go through with nothing selected — check-in without a task. */
+  allowEmptyConfirm?: boolean;
+  /**
+   * A secondary way out shown as a small link under confirm — at check-in,
+   * "Check in without a task". Deliberately quieter than confirm: when the two
+   * were equal-sized buttons, students skipped and showed up as "no task".
+   * With it set, the dismiss action lives on the ✕ only.
+   */
+  skip?: { label: string; onClick: () => void };
+  /** Disable the buttons while the caller is working (e.g. creating the session). */
+  busy?: boolean;
 }
 
 /**
@@ -39,6 +68,8 @@ const TaskPickerModal: React.FC<Props> = ({
   title, subtitle, loading, assignedTasks, openTasks, generalTasks, userNameFor,
   selectedTaskId, selectedGeneralTaskId, confirmLabel, dismissLabel,
   allowClear = false, onDismiss, onConfirm,
+  suggestions, teammatesLabel, shortNameFor, preselectResume = false, header, hideTasksNote,
+  confirmLabelFor, allowEmptyConfirm = false, skip, busy = false,
 }) => {
   const [taskId, setTaskId] = useState<number | null>(selectedTaskId);
   const [generalTaskId, setGeneralTaskId] = useState<number | null>(selectedGeneralTaskId);
@@ -46,6 +77,16 @@ const TaskPickerModal: React.FC<Props> = ({
   const [board, setBoard] = useState('');
   // The task whose full details are open (the ⋯ button on a row).
   const [detailTask, setDetailTask] = useState<AvailableTask | null>(null);
+  // Suggestions first; the full list (search + board filter) is one tap away.
+  const [browsing, setBrowsing] = useState(false);
+
+  // The task list loads after the sheet opens, so the resume suggestion can
+  // arrive after mount — select it then, unless the student already chose.
+  const resumeId = suggestions?.resume?.id ?? null;
+  useEffect(() => {
+    if (preselectResume && resumeId !== null && taskId === null && generalTaskId === null) setTaskId(resumeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectResume, resumeId]);
 
   // A task can live on more than one board at once, mirroring the Kanban
   // view: a department board shows every task tagged with that department
@@ -93,6 +134,15 @@ const TaskPickerModal: React.FC<Props> = ({
 
   const empty = filtered.assigned.length === 0 && filtered.open.length === 0 && filtered.general.length === 0;
   const hasAnything = assignedTasks.length > 0 || openTasks.length > 0 || generalTasks.length > 0;
+  const hasSuggestions = !!suggestions && (
+    !!suggestions.resume || suggestions.mine.length > 0 || suggestions.teammates.length > 0 || suggestions.needsHands.length > 0
+  );
+  // Typing a search always searches everything — the groups are a shortcut, not a filter.
+  const showGroups = hasSuggestions && !browsing && !q;
+  const allTasks = [...assignedTasks, ...openTasks];
+  const selectedTitle = taskId !== null
+    ? allTasks.find(t => t.id === taskId)?.title ?? null
+    : generalTaskId !== null ? generalTasks.find(g => g.id === generalTaskId)?.name ?? null : null;
 
   const pickTask = (id: number) => {
     setTaskId(taskId === id ? null : id);
@@ -117,7 +167,7 @@ const TaskPickerModal: React.FC<Props> = ({
     };
   };
 
-  const TaskRow = ({ task, tone }: { task: AvailableTask; tone: 'blue' | 'orange' }) => {
+  const TaskRow = ({ task, tone, workers, note }: { task: AvailableTask; tone: 'blue' | 'orange'; workers?: string[]; note?: HandoffNote }) => {
     const selected = taskId === task.id;
     const ring = tone === 'blue'
       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
@@ -166,6 +216,22 @@ const TaskPickerModal: React.FC<Props> = ({
               )}
               {task.helpRequested && <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400"><HelpCircle size={10} /> Help wanted</span>}
             </div>
+          )}
+          {workers && workers.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              {workers.map(id => (
+                <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-[8px] font-black uppercase tracking-wide">
+                  <span className="w-1 h-1 rounded-full bg-green-500" />
+                  {shortNameFor ? shortNameFor(id) : 'Member'}
+                </span>
+              ))}
+            </div>
+          )}
+          {note && (
+            <p className="mt-1.5 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-[10px] italic text-slate-700 dark:text-slate-200 line-clamp-3 whitespace-pre-line break-words">
+              "{note.note}"
+              <span className="not-italic font-bold text-slate-400 dark:text-slate-500"> · {shortNameFor ? shortNameFor(note.userId) : 'Member'}</span>
+            </p>
           )}
           {selected && (
             <div className={`mt-1.5 flex items-center gap-1 ${tone === 'blue' ? 'text-blue-600' : 'text-orange-600'}`}>
@@ -300,7 +366,9 @@ const TaskPickerModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {!detailTask && hasAnything && !loading && (
+        {!detailTask && header && <div className="px-5 pb-3">{header}</div>}
+
+        {!detailTask && !hideTasksNote && hasAnything && !loading && (
           <div className="px-5 pb-3 space-y-2">
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -312,7 +380,7 @@ const TaskPickerModal: React.FC<Props> = ({
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-xl outline-none focus:border-teamColor dark:text-white font-bold text-xs"
               />
             </div>
-            {boardCount > 1 && (
+            {boardCount > 1 && !showGroups && (
               <select
                 value={board}
                 onChange={e => setBoard(e.target.value)}
@@ -341,12 +409,52 @@ const TaskPickerModal: React.FC<Props> = ({
 
         {detailTask ? (
           <TaskDetails task={detailTask} />
+        ) : hideTasksNote ? (
+          <p className="flex-1 px-5 py-6 text-center text-xs font-bold text-slate-500 dark:text-slate-400">{hideTasksNote}</p>
         ) : loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={28} className="animate-spin text-teamColor" />
           </div>
+        ) : showGroups && suggestions ? (
+          <div className="flex-1 overflow-auto px-5 space-y-4">
+            {suggestions.resume && (
+              <SuggestionGroup icon={<History size={10} />} label="Pick up where you left off">
+                <TaskRow task={suggestions.resume} tone="blue" workers={suggestions.workersByTask.get(suggestions.resume.id)} note={suggestions.latestNote.get(suggestions.resume.id)} />
+              </SuggestionGroup>
+            )}
+            {suggestions.mine.length > 0 && (
+              <SuggestionGroup icon={<Briefcase size={10} />} label="Your tasks">
+                {suggestions.mine.map(t => <TaskRow key={t.id} task={t} tone="blue" workers={suggestions.workersByTask.get(t.id)} note={suggestions.latestNote.get(t.id)} />)}
+              </SuggestionGroup>
+            )}
+            {suggestions.teammates.length > 0 && (
+              <SuggestionGroup icon={<Users size={10} />} label={teammatesLabel || 'Your department is working on'}>
+                {suggestions.teammates.map(t => <TaskRow key={t.id} task={t} tone="orange" workers={suggestions.workersByTask.get(t.id)} note={suggestions.latestNote.get(t.id)} />)}
+              </SuggestionGroup>
+            )}
+            {suggestions.needsHands.length > 0 && (
+              <SuggestionGroup icon={<HandHelping size={10} />} label="Needs hands">
+                {suggestions.needsHands.map(t => <TaskRow key={t.id} task={t} tone="orange" note={suggestions.latestNote.get(t.id)} />)}
+              </SuggestionGroup>
+            )}
+            <button
+              onClick={() => setBrowsing(true)}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            >
+              Browse all {allTasks.length} tasks{boards.projects.length > 1 ? ` on ${boards.projects.length} boards` : ''}{generalTasks.length > 0 ? ' + general tasks' : ''}
+              <ChevronRight size={14} />
+            </button>
+          </div>
         ) : (
           <div className="flex-1 overflow-auto px-5 space-y-4">
+            {hasSuggestions && browsing && !q && (
+              <button
+                onClick={() => setBrowsing(false)}
+                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <ArrowLeft size={12} /> Suggestions
+              </button>
+            )}
             {filtered.assigned.length > 0 && (
               <div>
                 <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
@@ -423,6 +531,25 @@ const TaskPickerModal: React.FC<Props> = ({
             </button>
           </div>
         ) : (
+        skip ? (
+          <div className="p-5 pt-4 flex flex-col items-stretch gap-1.5">
+            <button
+              onClick={() => onConfirm(taskId, generalTaskId)}
+              disabled={busy || (!allowEmptyConfirm && taskId === null && generalTaskId === null)}
+              className="w-full py-3.5 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              <span className="truncate">{confirmLabelFor ? confirmLabelFor(selectedTitle) : confirmLabel}</span>
+            </button>
+            <button
+              onClick={skip.onClick}
+              disabled={busy}
+              className="py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              {skip.label}
+            </button>
+          </div>
+        ) : (
         <div className="p-5 pt-4 flex gap-2.5">
           {allowClear && (
             <button
@@ -441,16 +568,26 @@ const TaskPickerModal: React.FC<Props> = ({
           </button>
           <button
             onClick={() => onConfirm(taskId, generalTaskId)}
-            disabled={taskId === null && generalTaskId === null}
+            disabled={busy || (!allowEmptyConfirm && taskId === null && generalTaskId === null)}
             className="flex-1 py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none"
           >
-            <Check size={14} /> {confirmLabel}
+            <Check size={14} /> {confirmLabelFor ? confirmLabelFor(selectedTitle) : confirmLabel}
           </button>
         </div>
-        )}
+        ))}
       </div>
     </div>
   );
 };
+
+/** One labelled group in the suggestions view. */
+const SuggestionGroup: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode }> = ({ icon, label, children }) => (
+  <div>
+    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+      {icon} {label}
+    </p>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
 
 export default TaskPickerModal;
