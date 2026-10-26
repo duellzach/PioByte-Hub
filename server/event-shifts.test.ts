@@ -39,6 +39,7 @@ try {
   (pool as any).options.options = `-c search_path=${schema}`;
   await storage.ensureSchemaMigrationsTable();
   await storage.ensureSignupShiftsTable();
+  await storage.ensureCalendarEventAuditTable();
 
   // 1 = Coach (cap-exempt), 10..13 = students.
   await db.insert(users).values([1, 10, 11, 12, 13].map(id => ({ id, username: `fixture_${id}`, name: `Fixture ${id}`, password: "not-a-login-hash", roles: id === 1 ? ["Coach"] : ["Team Member"] })));

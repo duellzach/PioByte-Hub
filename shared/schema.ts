@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 import type { TemplateField } from "./scoutingTemplates";
 
@@ -593,8 +593,29 @@ export const calendarEvents = pgTable("calendar_events", {
   comments: jsonb("comments").$type<{ id: string; userId: number; text: string; timestamp: number }[]>().notNull().default([]),
 });
 
+// Who created/edited/archived/deleted which calendar event, modeled on
+// time_entry_audit. Unlike that table, event_id deliberately has no FK:
+// a delete removes the calendar_events row, and the history (with the
+// deleted event's snapshot in previous_values) has to outlive it. actor_id
+// is SET NULL rather than CASCADE for the same reason.
+export const calendarEventAudit = pgTable("calendar_event_audit", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull(),
+  actorId: integer("actor_id").references(() => users.id, { onDelete: "set null" }),
+  actionType: text("action_type").notNull(),
+  previousValues: jsonb("previous_values").$type<Record<string, any>>(),
+  newValues: jsonb("new_values").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (t) => ({
+  // Created by storage.ensureCalendarEventAuditTable under the same name;
+  // declared here so `schema:push` never proposes dropping it.
+  eventIdx: index("calendar_event_audit_event_id_idx").on(t.eventId),
+}));
+
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
+export type CalendarEventAudit = typeof calendarEventAudit.$inferSelect;
+export type InsertCalendarEventAudit = typeof calendarEventAudit.$inferInsert;
 
 // A time block within a signup-enabled event that students sign up for
 // individually (e.g. a long competition day split into morning/afternoon

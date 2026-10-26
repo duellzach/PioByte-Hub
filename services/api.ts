@@ -443,6 +443,10 @@ export const api = {
       apiRequest<any>(`/calendar/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, requesterId }) }),
     delete: (id: number, requesterId: number) =>
       apiRequest<void>(`/calendar/${id}?requesterId=${requesterId}`, { method: 'DELETE' }),
+    // Change history (create/update/archive/delete/…), newest first. Omit
+    // eventId for team-wide. Coaches, Captains and Department Heads only.
+    audit: (eventId?: number) =>
+      apiRequest<any[]>(eventId != null ? `/calendar/audit?eventId=${eventId}` : '/calendar/audit'),
     patchDeletedDates: (id: number, requesterId: number, deletedDates: string[]) =>
       apiRequest<any>(`/calendar/${id}/deleted-dates`, { method: 'PATCH', body: JSON.stringify({ requesterId, deletedDates }) }),
     addComment: (id: number, text: string) =>

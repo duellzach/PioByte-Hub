@@ -29,6 +29,12 @@ export async function ensurePreTrafficSchema(): Promise<void> {
   } catch (e) {
     console.error("Event shifts migration failed — shift signup routes will error until this is fixed:", e);
   }
+  // Calendar create/edit/archive/delete write an audit row on every call.
+  try {
+    await storage.ensureCalendarEventAuditTable();
+  } catch (e) {
+    console.error("Calendar event audit table migration failed — calendar changes won't be logged until this is fixed:", e);
+  }
   // Same reason: the Social page's routes query these tables unconditionally.
   try {
     await ensureSocialTables();

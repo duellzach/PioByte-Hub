@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
-import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, eventSignupShifts, fundraisingEntries, seasons, scoutingTemplates, requirementChecklistItems, userChecklistCompletions } from "../shared/schema";
+import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, calendarEventAudit, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, eventSignupShifts, fundraisingEntries, seasons, scoutingTemplates, requirementChecklistItems, userChecklistCompletions } from "../shared/schema";
 import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
 import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
@@ -32,7 +32,7 @@ function fillScoutData<T extends Record<string, any>>(kind: ScoutKind, row: T): 
   if (row.data && typeof row.data === "object" && Object.keys(row.data).length > 0) return row;
   return { ...row, data: dataFromLegacyRow(kind, row) };
 }
-import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, EventShift, InsertEventShift, EventSignupShift, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
+import type { User, InsertUser, Project, InsertProject, Task, InsertTask, Notification, InsertNotification, Announcement, InsertAnnouncement, GeneralTask, InsertGeneralTask, TimeEntry, InsertTimeEntry, TimeEntryAudit, InsertTimeEntryAudit, TimeEntryTaskSegment, ScoutEvent, InsertScoutEvent, PitScout, InsertPitScout, MatchScout, InsertMatchScout, CompetitionAssignment, InsertCompetitionAssignment, EventInfo, InsertEventInfo, CompetitionCheckin, InsertCompetitionCheckin, CompetitionCheckinAudit, InsertCompetitionCheckinAudit, FullscreenAlert, InsertFullscreenAlert, TeamClaim, Certification, InsertCertification, UserCertification, CertificationRequest, TrainerScope, InsertTrainerScope, BadgeDefinition, InsertBadgeDefinition, UserBadge, InsertUserBadge, CalendarEvent, InsertCalendarEvent, CalendarEventAudit, InsertCalendarEventAudit, Resource, InsertResource, MatchException, TeamSettings, InsertTeamSettings, GuestToken, RecurringTaskTemplate, InsertRecurringTaskTemplate, EventSignup, InsertEventSignup, EventShift, InsertEventShift, EventSignupShift, FundraisingEntry, InsertFundraisingEntry } from "../shared/schema";
 import { eq, desc, and, or, isNull, lt, inArray, sql } from "drizzle-orm";
 import { HOUR_CATEGORIES } from "../shared/hourCategories";
 import { isCapExemptRoles } from "../shared/roles";
@@ -278,6 +278,9 @@ export interface IStorage {
   createCalendarEvent(data: InsertCalendarEvent): Promise<CalendarEvent>;
   updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: number): Promise<void>;
+  getCalendarEventAudit(eventId?: number, limit?: number): Promise<CalendarEventAudit[]>;
+  createCalendarEventAudit(audit: InsertCalendarEventAudit): Promise<CalendarEventAudit>;
+  ensureCalendarEventAuditTable(): Promise<void>;
   patchCalendarEventDeletedDates(id: number, deletedDates: string[]): Promise<CalendarEvent | undefined>;
   ensureCalendarCommentsColumn(): Promise<void>;
   ensureRecurrenceDaysColumn(): Promise<void>;
@@ -1815,6 +1818,34 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  /** Newest first; one event's history when eventId is given, else the whole team's. */
+  async getCalendarEventAudit(eventId?: number, limit = 200): Promise<CalendarEventAudit[]> {
+    return db.select().from(calendarEventAudit)
+      .where(eventId !== undefined ? eq(calendarEventAudit.eventId, eventId) : undefined)
+      .orderBy(desc(calendarEventAudit.createdAt), desc(calendarEventAudit.id))
+      .limit(limit);
+  }
+
+  async createCalendarEventAudit(audit: InsertCalendarEventAudit): Promise<CalendarEventAudit> {
+    const [row] = await db.insert(calendarEventAudit).values(audit).returning();
+    return row;
+  }
+
+  async ensureCalendarEventAuditTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS calendar_event_audit (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER NOT NULL,
+        actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action_type TEXT NOT NULL,
+        previous_values JSONB,
+        new_values JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS calendar_event_audit_event_id_idx ON calendar_event_audit (event_id)`);
   }
 
   async ensureCalendarCommentsColumn(): Promise<void> {

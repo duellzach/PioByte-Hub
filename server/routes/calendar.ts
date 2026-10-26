@@ -7,6 +7,40 @@ import { getCapExemptRoleNames } from "./eventSignups";
 
 const router = Router();
 
+// Fields that aren't the event's own settings: comments have their own
+// routes and history, and these never change after creation.
+const AUDIT_IGNORED = new Set(["id", "createdAt", "createdBy", "comments"]);
+
+/** The fields that differ between two versions of an event, before and after. */
+function diffEvent(before: Record<string, any>, after: Record<string, any>) {
+  const previousValues: Record<string, any> = {};
+  const newValues: Record<string, any> = {};
+  for (const key of Object.keys(after)) {
+    if (AUDIT_IGNORED.has(key)) continue;
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      previousValues[key] = before[key] ?? null;
+      newValues[key] = after[key] ?? null;
+    }
+  }
+  return { previousValues, newValues };
+}
+
+function snapshot(event: Record<string, any>) {
+  const { comments, ...rest } = event;
+  return rest;
+}
+
+// Record a calendar change in calendar_event_audit. The change itself has
+// already been made by the time this runs, so a failed write is logged here
+// rather than turned into a 500 that would make the caller retry it.
+async function auditEvent(eventId: number, actorId: number | undefined, actionType: string, previousValues?: Record<string, any> | null, newValues?: Record<string, any> | null) {
+  try {
+    await storage.createCalendarEventAudit({ eventId, actorId: actorId ?? null, actionType, previousValues: previousValues ?? null, newValues: newValues ?? null });
+  } catch (e) {
+    console.error(`Failed to write calendar audit (${actionType} event ${eventId}):`, e);
+  }
+}
+
 router.get("/calendar", async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
@@ -28,6 +62,25 @@ router.get("/calendar", async (req, res) => {
   }
 });
 
+// Calendar change history, newest first: ?eventId=N for one event (still
+// works after it's deleted), otherwise the most recent changes team-wide.
+// Limited to the same roles that can make the changes.
+router.get("/calendar/audit", async (req, res) => {
+  try {
+    const roles = req.userRoles || (await getUserRoles(req.userId));
+    if (!hasAnyRole(roles, COACH_CAPTAIN_DEPT_HEAD)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    const eventId = req.query.eventId ? parseInt(req.query.eventId as string) : undefined;
+    if (eventId !== undefined && Number.isNaN(eventId)) return res.status(400).json({ error: "eventId must be a number" });
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 200, 1), 1000);
+    res.json(await storage.getCalendarEventAudit(eventId, limit));
+  } catch (error) {
+    console.error("Error fetching calendar audit:", error);
+    res.status(500).json({ error: "Failed to fetch calendar audit" });
+  }
+});
+
 router.patch("/calendar/:id/archive", async (req, res) => {
   try {
     const roles = await getUserRoles(req.userId);
@@ -36,8 +89,12 @@ router.patch("/calendar/:id/archive", async (req, res) => {
     }
     const id = parseInt(req.params.id);
     const { archived } = req.body;
+    const before = await storage.getCalendarEvent(id);
     const event = await storage.updateCalendarEvent(id, { archived: !!archived });
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (before?.archived !== event.archived) {
+      await auditEvent(id, req.userId, event.archived ? "archive" : "unarchive", { archived: !!before?.archived }, { archived: event.archived });
+    }
     res.json(event);
   } catch (error) {
     console.error("Error archiving event:", error);
@@ -126,6 +183,7 @@ router.post("/calendar", async (req, res) => {
     if (data.signupEnabled) {
       await applyShifts(event.id, shifts);
     }
+    await auditEvent(event.id, parseInt(requesterId), "create", null, snapshot(event));
     res.status(201).json(event);
   } catch (error) {
     console.error("Error creating calendar event:", error);
@@ -142,8 +200,13 @@ router.put("/calendar/:id", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can edit calendar events" });
     }
+    const before = await storage.getCalendarEvent(id);
     const event = await storage.updateCalendarEvent(id, data);
     if (!event) return res.status(404).json({ error: "Calendar event not found" });
+    if (before) {
+      const { previousValues, newValues } = diffEvent(before, event);
+      await auditEvent(id, parseInt(requesterId), "update", previousValues, newValues);
+    }
     if (event.inviteOnly) {
       await applyInvites(event.id, event.title, invitees, parseInt(requesterId));
     }
@@ -166,7 +229,11 @@ router.delete("/calendar/:id", async (req, res) => {
     if (!hasAnyRole(actorRoles, COACH_CAPTAIN_DEPT_HEAD)) {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can delete calendar events" });
     }
+    const before = await storage.getCalendarEvent(id);
     await storage.deleteCalendarEvent(id);
+    // The snapshot is the only copy of the event left after this, so the
+    // history can still say what was deleted.
+    if (before) await auditEvent(id, requesterId, "delete", snapshot(before), null);
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting calendar event:", error);
@@ -255,8 +322,12 @@ router.patch("/calendar/:id/deleted-dates", async (req, res) => {
       return res.status(403).json({ error: "Only Coaches, Captains, or Department Heads can modify calendar events" });
     }
     if (!Array.isArray(deletedDates)) return res.status(400).json({ error: "deletedDates must be an array" });
+    const before = await storage.getCalendarEvent(id);
     const event = await storage.patchCalendarEventDeletedDates(id, deletedDates);
     if (!event) return res.status(404).json({ error: "Calendar event not found" });
+    if (before?.deletedDates !== event.deletedDates) {
+      await auditEvent(id, parseInt(requesterId), "delete_dates", { deletedDates: before?.deletedDates ?? null }, { deletedDates: event.deletedDates });
+    }
     res.json(event);
   } catch (error) {
     console.error("Error patching deleted dates:", error);
@@ -319,6 +390,7 @@ router.post("/calendar/tba-import", async (req, res) => {
         signupEnabled: true,
         createdBy: parseInt(requesterId),
       });
+      await auditEvent(row.id, parseInt(requesterId), "import", null, { ...snapshot(row), source: "tba" });
       created.push(row);
     }
     res.json({ created: created.length, skipped });
@@ -390,6 +462,7 @@ router.post("/calendar/toa-import", async (req, res) => {
         signupEnabled: true,
         createdBy: parseInt(requesterId),
       });
+      await auditEvent(row.id, parseInt(requesterId), "import", null, { ...snapshot(row), source: "toa" });
       created.push(row);
     }
     res.json({ created: created.length, skipped });

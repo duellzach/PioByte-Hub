@@ -29,6 +29,7 @@ async function reset() {
       pit_scouts,
       scout_events,
       fullscreen_alerts,
+      calendar_event_audit,
       calendar_events,
       resources,
       user_badges,
