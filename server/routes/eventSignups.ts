@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { EventMemberAddError, storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
 import { localDatePT, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
@@ -13,11 +13,17 @@ import { and, eq } from "drizzle-orm";
 import type { EventSignup } from "../../shared/schema";
 import { AttendanceError, startCompetitionSession, changeCompetitionSession, competitionRosterSession } from "../services/competitionSessions";
 
-// Kept for roster-management gating (accept/decline/check-in/check-out),
-// which is a narrower privilege than "can see invite-only events" — see
-// LEADERSHIP_ALL (server/helpers.ts) for the visibility-level set.
-const LEADERSHIP = ["Coach", "Team Captain", "SCRUM Master"];
+// Roster management must match the coach-manager roles shown by the calendar,
+// including Department Heads, so users never see actions the API rejects.
+const LEADERSHIP = ["Coach", "Team Captain", "Department Head", "SCRUM Master"];
 const CLOCKABLE_TYPES: readonly string[] = EVENT_HOUR_CATEGORIES;
+
+function positiveInteger(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 /**
  * After a calendar event check-in or check-out, create or update the
@@ -270,6 +276,32 @@ router.get("/calendar/:id/signups", async (req, res) => {
   } catch (error) {
     console.error("Error fetching signups:", error);
     res.status(500).json({ error: "Failed to fetch roster" });
+  }
+});
+
+// Calendar managers can add an active member directly to the accepted roster.
+// This is deliberately distinct from check-in: it does not start attendance.
+router.post("/calendar/:id/manual-signup", requireRoles("Coach", "Team Captain", "Department Head"), async (req, res) => {
+  try {
+    const eventId = positiveInteger(req.params.id);
+    const userId = positiveInteger(req.body?.userId);
+    if (!eventId || !userId) return res.status(400).json({ error: "Choose a valid event and team member" });
+
+    let shiftId: number | undefined;
+    if (req.body?.shiftId !== undefined && req.body.shiftId !== null) {
+      const parsedShiftId = positiveInteger(req.body.shiftId);
+      if (!parsedShiftId) return res.status(400).json({ error: "Choose a valid shift" });
+      shiftId = parsedShiftId;
+    }
+
+    const result = await storage.addEventMemberToRoster(eventId, userId, req.userId!, shiftId);
+    return res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof EventMemberAddError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error("Error adding member to event roster:", error);
+    return res.status(500).json({ error: "Failed to add member to the event roster" });
   }
 });
 

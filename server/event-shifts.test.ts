@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import express from "express";
 import cookieParser from "cookie-parser";
+import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
-import { calendarEvents, eventShifts, eventSignups, users, teamSettings } from "../shared/schema";
+import { calendarEvents, eventShifts, eventSignups, users, teamSettings, timeEntries } from "../shared/schema";
 import eventRouter from "./routes/eventSignups";
 import calendarRouter from "./routes/calendar";
 import { authenticate } from "./middleware/auth";
@@ -41,10 +42,21 @@ try {
   await storage.ensureSignupShiftsTable();
   await storage.ensureCalendarEventAuditTable();
 
-  // 1 = Coach (cap-exempt), 10..13 = students.
-  await db.insert(users).values([1, 10, 11, 12, 13].map(id => ({ id, username: `fixture_${id}`, name: `Fixture ${id}`, password: "not-a-login-hash", roles: id === 1 ? ["Coach"] : ["Team Member"] })));
+  // 1 = Coach (cap-exempt), 2 = Department Head, 10..17 = students.
+  await db.insert(users).values([1, 2, 10, 11, 12, 13, 14, 15, 16, 17].map(id => ({
+    id, username: `fixture_${id}`, name: `Fixture ${id}`, password: "not-a-login-hash",
+    roles: id === 1 ? ["Coach"] : id === 2 ? ["Department Head"] : ["Team Member"],
+    ...(id === 17 ? { archived: true } : {}),
+  })));
   await db.insert(teamSettings).values({ id: 1, timezone: "America/Los_Angeles", roles: [{ name: "Coach", excludeFromCaps: true }, { name: "Team Member" }] } as any);
-  await db.insert(calendarEvents).values({ id: 500, title: "Outreach day", startDate: "2099-01-01", type: "outreach", signupEnabled: true, createdBy: 1 } as any);
+  await storage.ensureInviteOnlyEvents();
+  await db.insert(calendarEvents).values([
+    { id: 500, title: "Outreach shifts", startDate: "2099-01-01", type: "outreach", signupEnabled: true, createdBy: 1 },
+    { id: 501, title: "Open outreach", startDate: "2099-01-02", type: "outreach", signupEnabled: true, createdBy: 1 },
+    { id: 502, title: "Private outreach", startDate: "2099-01-03", type: "outreach", signupEnabled: true, inviteOnly: true, createdBy: 1 },
+    { id: 503, title: "No roster", startDate: "2099-01-04", type: "outreach", signupEnabled: false, createdBy: 1 },
+    { id: 504, title: "Archived outreach", startDate: "2099-01-05", type: "outreach", signupEnabled: true, archived: true, createdBy: 1 },
+  ] as any);
   await db.insert(eventShifts).values([
     { id: 1, calendarEventId: 500, title: "Morning", startTime: "08:00", endTime: "12:00", capacity: 1 },
     { id: 2, calendarEventId: 500, title: "Afternoon", startTime: "12:00", endTime: "16:00", capacity: null },
@@ -56,7 +68,8 @@ try {
   await new Promise<void>(resolve => server!.once("listening", resolve));
   const port = (server.address() as any).port;
   async function request(path: string, method = "GET", body?: unknown, as = 1) {
-    const cookie = `${SESSION_COOKIE}=${signSession({ kind: "member", userId: as, roles: as === 1 ? ["Coach"] : ["Team Member"] })}`;
+    const roles = as === 1 ? ["Coach"] : as === 2 ? ["Department Head"] : ["Team Member"];
+    const cookie = `${SESSION_COOKIE}=${signSession({ kind: "member", userId: as, roles })}`;
     const result = await fetch(`http://127.0.0.1:${port}/api${path}`, { method, headers: { "Content-Type": "application/json", Cookie: cookie }, ...(body ? { body: JSON.stringify(body) } : {}) });
     return { status: result.status, body: result.status === 204 ? null : await result.json() };
   }
@@ -118,6 +131,48 @@ try {
   // Upcoming card reports each held shift.
   const upcoming = (await request("/me/upcoming", "GET", undefined, 10)).body.find((e: any) => e.id === 500);
   check(upcoming.myShifts.length, 3, "upcoming lists every shift the person holds");
+
+  // Coach-managed direct additions are accepted roster rows, never check-ins.
+  const direct = await request("/calendar/501/manual-signup", "POST", { userId: 14 });
+  check(direct.status, 201, "coach directly adds a member to an open-event roster");
+  check(direct.body.signup.status, "accepted", "direct roster additions are accepted");
+  check(direct.body.signup.approvedBy, 1, "the manager is recorded as approver");
+  check(direct.body.signup.checkedInAt, null, "direct roster addition does not check the person in");
+  check(direct.body.signup.checkedOutAt, null, "direct roster addition creates no check-out");
+  check(direct.body.signup.checkedInBy, null, "no attendance actor is recorded");
+  check((await db.select().from(timeEntries).where(eq(timeEntries.calendarEventId, 501))).length, 0, "direct roster addition creates no hours entry");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: 14 })).status, 409, "duplicate direct roster additions are rejected");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: 14 }, 10)).status, 403, "regular members cannot add attendees");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: 999 })).status, 404, "missing users are rejected");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: 17 })).status, 404, "archived users are rejected");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: "14nope" })).status, 400, "malformed user IDs are rejected");
+  check((await request("/calendar/503/manual-signup", "POST", { userId: 15 })).status, 400, "events without sign-ups reject roster additions");
+  check((await request("/calendar/504/manual-signup", "POST", { userId: 15 })).status, 409, "archived events reject roster additions");
+  check((await request("/calendar/not-an-id/manual-signup", "POST", { userId: 15 })).status, 400, "malformed event IDs are rejected");
+  check((await request("/calendar/501/manual-signup", "POST", { userId: 16 }, 2)).status, 201, "department-head roster managers can add members");
+  check((await request("/calendar/501/signups", "GET", undefined, 2)).body.map((row: any) => row.userId).sort(), [14, 16], "department-head managers can see the full roster they manage");
+
+  // Invite-only direct additions keep access after a student withdraws.
+  const privateAdd = await request("/calendar/502/manual-signup", "POST", { userId: 14 });
+  check(privateAdd.status, 201, "coach directly adds a member to a private event");
+  check(privateAdd.body.signup.status, "accepted", "private direct addition is accepted");
+  check(privateAdd.body.signup.invitedAt != null, true, "private direct addition records invite access");
+  const privateRoster = await request("/calendar/502/signups", "GET", undefined, 14);
+  check(privateRoster.body.map((row: any) => row.userId), [14], "the newly added member can access the private event roster");
+  check((await request("/calendar/502/signup", "DELETE", undefined, 14)).status, 204, "the added member can later withdraw");
+  const afterWithdrawal = await request("/calendar/502/signups", "GET", undefined, 14);
+  check(afterWithdrawal.body[0].status, "invited", "withdrawal retains the private-event invitation");
+  check(afterWithdrawal.body[0].checkedInAt, null, "withdrawal did not create attendance");
+
+  // Shift event additions require a valid shift and are accepted without a check-in.
+  check((await request("/calendar/500/manual-signup", "POST", { userId: 15 })).status, 400, "shift event requires a selected shift");
+  check((await request("/calendar/500/manual-signup", "POST", { userId: 15, shiftId: 999 })).status, 400, "invalid event shifts are rejected");
+  const shiftAdd = await request("/calendar/500/manual-signup", "POST", { userId: 15, shiftId: 2 });
+  check(shiftAdd.status, 201, "coach directly adds a member to a selected shift");
+  check(shiftAdd.body.signup.status, "accepted", "shift roster addition is accepted");
+  check(shiftAdd.body.shiftSignup.status, "accepted", "the selected shift is accepted");
+  check(shiftAdd.body.signup.checkedInAt, null, "shift roster addition does not check the member in");
+  check((await myRow(15)).shifts.map((s: any) => [s.shiftId, s.status]), [[2, "accepted"]], "only the chosen shift is assigned");
 
   // Legacy single-shift sign-ups (event_signups.shift_id) are backfilled once.
   const [legacy] = await db.insert(eventSignups).values({ calendarEventId: 500, userId: 13, status: "accepted", shiftId: 2 } as any).returning();

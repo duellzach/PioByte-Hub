@@ -54,6 +54,9 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [addMemberSearch, setAddMemberSearch] = useState('');
+  const [addMemberBusy, setAddMemberBusy] = useState<number | null>(null);
+  const [addShiftId, setAddShiftId] = useState<number | null>(null);
   const [walkinSearch, setWalkinSearch] = useState('');
   const [walkinBusy, setWalkinBusy] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
@@ -95,6 +98,25 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   const setStatus = async (signupId: number, status: string) => {
     await api.events.setSignupStatus(signupId, status).catch(() => {});
     await load();
+  };
+
+  const addMemberToRoster = async (userId: number) => {
+    if (addMemberBusy !== null) return;
+    if (shifts.length > 0 && !shifts.some((shift) => shift.id === addShiftId)) {
+      setAttendanceError('Select a shift before adding this member');
+      return;
+    }
+    setAddMemberBusy(userId);
+    setAttendanceError('');
+    try {
+      await api.events.addMemberToRoster(eventId, userId, addShiftId ?? undefined);
+      setAddMemberSearch('');
+      await load();
+    } catch (error: any) {
+      setAttendanceError(error.message || 'Could not add member to the roster');
+    } finally {
+      setAddMemberBusy(null);
+    }
   };
 
   const doCheckin = async (userId: number) => {
@@ -146,6 +168,14 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
   };
 
   const rosterUserIds = new Set(roster.map((s) => s.userId));
+  const addQuery = addMemberSearch.trim().toLowerCase();
+  const addMemberCandidates = addQuery.length > 1
+    ? allUsers.filter((u) =>
+        !rosterUserIds.has(u.id) &&
+        `${u.name || ''} ${u.username || ''}`.toLowerCase().includes(addQuery),
+      ).slice(0, 6)
+    : [];
+  const selectedAddShiftId = shifts.some((shift) => shift.id === addShiftId) ? addShiftId : null;
   const walkinCandidates = walkinSearch.trim().length > 1
     ? allUsers.filter((u) => !u.archived && !rosterUserIds.has(u.id) && u.name.toLowerCase().includes(walkinSearch.toLowerCase()))
     : [];
@@ -221,6 +251,57 @@ const EventRosterModal: React.FC<Props> = ({ eventId, eventTitle, eventStartDate
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
+          {!loading && tab === 'roster' && isCoach && (
+            <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Add member to roster</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Added as accepted, not checked in.</p>
+              </div>
+              {shifts.length > 0 && (
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                  Shift
+                  <select
+                    aria-label="Shift for new roster member"
+                    value={selectedAddShiftId ?? ''}
+                    onChange={(e) => setAddShiftId(e.target.value ? Number(e.target.value) : null)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="" disabled>Select a shift</option>
+                    {shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.title} · {shift.startTime}–{shift.endTime}</option>)}
+                  </select>
+                </label>
+              )}
+              <input
+                type="search"
+                value={addMemberSearch}
+                onChange={(e) => setAddMemberSearch(e.target.value)}
+                placeholder="Search active team members…"
+                aria-label="Search active team members to add to the roster"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
+              />
+              {addQuery.length > 1 && (
+                addMemberCandidates.length > 0 ? (
+                  <div className="space-y-1">
+                    {addMemberCandidates.map((u: any) => (
+                      <div key={u.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5">
+                        <p className="min-w-0 truncate text-sm font-bold text-slate-900 dark:text-white">{u.name}</p>
+                        <button
+                          type="button"
+                          disabled={addMemberBusy !== null || (shifts.length > 0 && selectedAddShiftId === null)}
+                          onClick={() => addMemberToRoster(u.id)}
+                          className="shrink-0 rounded-lg bg-teamColor px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white hover:opacity-90 disabled:opacity-40"
+                        >
+                          {addMemberBusy === u.id ? <Loader2 size={12} className="animate-spin" /> : 'Add'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-[10px] text-slate-500 dark:text-slate-400">No matching members not already on the roster.</p>
+                )
+              )}
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center py-8 text-slate-400"><Loader2 className="animate-spin" size={22} /></div>
           ) : tab === 'roster' ? (

@@ -52,6 +52,11 @@ import {
  *  department rename/removal intent doesn't reconcile against what's actually
  *  stored — the route layer maps this to a 400 instead of a 500. */
 export class DepartmentChangeError extends Error {}
+export class EventMemberAddError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
 
 // --- Recurring-task date helpers (team-local, matching the app's date convention) ---
 // No cache import here (server/services/teamTime.ts imports `storage`, so the
@@ -2607,6 +2612,69 @@ export class DatabaseStorage implements IStorage {
   async getEventSignupById(id: number): Promise<EventSignup | undefined> {
     const [row] = await db.select().from(eventSignups).where(eq(eventSignups.id, id));
     return row;
+  }
+  /** Coach-managed roster addition. Creates an accepted signup without clocking anyone in. */
+  async addEventMemberToRoster(
+    calendarEventId: number,
+    userId: number,
+    actorId: number,
+    shiftId?: number,
+  ): Promise<{ signup: EventSignup; shiftSignup?: EventSignupShift }> {
+    return db.transaction(async (tx) => {
+      const [event] = await tx.select().from(calendarEvents)
+        .where(eq(calendarEvents.id, calendarEventId)).for("share");
+      if (!event) throw new EventMemberAddError("Event not found", 404);
+      if (event.archived) throw new EventMemberAddError("Archived events cannot accept roster additions", 409);
+      if (!event.signupEnabled) throw new EventMemberAddError("Roster sign-ups are not enabled for this event", 400);
+
+      const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+      if (!user || user.archived) throw new EventMemberAddError("Active team member not found", 404);
+
+      const eventShiftsForEvent = await tx.select().from(eventShifts)
+        .where(eq(eventShifts.calendarEventId, calendarEventId));
+      let selectedShift: EventShift | undefined;
+      if (eventShiftsForEvent.length > 0) {
+        if (shiftId == null) throw new EventMemberAddError("Select a shift for this event", 400);
+        selectedShift = eventShiftsForEvent.find((shift) => shift.id === shiftId);
+        if (!selectedShift) throw new EventMemberAddError("Select a valid shift for this event", 400);
+      } else if (shiftId != null) {
+        throw new EventMemberAddError("This event has no shifts to assign", 400);
+      }
+
+      const [existing] = await tx.select().from(eventSignups)
+        .where(and(
+          eq(eventSignups.calendarEventId, calendarEventId),
+          eq(eventSignups.userId, userId),
+        ));
+      if (existing) throw new EventMemberAddError("This member is already on the event roster", 409);
+
+      const now = new Date();
+      const [signup] = await tx.insert(eventSignups).values({
+        calendarEventId,
+        userId,
+        status: "accepted",
+        approvedBy: actorId,
+        approvedAt: now,
+        // A direct addition to a private event must retain visibility if the
+        // member later withdraws their accepted signup.
+        ...(event.inviteOnly ? { invitedBy: actorId, invitedAt: now } : {}),
+      }).onConflictDoNothing({
+        target: [eventSignups.calendarEventId, eventSignups.userId],
+      }).returning();
+      if (!signup) throw new EventMemberAddError("This member is already on the event roster", 409);
+
+      let shiftSignup: EventSignupShift | undefined;
+      if (selectedShift) {
+        [shiftSignup] = await tx.insert(eventSignupShifts).values({
+          signupId: signup.id,
+          shiftId: selectedShift.id,
+          status: "accepted",
+          approvedBy: actorId,
+          approvedAt: now,
+        }).returning();
+      }
+      return { signup, ...(shiftSignup ? { shiftSignup } : {}) };
+    });
   }
   /**
    * Accepted sign-ups that count toward an event's capacity. `excludeRoles`

@@ -180,6 +180,8 @@ export const api = {
     setSignupStatus: (signupId: number, status: string) => apiRequest<any>(`/signups/${signupId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     setSignupShiftStatus: (signupShiftId: number, status: string) => apiRequest<any>(`/signup-shifts/${signupShiftId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     addSignupShift: (signupId: number, shiftId: number) => apiRequest<any>(`/signups/${signupId}/shifts`, { method: 'POST', body: JSON.stringify({ shiftId }) }),
+    addMemberToRoster: (eventId: number, userId: number, shiftId?: number) =>
+      apiRequest<any>(`/calendar/${eventId}/manual-signup`, { method: 'POST', body: JSON.stringify({ userId, shiftId }) }),
     removeSignupShift: (signupShiftId: number) => apiRequest<void>(`/signup-shifts/${signupShiftId}`, { method: 'DELETE' }),
     myUpcoming: () => apiRequest<any[]>('/me/upcoming'),
     clockableEvents: () => apiRequest<any[]>('/me/clockable-events'),
