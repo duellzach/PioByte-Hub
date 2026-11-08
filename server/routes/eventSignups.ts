@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { EventMemberAddError, storage } from "../storage";
 import { requireRoles } from "../middleware/auth";
+import { sendPushToUsers } from "../push";
 import { localDatePT, eventOccursOn } from "../../utils/dates";
 import { EVENT_HOUR_CATEGORIES } from "../../shared/hourCategories";
 import { roundToQuarterHour, hasAnyRole, LEADERSHIP_ALL } from "../helpers";
@@ -295,6 +296,26 @@ router.post("/calendar/:id/manual-signup", requireRoles("Coach", "Team Captain",
     }
 
     const result = await storage.addEventMemberToRoster(eventId, userId, req.userId!, shiftId);
+    const [event, shift] = await Promise.all([
+      storage.getCalendarEvent(eventId),
+      result.shiftSignup ? storage.getEventShift(result.shiftSignup.shiftId) : Promise.resolve(undefined),
+    ]);
+    if (event) {
+      const shiftDetails = shift ? ` Shift: ${shift.title} (${shift.startTime}–${shift.endTime}).` : "";
+      const message = `[event:${eventId}] You've been added to "${event.title}".${shiftDetails}`;
+      await storage.createNotification({
+        toUserId: userId,
+        fromUserId: req.userId!,
+        message,
+      }).catch((error) => console.error("createNotification (roster addition):", error));
+      const actor = await storage.getUser(req.userId!).catch(() => null);
+      sendPushToUsers([userId], {
+        title: actor?.name ? `${actor.name} • PioByte Hub` : "PioByte Hub",
+        body: message.replace(/^\[event:\d+\]\s*/, ""),
+        url: `/#/calendar?event=${eventId}`,
+        tag: `event-roster-${eventId}-${userId}`,
+      }).catch((error) => console.error("sendPushToUsers (roster addition):", error));
+    }
     return res.status(201).json(result);
   } catch (error) {
     if (error instanceof EventMemberAddError) {

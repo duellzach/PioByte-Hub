@@ -10,7 +10,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
-import { calendarEvents, eventShifts, eventSignups, users, teamSettings, timeEntries } from "../shared/schema";
+import { calendarEvents, eventShifts, eventSignups, notifications, users, teamSettings, timeEntries } from "../shared/schema";
 import eventRouter from "./routes/eventSignups";
 import calendarRouter from "./routes/calendar";
 import { authenticate } from "./middleware/auth";
@@ -24,7 +24,7 @@ const admin = await pool.connect();
 let server: ReturnType<express.Express["listen"]> | undefined;
 let assertions = 0;
 function check(actual: unknown, expected: unknown, label: string) { assert.deepEqual(actual, expected, label); assertions++; }
-const tables = ["users", "calendar_events", "event_shifts", "event_signups", "time_entries", "team_settings"];
+const tables = ["users", "calendar_events", "event_shifts", "event_signups", "notifications", "push_subscriptions", "time_entries", "team_settings"];
 
 try {
   await admin.query(`CREATE SCHEMA "${schema}"`);
@@ -141,6 +141,8 @@ try {
   check(direct.body.signup.checkedOutAt, null, "direct roster addition creates no check-out");
   check(direct.body.signup.checkedInBy, null, "no attendance actor is recorded");
   check((await db.select().from(timeEntries).where(eq(timeEntries.calendarEventId, 501))).length, 0, "direct roster addition creates no hours entry");
+  const directNotification = (await db.select().from(notifications)).find(n => n.toUserId === 14);
+  check(directNotification?.message, '[event:501] You\'ve been added to "Open outreach".', "direct roster addition notifies the member and links to the event");
   check((await request("/calendar/501/manual-signup", "POST", { userId: 14 })).status, 409, "duplicate direct roster additions are rejected");
   check((await request("/calendar/501/manual-signup", "POST", { userId: 14 }, 10)).status, 403, "regular members cannot add attendees");
   check((await request("/calendar/501/manual-signup", "POST", { userId: 999 })).status, 404, "missing users are rejected");
@@ -173,6 +175,8 @@ try {
   check(shiftAdd.body.shiftSignup.status, "accepted", "the selected shift is accepted");
   check(shiftAdd.body.signup.checkedInAt, null, "shift roster addition does not check the member in");
   check((await myRow(15)).shifts.map((s: any) => [s.shiftId, s.status]), [[2, "accepted"]], "only the chosen shift is assigned");
+  const shiftNotification = (await db.select().from(notifications)).find(n => n.toUserId === 15);
+  check(shiftNotification?.message, '[event:500] You\'ve been added to "Outreach shifts". Shift: Afternoon (12:00–16:00).', "shift roster notification includes shift title and hours");
 
   // Legacy single-shift sign-ups (event_signups.shift_id) are backfilled once.
   const [legacy] = await db.insert(eventSignups).values({ calendarEventId: 500, userId: 13, status: "accepted", shiftId: 2 } as any).returning();
