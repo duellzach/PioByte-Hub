@@ -15,6 +15,7 @@ import {
   validateTemplateFields,
   keyFromLabel,
   BUILTIN_TEMPLATES,
+  removeDuplicatePitPhotoFromData,
   type ScoutKind,
   type TemplateField,
 } from "../shared/scoutingTemplates";
@@ -80,6 +81,21 @@ test("pit: legacy columns reproduced from data", () => {
   for (const key of Object.keys(cols)) {
     assert.deepEqual(cols[key], PIT_ROW[key], `pit column ${key} mismatch`);
   }
+});
+
+test("pit: a photo duplicated in the legacy column is removed from JSON data", () => {
+  const photoUrl = "data:image/jpeg;base64,compressed-image";
+  const result = removeDuplicatePitPhotoFromData({ teamNumber: 10991, photoUrl, notes: "robot" }, photoUrl);
+  assert.deepEqual(result, { teamNumber: 10991, notes: "robot" });
+});
+
+test("pit: nonmatching custom photo data is preserved", () => {
+  const dataPhoto = "data:image/jpeg;base64,custom-field";
+  const result = removeDuplicatePitPhotoFromData(
+    { teamNumber: 10991, photoUrl: dataPhoto },
+    "data:image/jpeg;base64,legacy-column",
+  );
+  assert.deepEqual(result, { teamNumber: 10991, photoUrl: dataPhoto });
 });
 
 test("match: data blob captures every non-meta column (incl. remapped keys)", () => {

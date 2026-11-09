@@ -86,6 +86,15 @@ export const MEDIA_URL_TTL_SEC = 2 * 60 * 60;
 /** Instagram's rolling publish cap per account. */
 export const IG_PUBLISHES_PER_24H = 25;
 
+/** Time until the worker's next post check or daily maintenance. */
+export function nextSocialWorkerDelayMs(
+  nextAttemptInMs: number | null,
+  maintenanceInMs: number,
+): number {
+  const nextPostDelay = nextAttemptInMs === null ? Infinity : nextAttemptInMs + 50;
+  return Math.max(500, Math.min(nextPostDelay, maintenanceInMs, 2_147_000_000));
+}
+
 /** Retry delay after the Nth failed attempt (1-based): 30s, 1m, 2m, 4m… capped at 15m. */
 export function retryDelayMs(attempt: number): number {
   return Math.min(30_000 * 2 ** Math.max(0, attempt - 1), 15 * 60 * 1000);

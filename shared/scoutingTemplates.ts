@@ -182,6 +182,17 @@ export function legacyColumnsFromData(kind: ScoutKind, data: Record<string, any>
   return cols;
 }
 
+/** Keep a pit photo in its legacy column, not twice in the JSON data blob. */
+export function removeDuplicatePitPhotoFromData(
+  data: Record<string, any>,
+  photoUrl: unknown,
+): Record<string, any> {
+  if (!data || typeof photoUrl !== 'string' || !photoUrl || data.photoUrl !== photoUrl) return data;
+  const normalized = { ...data };
+  delete normalized.photoUrl;
+  return normalized;
+}
+
 export { MATCH_COLUMN_TO_LEGACY_KEY };
 
 // ---------------------------------------------------------------------------

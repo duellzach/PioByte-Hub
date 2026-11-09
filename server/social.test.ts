@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
-  canTransition, countHashtags, pollDelayMs, retryDelayMs, rollupPostStatus, validatePost,
+  canTransition, countHashtags, nextSocialWorkerDelayMs, pollDelayMs, retryDelayMs, rollupPostStatus, validatePost,
   type MediaInfo, type PostStatus,
 } from "../shared/social";
 import { decryptToken, encryptToken } from "./social/tokens";
@@ -105,6 +105,19 @@ test("file type and size limits", () => {
 });
 
 console.log("timing");
+test("idle publisher waits for daily maintenance instead of polling", () => {
+  const daily = 24 * 60 * 60 * 1000;
+  assert.equal(nextSocialWorkerDelayMs(null, daily), daily);
+});
+test("publisher wakes shortly after the next scheduled attempt", () => {
+  assert.equal(nextSocialWorkerDelayMs(5_000, 24 * 60 * 60 * 1000), 5_050);
+});
+test("overdue publishing work gets a short safe delay", () => {
+  assert.equal(nextSocialWorkerDelayMs(-1_000, 24 * 60 * 60 * 1000), 500);
+});
+test("far-future wake times stay within Node's timer limit", () => {
+  assert.equal(nextSocialWorkerDelayMs(null, 3_000_000_000), 2_147_000_000);
+});
 test("retry backoff doubles and caps", () => {
   assert.equal(retryDelayMs(1), 30_000);
   assert.equal(retryDelayMs(2), 60_000);

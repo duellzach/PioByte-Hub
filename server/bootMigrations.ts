@@ -106,6 +106,12 @@ export async function runBootMigrations(): Promise<void> {
     console.warn("Scouting seasons migration skipped:", e);
   }
   try {
+    const updated = await storage.deduplicatePitScoutPhotoData();
+    if (updated > 0) console.log(`Removed duplicate pit-scout photo data from ${updated} records.`);
+  } catch (e) {
+    console.warn("Pit-scout photo deduplication skipped:", e);
+  }
+  try {
     await storage.backfillNexusEventKeys();
   } catch (e) {
     console.warn("Nexus key backfill skipped:", e);

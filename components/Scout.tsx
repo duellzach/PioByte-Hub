@@ -881,9 +881,10 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     if (isGuest) return;
     if (!pitForm.teamNumber || !activeEvent) return;
     try {
-      // Send the form as an explicit `data` blob so custom-template fields are
-      // stored verbatim; the server dual-writes the built-in legacy columns.
-      const payload = { data: { ...pitForm }, scoutedBy: parseInt(currentUser.id), templateId: activePitTemplate?.id };
+      // Keep custom-template fields in `data`, while the robot photo is stored
+      // only in the dedicated legacy column.
+      const { photoUrl, ...data } = pitForm;
+      const payload = { photoUrl: photoUrl || '', data, scoutedBy: parseInt(currentUser.id), templateId: activePitTemplate?.id };
       if (editingPit) {
         await api.scout.updatePitScout(editingPit.id, payload);
       } else {
@@ -990,7 +991,11 @@ const Scout: React.FC<ScoutProps> = ({ currentUser }) => {
     setSelectedRobot(null);
     setEditingPit(pit);
     if (isCustomTemplate(activePitTemplate, 'pit')) {
-      setPitForm({ ...defaultFormFromTemplate(activePitTemplate), ...(pit.data || {}) });
+      setPitForm({
+        ...defaultFormFromTemplate(activePitTemplate),
+        ...(pit.data || {}),
+        photoUrl: pit.photoUrl || pit.data?.photoUrl || '',
+      });
       setShowPitForm(true);
       return;
     }

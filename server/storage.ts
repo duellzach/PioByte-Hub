@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { db } from "./db";
 import { hashPassword } from "./security";
 import { users, projects, tasks, notifications, announcements, generalTasks, timeEntries, timeEntryAudit, timeEntryTaskSegments, scoutEvents, pitScouts, matchScouts, competitionAssignments, eventInfo, competitionCheckins, competitionCheckinAudit, fullscreenAlerts, teamClaims, certifications, userCertifications, certificationRequests, trainerScopes, badgeDefinitions, userBadges, calendarEvents, calendarEventAudit, resources, matchExceptions, teamSettings, guestTokens, calendarFeedTokens, recurringTaskTemplates, eventSignups, eventShifts, eventSignupShifts, fundraisingEntries, seasons, scoutingTemplates, requirementChecklistItems, userChecklistCompletions } from "../shared/schema";
-import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, type ScoutKind } from "../shared/scoutingTemplates";
+import { BUILTIN_TEMPLATES, dataFromLegacyRow, legacyColumnsFromData, removeDuplicatePitPhotoFromData, type ScoutKind } from "../shared/scoutingTemplates";
 import { sameDepartment, newlyEarnedLevelBadges, normalizeLevel, MAX_LEVEL, type EarnedLevelBadge } from "../shared/certifications";
 
 /**
@@ -22,6 +22,9 @@ function normalizeScoutWrite(kind: ScoutKind, values: Record<string, any>): Reco
   } else {
     const derived = dataFromLegacyRow(kind, v);
     if (Object.keys(derived).length > 0) v.data = derived;
+  }
+  if (kind === "pit" && v.data && typeof v.data === "object") {
+    v.data = removeDuplicatePitPhotoFromData(v.data, v.photoUrl);
   }
   return v;
 }
@@ -860,6 +863,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteScoutEvent(id: number): Promise<void> {
     await db.delete(scoutEvents).where(eq(scoutEvents.id, id));
+  }
+
+  async deduplicatePitScoutPhotoData(): Promise<number> {
+    return db.transaction(async (tx) => {
+      if (!(await this.claimMigrationTx(tx, "deduplicate-pit-scout-photo-data-v1"))) return 0;
+      const result: any = await tx.execute(sql`
+        UPDATE pit_scouts
+        SET data = data - 'photoUrl'
+        WHERE data ? 'photoUrl'
+          AND photo_url IS NOT NULL
+          AND photo_url <> ''
+          AND data->>'photoUrl' = photo_url
+        RETURNING id
+      `);
+      return result.rows?.length ?? 0;
+    });
   }
 
   async getPitScouts(eventId: number): Promise<PitScout[]> {

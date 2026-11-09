@@ -10,7 +10,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
-import { calendarEvents, eventShifts, eventSignups, notifications, users, teamSettings, timeEntries } from "../shared/schema";
+import { calendarEvents, eventShifts, eventSignups, notifications, pitScouts, users, teamSettings, timeEntries } from "../shared/schema";
 import eventRouter from "./routes/eventSignups";
 import calendarRouter from "./routes/calendar";
 import { authenticate } from "./middleware/auth";
@@ -24,7 +24,7 @@ const admin = await pool.connect();
 let server: ReturnType<express.Express["listen"]> | undefined;
 let assertions = 0;
 function check(actual: unknown, expected: unknown, label: string) { assert.deepEqual(actual, expected, label); assertions++; }
-const tables = ["users", "calendar_events", "event_shifts", "event_signups", "notifications", "push_subscriptions", "time_entries", "team_settings"];
+const tables = ["users", "calendar_events", "event_shifts", "event_signups", "notifications", "pit_scouts", "push_subscriptions", "time_entries", "team_settings"];
 
 try {
   await admin.query(`CREATE SCHEMA "${schema}"`);
@@ -49,6 +49,17 @@ try {
     ...(id === 17 ? { archived: true } : {}),
   })));
   await db.insert(teamSettings).values({ id: 1, timezone: "America/Los_Angeles", roles: [{ name: "Coach", excludeFromCaps: true }, { name: "Team Member" }] } as any);
+  const duplicatePhoto = "data:image/jpeg;base64,test-photo";
+  await db.insert(pitScouts).values([
+    { eventId: 1, teamNumber: 9001, scoutedBy: 10, photoUrl: duplicatePhoto, data: { teamNumber: 9001, photoUrl: duplicatePhoto, notes: "keep" } },
+    { eventId: 1, teamNumber: 9002, scoutedBy: 10, photoUrl: "data:image/jpeg;base64,legacy", data: { teamNumber: 9002, photoUrl: "data:image/jpeg;base64,custom" } },
+  ] as any);
+  check(await storage.deduplicatePitScoutPhotoData(), 1, "one-time migration removes only exact duplicate photo data");
+  const deduplicatedScout = (await db.select().from(pitScouts).where(eq(pitScouts.teamNumber, 9001)))[0];
+  check(deduplicatedScout.photoUrl, duplicatePhoto, "the legacy photo column keeps the image");
+  check(deduplicatedScout.data, { teamNumber: 9001, notes: "keep" }, "the scouting data keeps all non-photo fields");
+  check((await db.select().from(pitScouts).where(eq(pitScouts.teamNumber, 9002)))[0].data.photoUrl, "data:image/jpeg;base64,custom", "different custom photo values are preserved");
+  check(await storage.deduplicatePitScoutPhotoData(), 0, "photo cleanup migration runs only once");
   await storage.ensureInviteOnlyEvents();
   await db.insert(calendarEvents).values([
     { id: 500, title: "Outreach shifts", startDate: "2099-01-01", type: "outreach", signupEnabled: true, createdBy: 1 },

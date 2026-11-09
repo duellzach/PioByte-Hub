@@ -151,6 +151,7 @@ export async function createPost(authorId: number, input: PostInput, submit: boo
 
 export async function updatePost(actorId: number, id: number, input: PostInput, submit: boolean): Promise<void> {
   let submittedNow = false;
+  let queueChanged = false;
   await db.transaction(async (tx) => {
     const post = await lockPost(tx, id);
     if (post.authorId !== actorId) throw new SocialError(403, "Only the author can edit this post.");
@@ -168,6 +169,7 @@ export async function updatePost(actorId: number, id: number, input: PostInput, 
     if (post.status === "approved") {
       // Any change to an approved post needs a coach to look again.
       await clearQueuedTargets(tx, id);
+      queueChanged = true;
       await setStatus(tx, updated, "submitted", { approvedBy: null, approvedAt: null });
       await addEvent(id, actorId, "edited_after_approval", null, tx);
       submittedNow = true;
@@ -183,6 +185,7 @@ export async function updatePost(actorId: number, id: number, input: PostInput, 
       }
     }
   });
+  if (queueChanged) import("./worker").then((w) => w.pokeWorker()).catch(() => {});
   if (submittedNow) await notifyCoachesOfSubmission(id, actorId);
 }
 
@@ -254,6 +257,7 @@ export async function sendBackPost(coachId: number, id: number, comment: string)
     authorId = post.authorId;
     caption = post.caption;
   });
+  import("./worker").then((w) => w.pokeWorker()).catch(() => {});
   await notify([authorId], coachId, `A coach asked for changes to ${snippet({ caption })}: ${text}`, { link: { tab: "mine", postId: id } });
 }
 
@@ -266,6 +270,7 @@ export async function unschedulePost(coachId: number, id: number): Promise<void>
     await setStatus(tx, post, "submitted", { approvedBy: null, approvedAt: null });
     await addEvent(id, coachId, "unscheduled", null, tx);
   });
+  import("./worker").then((w) => w.pokeWorker()).catch(() => {});
 }
 
 export async function cancelPost(actorId: number, isCoach: boolean, id: number): Promise<void> {
@@ -277,6 +282,7 @@ export async function cancelPost(actorId: number, isCoach: boolean, id: number):
     await setStatus(tx, post, "canceled");
     await addEvent(id, actorId, "canceled", null, tx);
   });
+  import("./worker").then((w) => w.pokeWorker()).catch(() => {});
 }
 
 /** Re-queue a failed platform (e.g. after reconnecting the account). */

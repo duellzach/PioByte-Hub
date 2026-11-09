@@ -1,7 +1,7 @@
 /**
- * The publisher. A ticker (every 30s, plus a poke after approve/retry) claims
- * due platform targets and advances each by ONE step, persisting state between
- * steps so a restart resumes where it left off:
+ * The publisher. One-shot wakeups claim due platform targets and advance each
+ * by ONE step, persisting state between steps so a restart resumes where it
+ * left off:
  *
  *   Instagram  queued → creating_container (poll children → carousel parent →
  *              poll) → publishing → published
@@ -22,7 +22,7 @@ import { db } from "../db";
 import { socialAccounts, socialPosts, socialTargets, type SocialMediaItem, type SocialPost, type SocialTarget } from "../../shared/schema";
 import {
   CLAIM_LEASE_MS, CONTAINER_TIMEOUT_MS, IG_PUBLISHES_PER_24H, MAX_PUBLISH_ATTEMPTS, MEDIA_URL_TTL_SEC,
-  pollDelayMs, retryDelayMs, rollupPostStatus, type TargetStatus,
+  nextSocialWorkerDelayMs, pollDelayMs, retryDelayMs, rollupPostStatus, type TargetStatus,
 } from "../../shared/social";
 import { GraphError } from "./graph";
 import { decryptToken } from "./tokens";
@@ -32,8 +32,9 @@ import { addEvent, coachIds, markNeedsReconnect, mediaForPost, orphanedMedia } f
 import { notify } from "./service";
 import * as meta from "./publish";
 
-const TICK_MS = 30_000;
 const MAX_STEPS_PER_TICK = 20;
+const DAILY_MAINTENANCE_MS = 24 * 60 * 60 * 1000;
+const DB_RETRY_MS = 30_000;
 
 interface Containers {
   children?: string[];
@@ -44,23 +45,35 @@ interface Containers {
 
 let running = false;
 let again = false;
-let timer: ReturnType<typeof setInterval> | null = null;
+let started = false;
+let wake: ReturnType<typeof setTimeout> | null = null;
+let wakeGeneration = 0;
 let lastDaily = 0;
 
 export function startSocialWorker(): void {
-  if (timer) return;
-  timer = setInterval(() => void tick(), TICK_MS);
+  if (started) return;
+  started = true;
   void tick();
 }
 
-/** Run a tick soon (after an approve or retry) instead of waiting up to 30s. */
+/** Re-check the queue after a change instead of waiting for its next timer. */
 export function pokeWorker(): void {
-  setTimeout(() => void tick(), 250);
+  wakeGeneration++;
+  scheduleWake(250);
+}
+
+function scheduleWake(delayMs: number): void {
+  if (wake) clearTimeout(wake);
+  wake = setTimeout(() => {
+    wake = null;
+    void tick();
+  }, delayMs);
 }
 
 export async function tick(): Promise<void> {
   if (running) { again = true; return; }
   running = true;
+  let failed = false;
   try {
     for (let i = 0; i < MAX_STEPS_PER_TICK; i++) {
       const claimed = await claimNext();
@@ -72,26 +85,36 @@ export async function tick(): Promise<void> {
       await dailyMaintenance().catch((e) => console.warn("Social daily maintenance failed:", e));
     }
   } catch (e) {
+    failed = true;
     console.error("Social worker tick failed:", e);
   } finally {
     running = false;
     if (again) { again = false; pokeWorker(); }
+    else if (failed) scheduleWake(DB_RETRY_MS);
     else await scheduleNextWake().catch(() => {});
   }
 }
 
-let wake: ReturnType<typeof setTimeout> | null = null;
-
-/** The 30s ticker is only a floor: when a step is due sooner (an Instagram
- *  poll 5s out), wake up for it so the backoff in shared/social.ts is real. */
+/** Sleep until a queued target is due, or until daily maintenance is due. */
 async function scheduleNextWake(): Promise<void> {
-  const res: any = await db.execute(sql`
-    SELECT extract(epoch FROM (min(greatest(coalesce(next_attempt_at, now()), coalesce(locked_until, now()))) - now())) * 1000 AS ms
-    FROM social_targets WHERE status IN ('queued', 'creating_container', 'publishing')`);
-  const ms = res.rows?.[0]?.ms;
-  if (ms === null || ms === undefined || Number(ms) >= TICK_MS) return;
-  if (wake) clearTimeout(wake);
-  wake = setTimeout(() => { wake = null; void tick(); }, Math.max(500, Number(ms) + 50));
+  const generation = wakeGeneration;
+  let nextAttemptInMs: number | null;
+  try {
+    const res: any = await db.execute(sql`
+      SELECT extract(epoch FROM (min(greatest(coalesce(next_attempt_at, now()), coalesce(locked_until, now()))) - now())) * 1000 AS ms
+      FROM social_targets WHERE status IN ('queued', 'creating_container', 'publishing')`);
+    const ms = res.rows?.[0]?.ms;
+    nextAttemptInMs = ms === null || ms === undefined ? null : Number(ms);
+  } catch (error) {
+    if (generation !== wakeGeneration) return;
+    console.warn("Social worker couldn't schedule its next check; retrying shortly:", error);
+    scheduleWake(DB_RETRY_MS);
+    return;
+  }
+  if (generation !== wakeGeneration) return;
+  const maintenanceInMs = lastDaily + DAILY_MAINTENANCE_MS - Date.now();
+  const delay = nextSocialWorkerDelayMs(nextAttemptInMs, maintenanceInMs);
+  scheduleWake(delay);
 }
 
 // ---- Claiming ---------------------------------------------------------------------
